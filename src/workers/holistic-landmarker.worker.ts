@@ -58,21 +58,23 @@ class HolisticLandmarkerWorker extends BaseWorker<HolisticLandmarker> {
     const { type, ...rest } = data;
 
     if (type === 'DETECT_IMAGE' && this.taskInstance) {
+      const startTimeMs = performance.now();
       const result = this.taskInstance.detect(rest.bitmap);
       self.postMessage({
         type: 'DETECT_RESULT',
         result,
         mode: 'IMAGE',
-        inferenceTime: performance.now() - rest.timestampMs
+        inferenceTime: performance.now() - startTimeMs
       });
     } else if (type === 'DETECT_VIDEO' && this.taskInstance) {
       try {
+        const startTimeMs = performance.now();
         const result = this.taskInstance.detectForVideo(rest.bitmap, rest.timestampMs);
         self.postMessage({
           type: 'DETECT_RESULT',
           result,
           mode: 'VIDEO',
-          inferenceTime: performance.now() - rest.timestampMs
+          inferenceTime: performance.now() - startTimeMs
         });
       } catch (e) {
         console.warn("Video detection error", e);

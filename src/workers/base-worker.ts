@@ -34,6 +34,7 @@ if (typeof (self as any).custom_dbg === 'undefined') {
   };
 }
 
+
 export abstract class BaseWorker<T> {
   protected taskInstance: T | undefined;
   protected isInitializing = false;

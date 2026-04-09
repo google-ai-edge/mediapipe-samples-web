@@ -3,19 +3,9 @@
     <div class="section-title">Model Selection</div>
     <div id="model-selector-container"></div>
 <div class="divider"></div>
-
 <div class="section-title">Settings</div>
-<div class="control-group">
-  <div class="control-label">
-    <span>Delegate</span>
-  </div>
-  <div class="select-wrapper">
-    <select id="delegate-select">
-      <option value="GPU">GPU</option>
-      <option value="CPU">CPU</option>
-    </select>
-      </div>
-      </div>
+
+
 
     <div class="control-group">
       <div class="control-label">
@@ -48,6 +38,19 @@
       </div>
       <input type="range" id="min-tracking-confidence" min="0" max="1" value="0.5" step="0.05" class="range-slider">
       </div>
+
+<div class="control-group">
+  <div class="control-label">
+    <span>Delegate</span>
+  </div>
+  <div class="select-wrapper">
+    <select id="delegate-select">
+      <option value="GPU">GPU</option>
+      <option value="CPU">CPU</option>
+    </select>
+      </div>
+      </div>
+
     <div class="status-group">
         <div id="status-message" class="status-message">Initializing...</div>
         <div id="inference-time" class="inference-time">Inference Time: 0ms</div>
