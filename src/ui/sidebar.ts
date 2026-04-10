@@ -33,9 +33,9 @@ export function renderSidebar(container: HTMLElement) {
         <li><a href="#/vision/holistic_landmarker" class="nav-button" data-task="holistic-landmarker">Holistic Landmarker</a></li>
         <li><a href="#/vision/image_classifier" class="nav-button" data-task="image-classifier">Image Classifier</a></li>
         <li><a href="#/vision/image_embedder" class="nav-button" data-task="image-embedder">Image Embedding</a></li>
-        <li><a href="#/vision/image_segmenter" class="nav-button" data-task="image-segmentation">Image Segmentation</a></li>
+        <li><a href="#/vision/image_segmenter" class="nav-button" data-task="image-segmenter">Image Segmentation</a></li>
         <li><a href="#/vision/interactive_segmenter" class="nav-button" data-task="interactive-segmenter">Interactive Segmenter</a></li>
-        <li><a href="#/vision/object_detector" class="nav-button" data-task="object-detection">Object Detection</a></li>
+        <li><a href="#/vision/object_detector" class="nav-button" data-task="object-detector">Object Detection</a></li>
         <li><a href="#/vision/pose_landmarker" class="nav-button" data-task="pose-landmarker">Pose Landmarker</a></li>
       </ul>
 
@@ -47,8 +47,8 @@ export function renderSidebar(container: HTMLElement) {
       <div class="category-header">Text</div>
       <ul>
         <li><a href="#/text/language_detector" class="nav-button" data-task="language-detector">Language Detection</a></li>
-        <li><a href="#/text/text_classifier" class="nav-button" data-task="text-classification">Text Classification</a></li>
-        <li><a href="#/text/text_embedder" class="nav-button" data-task="text-embedding">Text Embedding</a></li>
+        <li><a href="#/text/text_classifier" class="nav-button" data-task="text-classifier">Text Classification</a></li>
+        <li><a href="#/text/text_embedder" class="nav-button" data-task="text-embedder">Text Embedding</a></li>
       </ul>
     </nav>
   `;

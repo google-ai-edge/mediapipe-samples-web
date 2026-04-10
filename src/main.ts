@@ -15,11 +15,11 @@
  */
 
 import './app_clean.css';
-import { setupObjectDetection, cleanupObjectDetection } from './tasks/object-detection';
-import { setupImageSegmentation, cleanupImageSegmentation } from './tasks/image-segmentation';
+import { setupObjectDetector, cleanupObjectDetector } from './tasks/object-detector';
+import { setupImageSegmenter, cleanupImageSegmenter } from './tasks/image-segmenter';
 import { setupAudioClassifier, cleanupAudioClassifier } from './tasks/audio-classifier';
-import { setupTextClassification, cleanupTextClassification } from './tasks/text-classification';
-import { setupTextEmbedding, cleanupTextEmbedding } from './tasks/text-embedding';
+import { setupTextClassifier, cleanupTextClassifier } from './tasks/text-classifier';
+import { setupTextEmbedder, cleanupTextEmbedder } from './tasks/text-embedder';
 import { setupFaceDetector, cleanupFaceDetector } from './tasks/face-detector';
 import { setupFaceLandmarker, cleanupFaceLandmarker } from './tasks/face-landmarker';
 import { setupHandLandmarker, cleanupHandLandmarker } from './tasks/hand-landmarker';
@@ -75,8 +75,8 @@ const mainContent = app.querySelector('.main-content') as HTMLElement;
 // 4. Router Setup
 const routes = {
   '/vision/object_detector': {
-    setup: setupObjectDetection,
-    cleanup: cleanupObjectDetection,
+    setup: setupObjectDetector,
+    cleanup: cleanupObjectDetector,
     label: 'Object Detection',
   },
   '/vision/face_detector': { setup: setupFaceDetector, cleanup: cleanupFaceDetector, label: 'Face Detection' },
@@ -104,8 +104,8 @@ const routes = {
     label: 'Interactive Segmenter',
   },
   '/vision/image_segmenter': {
-    setup: setupImageSegmentation,
-    cleanup: cleanupImageSegmentation,
+    setup: setupImageSegmenter,
+    cleanup: cleanupImageSegmenter,
     label: 'Image Segmentation',
   },
   '/vision/image_embedder': { setup: setupImageEmbedder, cleanup: cleanupImageEmbedder, label: 'Image Embedding' },
@@ -115,8 +115,8 @@ const routes = {
     label: 'Audio Classifier',
   },
   '/text/text_classifier': {
-    setup: setupTextClassification,
-    cleanup: cleanupTextClassification,
+    setup: setupTextClassifier,
+    cleanup: cleanupTextClassifier,
     label: 'Text Classification',
   },
   '/text/language_detector': {
@@ -124,7 +124,7 @@ const routes = {
     cleanup: cleanupLanguageDetector,
     label: 'Language Detection',
   },
-  '/text/text_embedder': { setup: setupTextEmbedding, cleanup: cleanupTextEmbedding, label: 'Text Embedding' },
+  '/text/text_embedder': { setup: setupTextEmbedder, cleanup: cleanupTextEmbedder, label: 'Text Embedding' },
 };
 
 let currentCleanup: (() => void) | undefined;

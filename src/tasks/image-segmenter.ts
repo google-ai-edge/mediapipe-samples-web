@@ -17,7 +17,7 @@
 import { BaseVisionTask } from '../components/base-vision-task';
 
 // @ts-ignore
-import template from '../templates/image-segmentation.html?raw';
+import template from '../templates/image-segmenter.html?raw';
 // @ts-ignore
 
 // Definitions for Custom Drawing Output
@@ -55,7 +55,7 @@ const standardModels: Record<string, string> = {
     'https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_multiclass_256x256/float32/latest/selfie_multiclass_256x256.tflite',
 };
 
-class ImageSegmentationTask extends BaseVisionTask {
+class ImageSegmenterTask extends BaseVisionTask {
   private outputType: 'CATEGORY_MASK' | 'CONFIDENCE_MASKS' = 'CATEGORY_MASK';
   private labels: string[] = [];
   private confidenceMaskSelection = 0;
@@ -393,24 +393,24 @@ class ImageSegmentationTask extends BaseVisionTask {
   protected override displayVideoResult() {}
 }
 
-let activeTask: ImageSegmentationTask | null = null;
+let activeTask: ImageSegmenterTask | null = null;
 
-export async function setupImageSegmentation(container: HTMLElement) {
-  activeTask = new ImageSegmentationTask({
+export async function setupImageSegmenter(container: HTMLElement) {
+  activeTask = new ImageSegmenterTask({
     container,
     template,
     defaultModelName: 'deeplab_v3',
     defaultModelUrl:
       'https://storage.googleapis.com/mediapipe-models/image_segmenter/deeplab_v3/float32/1/deeplab_v3.tflite',
     workerFactory: () =>
-      new Worker(new URL('../workers/image-segmentation.worker.ts', import.meta.url), { type: 'module' }),
+      new Worker(new URL('../workers/image-segmenter.worker.ts', import.meta.url), { type: 'module' }),
     defaultDelegate: 'GPU',
   });
 
   await activeTask.initialize();
 }
 
-export function cleanupImageSegmentation() {
+export function cleanupImageSegmenter() {
   if (activeTask) {
     activeTask.cleanup();
     activeTask = null;

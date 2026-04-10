@@ -18,10 +18,10 @@ import { ObjectDetectorResult, DrawingUtils } from '@mediapipe/tasks-vision';
 import { BaseVisionTask } from '../components/base-vision-task';
 
 // @ts-ignore
-import template from '../templates/object-detection.html?raw';
+import template from '../templates/object-detector.html?raw';
 // @ts-ignore
 
-class ObjectDetectionTask extends BaseVisionTask {
+class ObjectDetectorTask extends BaseVisionTask {
   private scoreThreshold = 0.5;
   private maxResults = 3;
 
@@ -164,23 +164,23 @@ class ObjectDetectionTask extends BaseVisionTask {
 }
 
 // Singleton instance
-let activeTask: ObjectDetectionTask | null = null;
+let activeTask: ObjectDetectorTask | null = null;
 
-export async function setupObjectDetection(container: HTMLElement) {
-  activeTask = new ObjectDetectionTask({
+export async function setupObjectDetector(container: HTMLElement) {
+  activeTask = new ObjectDetectorTask({
     container,
     template,
     defaultModelName: 'efficientdet_lite0',
     defaultModelUrl:
       'https://storage.googleapis.com/mediapipe-models/object_detector/efficientdet_lite0/float32/1/efficientdet_lite0.tflite',
     workerFactory: () =>
-      new Worker(new URL('../workers/object-detection.worker.ts', import.meta.url), { type: 'module' }),
+      new Worker(new URL('../workers/object-detector.worker.ts', import.meta.url), { type: 'module' }),
   });
 
   await activeTask.initialize();
 }
 
-export function cleanupObjectDetection() {
+export function cleanupObjectDetector() {
   if (activeTask) {
     activeTask.cleanup();
     activeTask = null;

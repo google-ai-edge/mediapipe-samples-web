@@ -15,14 +15,14 @@
  */
 
 // @ts-ignore
-import template from '../templates/text-classification.html?raw';
+import template from '../templates/text-classifier.html?raw';
 
 import { BaseTextTask } from '../components/base-text-task';
 import { ClassificationResult, ClassificationItem } from '../components/classification-result';
 
 // @ts-ignore
 
-class TextClassificationTask extends BaseTextTask {
+class TextClassifierTask extends BaseTextTask {
   private classificationResultUI: ClassificationResult | undefined;
   private textInput!: HTMLTextAreaElement;
   private classifyBtn!: HTMLButtonElement;
@@ -156,24 +156,24 @@ class TextClassificationTask extends BaseTextTask {
   }
 }
 
-let activeTask: TextClassificationTask | null = null;
+let activeTask: TextClassifierTask | null = null;
 
-export async function setupTextClassification(container: HTMLElement) {
-  activeTask = new TextClassificationTask({
+export async function setupTextClassifier(container: HTMLElement) {
+  activeTask = new TextClassifierTask({
     container,
     template,
     defaultModelName: 'bert_classifier',
     defaultModelUrl:
       'https://storage.googleapis.com/mediapipe-models/text_classifier/bert_classifier/float32/1/bert_classifier.tflite',
     workerFactory: () =>
-      new Worker(new URL('../workers/text-classification.worker.ts', import.meta.url), { type: 'module' }),
+      new Worker(new URL('../workers/text-classifier.worker.ts', import.meta.url), { type: 'module' }),
     defaultDelegate: 'CPU',
   });
 
   await activeTask.initialize();
 }
 
-export function cleanupTextClassification() {
+export function cleanupTextClassifier() {
   if (activeTask) {
     activeTask.cleanup();
     activeTask = null;

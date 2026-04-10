@@ -15,13 +15,13 @@
  */
 
 // @ts-ignore
-import template from '../templates/text-embedding.html?raw';
+import template from '../templates/text-embedder.html?raw';
 
 import { BaseTextTask } from '../components/base-text-task';
 
 // @ts-ignore
 
-class TextEmbeddingTask extends BaseTextTask {
+class TextEmbedderTask extends BaseTextTask {
   private embedBtn!: HTMLButtonElement;
   private textInput1!: HTMLTextAreaElement;
   private textInput2!: HTMLTextAreaElement;
@@ -156,23 +156,23 @@ class TextEmbeddingTask extends BaseTextTask {
   }
 }
 
-let activeTask: TextEmbeddingTask | null = null;
+let activeTask: TextEmbedderTask | null = null;
 
-export async function setupTextEmbedding(container: HTMLElement) {
-  activeTask = new TextEmbeddingTask({
+export async function setupTextEmbedder(container: HTMLElement) {
+  activeTask = new TextEmbedderTask({
     container,
     template,
     defaultModelName: 'universal_sentence_encoder',
     defaultModelUrl:
       'https://storage.googleapis.com/mediapipe-models/text_embedder/universal_sentence_encoder/float32/1/universal_sentence_encoder.tflite',
-    workerFactory: () => new Worker(new URL('../workers/text-embedding.worker', import.meta.url), { type: 'module' }),
+    workerFactory: () => new Worker(new URL('../workers/text-embedder.worker.ts', import.meta.url), { type: 'module' }),
     defaultDelegate: 'CPU',
   });
 
   await activeTask.initialize();
 }
 
-export function cleanupTextEmbedding() {
+export function cleanupTextEmbedder() {
   if (activeTask) {
     activeTask.cleanup();
     activeTask = null;
