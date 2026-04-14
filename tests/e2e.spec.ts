@@ -28,15 +28,15 @@ test.describe('Navigation & UI', () => {
 
   test('should redirect to object detection by default', async ({ page }) => {
     await expect(page).toHaveURL(/.*#\/vision\/object_detector/);
-    await expect(page.locator('.sidebar-nav .active')).toContainText('Object Detection');
+    await expect(page.locator('.sidebar-nav .active')).toContainText('Object Detector');
   });
 
   test('should navigate between tasks', async ({ page }) => {
-    await page.click('a[data-task="image-segmentation"]');
+    await page.click('a[data-task="image-segmenter"]');
     await expect(page).toHaveURL(/.*#\/vision\/image_segmenter/);
     await expect(page.locator('h2')).toContainText('Image Segmentation');
 
-    await page.click('a[data-task="object-detection"]');
+    await page.click('a[data-task="object-detector"]');
     await expect(page).toHaveURL(/.*#\/vision\/object_detector/);
     await expect(page.locator('h2')).toContainText('Object Detection');
   });
