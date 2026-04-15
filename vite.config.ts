@@ -1,27 +1,9 @@
 import { defineConfig } from 'vite';
-import { viteStaticCopy } from 'vite-plugin-static-copy';
 
 export default defineConfig({
   base: '/mediapipe-samples-web/',
 
-  plugins: [
-    viteStaticCopy({
-      targets: [
-        {
-          src: 'node_modules/@mediapipe/tasks-vision/wasm/*',
-          dest: 'wasm'
-        },
-        {
-          src: 'node_modules/@mediapipe/tasks-audio/wasm/*',
-          dest: 'wasm'
-        },
-        {
-          src: 'node_modules/@mediapipe/tasks-text/wasm/*',
-          dest: 'wasm'
-        }
-      ]
-    })
-  ],
+  plugins: [],
   optimizeDeps: {
     exclude: [
       '@mediapipe/tasks-vision',

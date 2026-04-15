@@ -6,7 +6,9 @@
   "packageManager": "pnpm@9.0.0",
   "scripts": {
     "dev": "vite",
+    "predev": "node copy-wasm.js",
     "build": "tsc && vite build",
+    "prebuild": "node copy-wasm.js",
     "preview": "vite preview",
     "test": "playwright test --project=chromium-gpu",
     "format": "prettier --write \"src/**/*.{ts,html,css}\"",
@@ -26,8 +28,7 @@
     "lint-staged": "^16.4.0",
     "prettier": "^3.8.2",
     "typescript": "^5.2.2",
-    "vite": "^5.0.0",
-    "vite-plugin-static-copy": "^2.3.2"
+    "vite": "^5.0.0"
   },
   "lint-staged": {
     "src/**/*.{ts,html,css}": "prettier --write"
