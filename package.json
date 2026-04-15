@@ -18,15 +18,15 @@
     "@mediapipe/tasks-vision": "^0.10.34"
   },
   "devDependencies": {
-    "@playwright/test": "^1.58.2",
-    "@types/node": "^25.2.3",
-    "esbuild": "^0.25.0",
+    "@playwright/test": "^1.59.1",
+    "@types/node": "^25.6.0",
+    "esbuild": "^0.25.12",
     "eslint-plugin-html": "^8.1.4",
     "husky": "^9.1.7",
     "lint-staged": "^16.4.0",
-    "prettier": "^3.8.2",
-    "typescript": "^5.2.2",
-    "vite": "^5.0.0",
+    "prettier": "^3.8.3",
+    "typescript": "^5.9.3",
+    "vite": "^5.4.21",
     "vite-plugin-static-copy": "^2.3.2"
   },
   "lint-staged": {
