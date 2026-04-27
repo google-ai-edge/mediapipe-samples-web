@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-import { LanguageDetector, FilesetResolver } from '@mediapipe/tasks-text';
+import { LanguageDetector } from '@mediapipe/tasks-text';
 import { BaseWorker } from './base-worker';
 
 class LanguageDetectorWorker extends BaseWorker<LanguageDetector> {
-  protected async initializeTask(data: any): Promise<void> {
+  protected async initializeTask(): Promise<void> {
     const text = await this.getTextFileset();
     const modelBuffer = await this.loadModelAsset();
 

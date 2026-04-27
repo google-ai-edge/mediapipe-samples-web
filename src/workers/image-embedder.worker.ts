@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { ImageEmbedder, FilesetResolver, ImageEmbedderResult } from '@mediapipe/tasks-vision';
+import { ImageEmbedder, ImageEmbedderResult } from '@mediapipe/tasks-vision';
 import { BaseWorker } from './base-worker';
 
 class ImageEmbedderWorker extends BaseWorker<ImageEmbedder> {

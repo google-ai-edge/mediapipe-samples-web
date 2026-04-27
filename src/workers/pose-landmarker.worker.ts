@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { PoseLandmarker, FilesetResolver, PoseLandmarkerResult } from '@mediapipe/tasks-vision';
+import { PoseLandmarker, PoseLandmarkerResult } from '@mediapipe/tasks-vision';
 import { BaseWorker } from './base-worker';
 
 class PoseLandmarkerWorker extends BaseWorker<PoseLandmarker> {

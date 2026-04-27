@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { ImageClassifier, FilesetResolver, ImageClassifierResult } from '@mediapipe/tasks-vision';
+import { ImageClassifier, ImageClassifierResult } from '@mediapipe/tasks-vision';
 import { BaseWorker } from './base-worker';
 
 class ImageClassifierWorker extends BaseWorker<ImageClassifier> {

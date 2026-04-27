@@ -15,7 +15,7 @@
  */
 
 /// <reference types="vite/client" />
-import { InteractiveSegmenter, FilesetResolver, DrawingUtils, RGBAColor } from '@mediapipe/tasks-vision';
+import { InteractiveSegmenter, DrawingUtils, RGBAColor } from '@mediapipe/tasks-vision';
 import { BaseWorker } from './base-worker';
 
 class InteractiveSegmenterWorker extends BaseWorker<InteractiveSegmenter> {

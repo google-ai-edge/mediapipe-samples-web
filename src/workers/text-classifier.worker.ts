@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { TextClassifier, FilesetResolver } from '@mediapipe/tasks-text';
+import { TextClassifier } from '@mediapipe/tasks-text';
 import { BaseWorker } from './base-worker';
 
 class TextClassifierWorker extends BaseWorker<TextClassifier> {

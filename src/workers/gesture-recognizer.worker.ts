@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { GestureRecognizer, FilesetResolver, GestureRecognizerResult } from '@mediapipe/tasks-vision';
+import { GestureRecognizer, GestureRecognizerResult } from '@mediapipe/tasks-vision';
 
 import { BaseWorker } from './base-worker';
 

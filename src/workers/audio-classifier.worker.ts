@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { AudioClassifier, AudioClassifierResult, FilesetResolver } from '@mediapipe/tasks-audio';
+import { AudioClassifier, AudioClassifierResult } from '@mediapipe/tasks-audio';
 import { BaseWorker } from './base-worker';
 
 class AudioClassifierWorker extends BaseWorker<AudioClassifier> {

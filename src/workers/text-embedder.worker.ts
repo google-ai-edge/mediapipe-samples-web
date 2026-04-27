@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { TextEmbedder, FilesetResolver, TextEmbedderResult } from '@mediapipe/tasks-text';
+import { TextEmbedder, TextEmbedderResult } from '@mediapipe/tasks-text';
 import { BaseWorker } from './base-worker';
 
 class TextEmbedderWorker extends BaseWorker<TextEmbedder> {

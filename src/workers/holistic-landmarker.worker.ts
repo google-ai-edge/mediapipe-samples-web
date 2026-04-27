@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { HolisticLandmarker, FilesetResolver } from '@mediapipe/tasks-vision';
+import { HolisticLandmarker } from '@mediapipe/tasks-vision';
 import { BaseWorker } from './base-worker';
 
 class HolisticLandmarkerWorker extends BaseWorker<HolisticLandmarker> {

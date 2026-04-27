@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { FaceDetector, FilesetResolver, Detection } from '@mediapipe/tasks-vision';
+import { FaceDetector, Detection } from '@mediapipe/tasks-vision';
 
 import { BaseWorker } from './base-worker';
 

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { HandLandmarker, FilesetResolver, HandLandmarkerResult } from '@mediapipe/tasks-vision';
+import { HandLandmarker, HandLandmarkerResult } from '@mediapipe/tasks-vision';
 
 import { BaseWorker } from './base-worker';
 

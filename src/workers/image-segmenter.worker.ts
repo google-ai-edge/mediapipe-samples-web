@@ -14,13 +14,7 @@
  * limitations under the License.
  */
 
-import {
-  ImageSegmenter,
-  FilesetResolver,
-  ImageSegmenterResult,
-  DrawingUtils,
-  RGBAColor,
-} from '@mediapipe/tasks-vision';
+import { ImageSegmenter, ImageSegmenterResult, DrawingUtils, RGBAColor } from '@mediapipe/tasks-vision';
 
 import { BaseWorker } from './base-worker';
 

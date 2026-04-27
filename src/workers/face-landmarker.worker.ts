@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { FaceLandmarker, FilesetResolver, FaceLandmarkerResult } from '@mediapipe/tasks-vision';
+import { FaceLandmarker, FaceLandmarkerResult } from '@mediapipe/tasks-vision';
 
 import { BaseWorker } from './base-worker';
 

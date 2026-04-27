@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { ObjectDetector, FilesetResolver, Detection } from '@mediapipe/tasks-vision';
+import { ObjectDetector, Detection } from '@mediapipe/tasks-vision';
 import { BaseWorker } from './base-worker';
 
 class ObjectDetectionWorker extends BaseWorker<ObjectDetector> {
