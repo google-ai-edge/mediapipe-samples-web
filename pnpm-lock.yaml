@@ -9,14 +9,14 @@ importers:
   .:
     dependencies:
       '@mediapipe/tasks-audio':
-        specifier: ^0.10.34
-        version: 0.10.34
+        specifier: ^0.10.35
+        version: 0.10.35
       '@mediapipe/tasks-text':
-        specifier: ^0.10.34
-        version: 0.10.34
+        specifier: ^0.10.35
+        version: 0.10.35
       '@mediapipe/tasks-vision':
-        specifier: ^0.10.34
-        version: 0.10.34
+        specifier: ^0.10.35
+        version: 0.10.35
     devDependencies:
       '@playwright/test':
         specifier: ^1.59.1
@@ -213,14 +213,14 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@mediapipe/tasks-audio@0.10.34':
-    resolution: {integrity: sha512-dKd4jmyrz7AFrhOBdsXTRr5hZc5YyQgQWJAxy0ZcnYvqSb09gC18B5ivQz9EliTEFbCfd4sR5DhHZyl8psTjUQ==}
+  '@mediapipe/tasks-audio@0.10.35':
+    resolution: {integrity: sha512-oPo87QnkPXYFnEqRsUd/yrO//nXacCLrg5tz2oedsbqYx7Anf8XlMLQYN0glUr64Fua/CfzZWPssbq/Dt12lAw==}
 
-  '@mediapipe/tasks-text@0.10.34':
-    resolution: {integrity: sha512-hS1N+NFwbaXdZCJnN+yZASlrEN9KUrUHtebl74wKvY35FEn4Z/D7Ez8XuLhhSo6k1fg7sStuQa+uADgjPHBAIw==}
+  '@mediapipe/tasks-text@0.10.35':
+    resolution: {integrity: sha512-BlRWXZAHakqtAos8hNgSU0jy4mh60R9ewzwckS3q2nV7Q/7L65otCtoDrgslRBhlfbElfcHbHQXKRahlMRCf4Q==}
 
-  '@mediapipe/tasks-vision@0.10.34':
-    resolution: {integrity: sha512-KFGyhDsjJ+9WUMcMfjTOpcEp3LJNS3KwC7BfvKrCYELn/7G/5kmwnU7z6Spps+iWQoTGL8xW8i68r65OTa3DwA==}
+  '@mediapipe/tasks-vision@0.10.35':
+    resolution: {integrity: sha512-HOvadwVRE6JC+45nyYhmnywnr5h/J8KZvOeUNVOG9q/0875pZgItznFB9bRTvLc264YSJqiZ1NsIpCStJw/egg==}
 
   '@napi-rs/wasm-runtime@1.1.4':
     resolution: {integrity: sha512-3NQNNgA1YSlJb/kMH1ildASP9HW7/7kYnRI2szWJaofaS1hWmbGI4H+d3+22aGzXXN9IJ+n+GiFVcGipJP18ow==}
@@ -598,8 +598,8 @@ packages:
     resolution: {integrity: sha512-tsaTIkKW9b4N+AEj+SVA+WhJzV7/zMhcSu78mLKWSk7cXMOSHsBKFWUs0fWwq8QyK3MgJBQRX6Gbi4kYbdvGkQ==}
     engines: {node: '>=18'}
 
-  string-width@8.2.0:
-    resolution: {integrity: sha512-6hJPQ8N0V0P3SNmP6h2J99RLuzrWz2gvT7VnK5tKvrNqJoyS9W4/Fb8mo31UiPvy00z7DQXkP2hnKBVav76thw==}
+  string-width@8.2.1:
+    resolution: {integrity: sha512-IIaP0g3iy9Cyy18w3M9YcaDudujEAVHKt3a3QJg1+sr/oX96TbaGUubG0hJyCjCBThFH+tFpcIyoUHUn1ogaLA==}
     engines: {node: '>=20'}
 
   strip-ansi@7.2.0:
@@ -773,11 +773,11 @@ snapshots:
   '@esbuild/win32-x64@0.28.0':
     optional: true
 
-  '@mediapipe/tasks-audio@0.10.34': {}
+  '@mediapipe/tasks-audio@0.10.35': {}
 
-  '@mediapipe/tasks-text@0.10.34': {}
+  '@mediapipe/tasks-text@0.10.35': {}
 
-  '@mediapipe/tasks-vision@0.10.34': {}
+  '@mediapipe/tasks-vision@0.10.35': {}
 
   '@napi-rs/wasm-runtime@1.1.4(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)':
     dependencies:
@@ -867,7 +867,7 @@ snapshots:
   cli-truncate@5.2.0:
     dependencies:
       slice-ansi: 8.0.0
-      string-width: 8.2.0
+      string-width: 8.2.1
 
   colorette@2.0.20: {}
 
@@ -1114,7 +1114,7 @@ snapshots:
       get-east-asian-width: 1.5.0
       strip-ansi: 7.2.0
 
-  string-width@8.2.0:
+  string-width@8.2.1:
     dependencies:
       get-east-asian-width: 1.5.0
       strip-ansi: 7.2.0
