@@ -50,7 +50,9 @@ const standardModels: Record<string, string> = {
   hair_segmenter:
     'https://storage.googleapis.com/mediapipe-models/image_segmenter/hair_segmenter/float32/1/hair_segmenter.tflite',
   selfie_segmenter:
-    'https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter/float32/latest/selfie_segmenter.tflite',
+    'https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter/float16/latest/selfie_segmenter.tflite',
+  selfie_segmenter_landscape:
+    'https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter_landscape/float16/latest/selfie_segmenter_landscape.tflite',
   selfie_multiclass:
     'https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_multiclass_256x256/float32/latest/selfie_multiclass_256x256.tflite',
 };
@@ -84,6 +86,7 @@ class ImageSegmenterTask extends BaseVisionTask {
         { label: 'DeepLab V3', value: 'deeplab_v3', isDefault: true },
         { label: 'Hair Segmenter', value: 'hair_segmenter' },
         { label: 'Selfie Segmenter', value: 'selfie_segmenter' },
+        { label: 'Selfie Segmenter Landscape', value: 'selfie_segmenter_landscape' },
         { label: 'Selfie Multi-class', value: 'selfie_multiclass' },
       ]);
     }
