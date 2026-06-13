@@ -22,7 +22,7 @@
   "devDependencies": {
     "@playwright/test": "^1.60.0",
     "@types/node": "^25.7.0",
-    "esbuild": "^0.28.0",
+    "esbuild": "^0.28.1",
     "eslint-plugin-html": "^8.1.4",
     "husky": "^9.1.7",
     "lint-staged": "^17.0.4",
