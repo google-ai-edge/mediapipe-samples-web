@@ -50,11 +50,8 @@ test.describe('Interactive Segmenter Task', () => {
     await expect(page.locator('#inference-time')).toContainText('Inference Time:');
   });
 
-  test('should handle delegate switching', async ({ page }) => {
+  test('should handle delegate selection', async ({ page }) => {
     await page.selectOption('#delegate-select', 'CPU');
-    await expect(page.locator('#status-message')).toHaveText('Ready', { timeout: 60000 });
-
-    await page.selectOption('#delegate-select', 'GPU');
     await expect(page.locator('#status-message')).toHaveText('Ready', { timeout: 60000 });
   });
 });

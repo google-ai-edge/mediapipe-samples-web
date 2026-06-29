@@ -12,10 +12,32 @@
       </div>
       <div class="select-wrapper">
         <select id="delegate-select">
-          <option value="GPU">GPU</option>
           <option value="CPU">CPU</option>
         </select>
       </div>
+    </div>
+
+    <div class="control-group" style="margin-top: 12px">
+      <div class="control-label">
+        <span>Stroke Mode</span>
+      </div>
+      <div class="select-wrapper">
+        <select id="stroke-mode-select">
+          <option value="1">Positive</option>
+          <option value="2">Negative</option>
+          <option value="3">Lasso</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="control-group" style="margin-top: 16px">
+      <button
+        id="clear-strokes-btn"
+        class="action-button secondary"
+        style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px"
+      >
+        <span class="material-icons" style="font-size: 18px">clear</span> Clear Strokes
+      </button>
     </div>
     <div class="divider"></div>
     <div class="status-group">

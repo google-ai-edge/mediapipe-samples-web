@@ -15,11 +15,12 @@
  */
 
 /// <reference types="vite/client" />
-import { InteractiveSegmenter, DrawingUtils, RGBAColor } from '@mediapipe/tasks-vision';
+import { InteractiveSegmenter, DrawingUtils } from '@mediapipe/tasks-vision';
 import { BaseWorker } from './base-worker';
 
 class InteractiveSegmenterWorker extends BaseWorker<InteractiveSegmenter> {
   private renderCanvas?: OffscreenCanvas;
+  private currentImagePixelPtr = 0;
 
   protected async initializeTask(): Promise<void> {
     const vision = await this.getVisionFileset();
@@ -34,41 +35,93 @@ class InteractiveSegmenterWorker extends BaseWorker<InteractiveSegmenter> {
         delegate: this.currentOptions.delegate || 'GPU',
       },
       canvas: this.renderCanvas,
-      outputCategoryMask: true,
-      outputConfidenceMasks: false,
     });
   }
 
   protected async updateOptions(_: any): Promise<void> {
-    if (this.taskInstance) {
-      await this.taskInstance.setOptions({
-        runningMode: 'IMAGE',
-        outputCategoryMask: true,
-        outputConfidenceMasks: false,
-      });
-    }
+    // InteractiveSegmenter (New API) options only support canvas and baseOptions.
   }
 
   protected async handleCustomMessage(data: any): Promise<void> {
     const { type, ...rest } = data;
 
+    if (type === 'CLEAR') {
+      (self as any).postMessage({
+        type: 'SEGMENT_RESULT',
+        maskBitmap: null,
+        width: 0,
+        height: 0,
+        inferenceTime: 0,
+      });
+      return;
+    }
+
     if (type === 'SEGMENT' && this.taskInstance) {
       try {
-        const { bitmap, pt } = rest;
+        const { bitmap, pt, strokes, brushMode } = rest;
         const timestampMs = performance.now();
 
-        const result = this.taskInstance.segment(bitmap, {
-          keypoint: { x: pt.x, y: pt.y },
-        });
+        const wasmModule = (this.taskInstance as any).i;
+        const handle = (this.taskInstance as any).h;
 
-        const categoryMask = result.categoryMask;
+        if (!wasmModule || !handle) {
+          throw new Error('WASM module or handle not accessible.');
+        }
+
+        // Free old pixel data
+        if (this.currentImagePixelPtr !== 0) {
+          wasmModule._free(this.currentImagePixelPtr);
+          this.currentImagePixelPtr = 0;
+        }
+
+        // Extract pixels
+        const bitmapWidth = bitmap.width;
+        const bitmapHeight = bitmap.height;
+        const canvas = new OffscreenCanvas(bitmapWidth, bitmapHeight);
+        const ctx = canvas.getContext('2d')!;
+        ctx.drawImage(bitmap, 0, 0);
+        const pixels = ctx.getImageData(0, 0, bitmapWidth, bitmapHeight).data;
+        bitmap.close();
+
+        // Allocate and copy
+        const pixelPtr = wasmModule._malloc(pixels.length);
+        wasmModule.HEAPU8.set(pixels, pixelPtr);
+        this.currentImagePixelPtr = pixelPtr;
+
+        // Set image
+        const success = wasmModule._interactive_segmenter_set_image(
+          handle,
+          pixelPtr,
+          bitmapWidth,
+          bitmapHeight,
+          4 // numChannels
+        );
+
+        if (!success) {
+          throw new Error('Failed to set image on native engine.');
+        }
+
+        // Segment with provided strokes list or construct single point stroke
+        const strokeList =
+          strokes && strokes.length > 0
+            ? strokes
+            : [
+                {
+                  isCompleted: true,
+                  brushMode: brushMode ?? 1, // Default to POSITIVE (1)
+                  point: pt ? [{ x: pt.x, y: pt.y }] : [],
+                },
+              ];
+
+        const mask = this.taskInstance.segment(strokeList);
+
         let maskBitmap: ImageBitmap | null = null;
         let width = 0;
         let height = 0;
 
-        if (categoryMask) {
-          width = categoryMask.width;
-          height = categoryMask.height;
+        if (mask) {
+          width = mask.width;
+          height = mask.height;
 
           if (this.renderCanvas) {
             this.renderCanvas.width = width;
@@ -77,19 +130,18 @@ class InteractiveSegmenterWorker extends BaseWorker<InteractiveSegmenter> {
             const glCtx = this.renderCanvas.getContext('webgl2') as WebGL2RenderingContext;
             if (glCtx) {
               const drawingUtils = new DrawingUtils(glCtx);
-              const transparent: RGBAColor = [0, 0, 0, /* alpha= */ 0];
 
-              // Target (category === 0) gets semi-transparent blue, everything else gets transparent
-              const colors: RGBAColor[] = [];
-              for (let i = 0; i < 256; i++) {
-                colors.push(i === 0 ? [0, 0, 255, /* alpha= */ 128] : transparent);
-              }
-
-              drawingUtils.drawCategoryMask(categoryMask, colors, transparent);
+              // Using drawConfidenceMask as the new API returns a confidence-like mask.
+              // We color Foreground semi-transparent blue, and Background transparent.
+              drawingUtils.drawConfidenceMask(
+                mask,
+                [0, 0, 0, 0], // Background -> Transparent
+                [0, 0, 255, 128] // Foreground -> Semi-transparent blue
+              );
               maskBitmap = this.renderCanvas.transferToImageBitmap();
             }
           }
-          categoryMask.close();
+          mask.close();
         }
 
         (self as any).postMessage(

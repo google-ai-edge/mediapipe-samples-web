@@ -20,13 +20,31 @@ import { BaseVisionTask, BaseVisionTaskOptions } from '../components/base-vision
 import template from '../templates/interactive-segmenter.html?raw';
 // @ts-ignore
 
+interface Point {
+  x: number;
+  y: number;
+}
+interface Stroke {
+  brushMode: number;
+  point: Point[];
+  isCompleted: boolean;
+}
+
 class InteractiveSegmenterTask extends BaseVisionTask {
   private isFrozen = false;
   private webcamCapture!: HTMLCanvasElement;
   private webcamOverlay!: HTMLCanvasElement;
   private freezeButton!: HTMLButtonElement;
+  private strokeModeSelect!: HTMLSelectElement;
+  private clearStrokesBtn!: HTMLButtonElement;
   private webcamCtx!: CanvasRenderingContext2D;
   private overlayCtx!: CanvasRenderingContext2D;
+
+  private currentStrokeMode: number = 1; // 1: Positive, 2: Negative, 3: Lasso
+  private accumulatedStrokes: Stroke[] = [];
+  private isPointerDown = false;
+  private currentStrokePoints: Point[] = [];
+  private currentMaskBitmap: ImageBitmap | null = null;
 
   constructor(options: BaseVisionTaskOptions) {
     super(options);
@@ -36,6 +54,8 @@ class InteractiveSegmenterTask extends BaseVisionTask {
     this.webcamCapture = document.getElementById('webcam-capture') as HTMLCanvasElement;
     this.webcamOverlay = document.getElementById('webcam-overlay') as HTMLCanvasElement;
     this.freezeButton = document.getElementById('freezeButton') as HTMLButtonElement;
+    this.strokeModeSelect = document.getElementById('stroke-mode-select') as HTMLSelectElement;
+    this.clearStrokesBtn = document.getElementById('clear-strokes-btn') as HTMLButtonElement;
     this.webcamCtx = this.webcamCapture.getContext('2d', { willReadFrequently: true })!;
     this.overlayCtx = this.webcamOverlay.getContext('2d', { willReadFrequently: true })!;
 
@@ -51,35 +71,46 @@ class InteractiveSegmenterTask extends BaseVisionTask {
       this.freezeButton.disabled = true; // Disabled initially until webcam starts
     }
 
+    if (this.strokeModeSelect) {
+      this.strokeModeSelect.addEventListener('change', () => {
+        this.currentStrokeMode = parseInt(this.strokeModeSelect.value, 10) || 1;
+      });
+    }
+
+    if (this.clearStrokesBtn) {
+      this.clearStrokesBtn.addEventListener('click', () => {
+        this.clearStrokes();
+      });
+    }
+
     const testImage = document.getElementById('test-image') as HTMLImageElement;
 
-    const handleInteraction = async (e: MouseEvent, source: 'image' | 'webcam') => {
+    const getNormalizedPoint = (
+      e: MouseEvent | PointerEvent,
+      targetEl: HTMLElement,
+      source: 'image' | 'webcam'
+    ): Point => {
+      const rect = targetEl.getBoundingClientRect();
+      let clickX = e.clientX - rect.left;
+      let clickY = e.clientY - rect.top;
+      let x = clickX / rect.width;
+      const y = clickY / rect.height;
+      if (source === 'webcam') {
+        x = 1 - x;
+      }
+      return { x: Math.max(0, Math.min(1, x)), y: Math.max(0, Math.min(1, y)) };
+    };
+
+    const triggerSegment = async (source: 'image' | 'webcam') => {
       if (!this.isWorkerReady) return;
 
       let originalBitmapSource: HTMLImageElement | HTMLCanvasElement;
-
       if (source === 'image') {
         if (!testImage.src) return;
         originalBitmapSource = testImage;
       } else {
         if (!this.isFrozen) return;
         originalBitmapSource = this.webcamCapture;
-      }
-
-      // e.offsetX gives the exact pixel coordinate relative to the padding edge, but can be error-prone
-      // with certain flex/grid layouts. getBoundingClientRect is safer.
-      const clickElement = e.target as HTMLElement;
-      const rect = clickElement.getBoundingClientRect();
-      let clickX = e.clientX - rect.left;
-      let clickY = e.clientY - rect.top;
-
-      let x = clickX / rect.width;
-      const y = clickY / rect.height;
-
-      // The WebCam feed visually mirrors logic, so X must be flipped.
-      // Image mode natively aligns, so no X flip is necessary.
-      if (source === 'webcam') {
-        x = 1 - x; // Adjust for mirrored CSS transform: rotateY(180deg)
       }
 
       this.updateStatus('Segmenting...');
@@ -89,7 +120,7 @@ class InteractiveSegmenterTask extends BaseVisionTask {
           {
             type: 'SEGMENT',
             bitmap,
-            pt: { x, y },
+            strokes: this.accumulatedStrokes,
           },
           [bitmap]
         );
@@ -98,11 +129,64 @@ class InteractiveSegmenterTask extends BaseVisionTask {
       }
     };
 
-    testImage.addEventListener('click', (e) => handleInteraction(e, 'image'));
-    this.canvasElement.addEventListener('click', (e) => handleInteraction(e, 'image'));
+    const setupInteractiveEvents = (targetEl: HTMLElement, source: 'image' | 'webcam') => {
+      targetEl.style.cursor = 'crosshair';
+      if (source === 'image') {
+        targetEl.style.pointerEvents = 'auto';
+      }
 
-    this.webcamCapture.addEventListener('click', (e) => handleInteraction(e, 'webcam'));
-    this.webcamOverlay.addEventListener('click', (e) => handleInteraction(e, 'webcam'));
+      const onPointerDown = (e: PointerEvent) => {
+        if (e.button !== 0) return; // Only main left click
+        if (source === 'webcam' && !this.isFrozen) return;
+
+        try {
+          targetEl.setPointerCapture(e.pointerId);
+        } catch (_) {}
+
+        this.isPointerDown = true;
+        this.currentStrokePoints = [getNormalizedPoint(e, targetEl, source)];
+        this.redrawOverlay(source);
+      };
+
+      const onPointerMove = (e: PointerEvent) => {
+        if (!this.isPointerDown) return;
+        const pt = getNormalizedPoint(e, targetEl, source);
+        const lastPt = this.currentStrokePoints[this.currentStrokePoints.length - 1];
+        if (!lastPt || Math.hypot(pt.x - lastPt.x, pt.y - lastPt.y) > 0.003) {
+          this.currentStrokePoints.push(pt);
+          this.redrawOverlay(source);
+        }
+      };
+
+      const onPointerUp = (e: PointerEvent) => {
+        if (!this.isPointerDown) return;
+        this.isPointerDown = false;
+        try {
+          targetEl.releasePointerCapture(e.pointerId);
+        } catch (_) {}
+
+        if (this.currentStrokePoints.length > 0) {
+          this.accumulatedStrokes.push({
+            brushMode: this.currentStrokeMode,
+            point: [...this.currentStrokePoints],
+            isCompleted: true,
+          });
+          this.currentStrokePoints = [];
+          this.redrawOverlay(source);
+          triggerSegment(source);
+        }
+      };
+
+      targetEl.addEventListener('pointerdown', onPointerDown);
+      targetEl.addEventListener('pointermove', onPointerMove);
+      targetEl.addEventListener('pointerup', onPointerUp);
+      targetEl.addEventListener('pointercancel', onPointerUp);
+    };
+
+    setupInteractiveEvents(testImage, 'image');
+    setupInteractiveEvents(this.canvasElement, 'image');
+    setupInteractiveEvents(this.webcamCapture, 'webcam');
+    setupInteractiveEvents(this.webcamOverlay, 'webcam');
 
     if (this.video) {
       this.video.style.cursor = 'pointer';
@@ -112,6 +196,109 @@ class InteractiveSegmenterTask extends BaseVisionTask {
         }
       });
     }
+  }
+
+  private redrawOverlay(source: 'image' | 'webcam') {
+    const ctx = source === 'webcam' ? this.overlayCtx : this.canvasCtx;
+    const canvas = source === 'webcam' ? this.webcamOverlay : this.canvasElement;
+    if (!ctx || !canvas) return;
+
+    if (source === 'image') {
+      const testImage = document.getElementById('test-image') as HTMLImageElement;
+      if (testImage && (canvas.width === 0 || canvas.height === 0 || canvas.width === 300)) {
+        canvas.width = testImage.naturalWidth || testImage.clientWidth || 300;
+        canvas.height = testImage.naturalHeight || testImage.clientHeight || 300;
+      }
+    }
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    if (this.currentMaskBitmap) {
+      ctx.drawImage(this.currentMaskBitmap, 0, 0, canvas.width, canvas.height);
+    }
+
+    for (const stroke of this.accumulatedStrokes) {
+      this.drawSingleStrokeOnCanvas(ctx, stroke);
+    }
+
+    if (this.isPointerDown && this.currentStrokePoints.length > 0) {
+      const activeStroke: Stroke = {
+        brushMode: this.currentStrokeMode,
+        point: this.currentStrokePoints,
+        isCompleted: false,
+      };
+      this.drawSingleStrokeOnCanvas(ctx, activeStroke);
+    }
+  }
+
+  private drawSingleStrokeOnCanvas(ctx: CanvasRenderingContext2D, stroke: Stroke) {
+    if (!stroke.point || stroke.point.length === 0) return;
+
+    const width = ctx.canvas.width;
+    const height = ctx.canvas.height;
+
+    ctx.save();
+    let color = 'rgba(76, 175, 80, 0.85)'; // Positive (Green)
+    let lineWidth = 4;
+    if (stroke.brushMode === 2) {
+      color = 'rgba(229, 57, 53, 0.85)'; // Negative (Red)
+      lineWidth = 4;
+    } else if (stroke.brushMode === 3) {
+      color = 'rgba(33, 150, 243, 0.85)'; // Lasso (Blue)
+      lineWidth = 3;
+    }
+
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.lineWidth = lineWidth;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    if (stroke.point.length === 1) {
+      const p = stroke.point[0];
+      ctx.beginPath();
+      ctx.arc(p.x * width, p.y * height, 4, 0, 2 * Math.PI);
+      ctx.fill();
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = '#ffffff';
+      ctx.stroke();
+    } else {
+      ctx.beginPath();
+      ctx.moveTo(stroke.point[0].x * width, stroke.point[0].y * height);
+      for (let i = 1; i < stroke.point.length; i++) {
+        ctx.lineTo(stroke.point[i].x * width, stroke.point[i].y * height);
+      }
+      if (stroke.brushMode === 3) {
+        if (stroke.isCompleted || stroke.point.length > 2) {
+          ctx.closePath();
+        }
+        ctx.fillStyle = 'rgba(33, 150, 243, 0.15)';
+        ctx.fill();
+      }
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  private clearStrokes() {
+    this.accumulatedStrokes = [];
+    this.currentStrokePoints = [];
+    this.isPointerDown = false;
+
+    if (this.currentMaskBitmap) {
+      this.currentMaskBitmap.close();
+      this.currentMaskBitmap = null;
+    }
+
+    if (this.canvasCtx) {
+      this.canvasCtx.clearRect(0, 0, this.canvasElement.width, this.canvasElement.height);
+    }
+    if (this.overlayCtx) {
+      this.overlayCtx.clearRect(0, 0, this.webcamOverlay.width, this.webcamOverlay.height);
+    }
+
+    this.worker?.postMessage({ type: 'CLEAR' });
+    this.updateStatus('Strokes cleared');
   }
 
   // Interactive Segmenter responds to CLI clicks, not continuous video frames
@@ -194,30 +381,21 @@ class InteractiveSegmenterTask extends BaseVisionTask {
   protected override handleWorkerMessage(event: MessageEvent) {
     const { type } = event.data;
     if (type === 'SEGMENT_RESULT') {
-      const { maskBitmap, width, height, inferenceTime } = event.data;
-      this.updateInferenceTime(inferenceTime);
-
-      if (this.runningMode === 'VIDEO') {
-        this.drawMask(maskBitmap, width, height, this.overlayCtx);
-      } else {
-        this.drawMask(maskBitmap, width, height, this.canvasCtx);
+      const { maskBitmap, inferenceTime } = event.data;
+      if (inferenceTime > 0) {
+        this.updateInferenceTime(inferenceTime);
+        this.updateStatus(`Done in ${Math.round(inferenceTime)}ms`);
       }
 
-      this.updateStatus(`Done in ${Math.round(inferenceTime)}ms`);
+      if (this.currentMaskBitmap) {
+        this.currentMaskBitmap.close();
+        this.currentMaskBitmap = null;
+      }
+      this.currentMaskBitmap = maskBitmap;
+      this.redrawOverlay(this.runningMode === 'VIDEO' ? 'webcam' : 'image');
     } else {
       super.handleWorkerMessage(event);
     }
-  }
-
-  private drawMask(maskBitmap: ImageBitmap | null, width: number, height: number, ctx: CanvasRenderingContext2D) {
-    if (!maskBitmap) return;
-
-    ctx.canvas.width = width;
-    ctx.canvas.height = height;
-    ctx.clearRect(0, 0, width, height);
-    ctx.drawImage(maskBitmap, 0, 0);
-
-    maskBitmap.close();
   }
 
   protected override getWorkerInitParams(): Record<string, any> {
@@ -234,10 +412,10 @@ export async function setupInteractiveSegmenter(container: HTMLElement) {
   activeTask = new InteractiveSegmenterTask({
     container,
     template,
-    defaultModelName: 'magic_touch',
+    defaultModelName: 'interactive_segmentation',
     defaultModelUrl:
-      'https://storage.googleapis.com/mediapipe-models/interactive_segmenter/magic_touch/float32/1/magic_touch.tflite',
-    defaultDelegate: 'GPU',
+      'https://storage.googleapis.com/mediapipe-models/interactive_segmenter_v2/magic_touch/int8/1/interactive_segmentation.task',
+    defaultDelegate: 'CPU',
     workerFactory: () =>
       new Worker(new URL('../workers/interactive-segmenter.worker.ts', import.meta.url), { type: 'module' }),
   });
