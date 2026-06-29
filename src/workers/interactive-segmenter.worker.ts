@@ -78,7 +78,6 @@ class InteractiveSegmenterWorker extends BaseWorker<InteractiveSegmenter> {
           });
           return;
         }
-
         const mask = this.taskInstance.segment(strokeList);
 
         let maskBitmap: ImageBitmap | null = null;

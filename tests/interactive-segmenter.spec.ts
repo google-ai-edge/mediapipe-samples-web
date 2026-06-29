@@ -23,6 +23,14 @@ test.describe('Interactive Segmenter Task', () => {
     await page.waitForSelector('#status-message', { state: 'visible', timeout: 30000 });
   });
 
+  test.afterEach(async ({ page }) => {
+    await page.evaluate(() => {
+      if ((window as any).cleanupActiveTask) {
+        (window as any).cleanupActiveTask();
+      }
+    });
+  });
+
   test('should load model and handle click interaction', async ({ page }) => {
     // Wait for model ready
     await expect(page.locator('#status-message')).toHaveText('Ready', { timeout: 30000 });
@@ -41,7 +49,10 @@ test.describe('Interactive Segmenter Task', () => {
     // We click near the center of the image (assuming cat/dog object is central)
     // Adding minor delay to ensure event listeners are fully attached to new view state
     await page.waitForTimeout(500); 
-    await testImage.click({ position: { x: 150, y: 150 } }); // Assuming 300x300 image roughly
+
+    // #output_canvas intercepts pointer events, so click it instead, or use force: true
+    const outputCanvas = page.locator('#output_canvas');
+    await outputCanvas.click({ position: { x: 150, y: 150 } }); // Assuming 300x300 image roughly
 
     // Wait for "Done in ..." status
     await expect(page.locator('#status-message')).toHaveText(/Done in/, { timeout: 15000 });
