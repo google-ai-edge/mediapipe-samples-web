@@ -259,6 +259,12 @@ export abstract class BaseVisionTask extends BaseTask {
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
+
+      if (!this.worker || !this.video) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
+
       this.video.srcObject = stream;
       const placeholder = document.getElementById('webcam-placeholder');
       if (placeholder) placeholder.style.display = 'none';

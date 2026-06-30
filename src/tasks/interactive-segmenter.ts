@@ -45,6 +45,7 @@ class InteractiveSegmenterTask extends BaseVisionTask {
   private isPointerDown = false;
   private currentStrokePoints: Point[] = [];
   private currentMaskBitmap: ImageBitmap | null = null;
+  private imageSet = false;
 
   constructor(options: BaseVisionTaskOptions) {
     super(options);
@@ -91,10 +92,45 @@ class InteractiveSegmenterTask extends BaseVisionTask {
       source: 'image' | 'webcam'
     ): Point => {
       const rect = targetEl.getBoundingClientRect();
-      let clickX = e.clientX - rect.left;
-      let clickY = e.clientY - rect.top;
-      let x = clickX / rect.width;
-      const y = clickY / rect.height;
+
+      let renderedWidth = rect.width;
+      let renderedHeight = rect.height;
+      let renderedLeft = 0;
+      let renderedTop = 0;
+
+      let naturalWidth = 0;
+      let naturalHeight = 0;
+      if (targetEl instanceof HTMLImageElement) {
+        naturalWidth = targetEl.naturalWidth || targetEl.width;
+        naturalHeight = targetEl.naturalHeight || targetEl.height;
+      } else if (targetEl instanceof HTMLCanvasElement) {
+        naturalWidth = targetEl.width;
+        naturalHeight = targetEl.height;
+      } else if (targetEl.tagName === 'VIDEO') {
+        naturalWidth = (targetEl as HTMLVideoElement).videoWidth;
+        naturalHeight = (targetEl as HTMLVideoElement).videoHeight;
+      }
+
+      if (naturalWidth > 0 && naturalHeight > 0) {
+        const containerRatio = rect.width / rect.height;
+        const imageRatio = naturalWidth / naturalHeight;
+
+        if (imageRatio > containerRatio) {
+          renderedWidth = rect.width;
+          renderedHeight = rect.width / imageRatio;
+          renderedTop = (rect.height - renderedHeight) / 2;
+        } else {
+          renderedHeight = rect.height;
+          renderedWidth = rect.height * imageRatio;
+          renderedLeft = (rect.width - renderedWidth) / 2;
+        }
+      }
+
+      let clickX = e.clientX - rect.left - renderedLeft;
+      let clickY = e.clientY - rect.top - renderedTop;
+      let x = clickX / renderedWidth;
+      const y = clickY / renderedHeight;
+
       if (source === 'webcam') {
         x = 1 - x;
       }
@@ -115,15 +151,24 @@ class InteractiveSegmenterTask extends BaseVisionTask {
 
       this.updateStatus('Segmenting...');
       try {
-        const bitmap = await createImageBitmap(originalBitmapSource);
-        this.worker?.postMessage(
-          {
-            type: 'SEGMENT',
-            bitmap,
-            strokes: this.accumulatedStrokes,
-          },
-          [bitmap]
-        );
+        let bitmap = null;
+        if (!this.imageSet) {
+          bitmap = await createImageBitmap(originalBitmapSource);
+          this.imageSet = true;
+        }
+
+        const msg: any = {
+          type: 'SEGMENT',
+          strokes: this.accumulatedStrokes,
+        };
+
+        const transfer = [];
+        if (bitmap) {
+          msg.bitmap = bitmap;
+          transfer.push(bitmap);
+        }
+
+        this.worker?.postMessage(msg, transfer);
       } catch (err) {
         console.error(err);
       }
@@ -138,6 +183,10 @@ class InteractiveSegmenterTask extends BaseVisionTask {
       const onPointerDown = (e: PointerEvent) => {
         if (e.button !== 0) return; // Only main left click
         if (source === 'webcam' && !this.isFrozen) return;
+
+        if (this.strokeModeSelect) {
+          this.currentStrokeMode = parseInt(this.strokeModeSelect.value, 10) || 1;
+        }
 
         try {
           targetEl.setPointerCapture(e.pointerId);
@@ -166,6 +215,15 @@ class InteractiveSegmenterTask extends BaseVisionTask {
         } catch (_) {}
 
         if (this.currentStrokePoints.length > 0) {
+          // WebGL stroke calculator crashes if a stroke has exactly 1 point
+          // Add a microscopic offset to create a valid line segment for single clicks
+          if (this.currentStrokePoints.length === 1) {
+            this.currentStrokePoints.push({
+              x: this.currentStrokePoints[0].x + 0.001,
+              y: this.currentStrokePoints[0].y + 0.001,
+            });
+          }
+
           this.accumulatedStrokes.push({
             brushMode: this.currentStrokeMode,
             point: [...this.currentStrokePoints],
@@ -305,12 +363,16 @@ class InteractiveSegmenterTask extends BaseVisionTask {
   protected override async predictWebcam() {}
 
   protected override async detectImage(_: HTMLImageElement) {
+    this.clearStrokes();
+    this.imageSet = false;
     if (this.runningMode !== 'IMAGE') this.runningMode = 'IMAGE';
     this.isWorkerReady = true;
     this.updateStatus('Ready');
   }
 
   protected override async enableCam() {
+    this.clearStrokes();
+    this.imageSet = false;
     await super.enableCam();
     if (this.freezeButton) {
       this.freezeButton.disabled = false;
@@ -361,12 +423,16 @@ class InteractiveSegmenterTask extends BaseVisionTask {
       this.webcamOverlay.style.width = '100%';
 
       this.isFrozen = true;
+      this.imageSet = false;
+      this.clearStrokes();
       this.freezeButton.innerText = 'Unfreeze';
       this.updateStatus('Frozen! Click on object to segment');
       const infoSpan = document.querySelector('.instructions-banner span:nth-of-type(2)') as HTMLSpanElement;
       if (infoSpan) infoSpan.innerText = 'Click on an object to segment it, or click Unfreeze to restart.';
     } else {
       this.isFrozen = false;
+      this.imageSet = false;
+      this.clearStrokes();
       this.freezeButton.innerText = 'Freeze & Segment';
       this.video.style.display = 'block';
       this.webcamCapture.style.display = 'none';

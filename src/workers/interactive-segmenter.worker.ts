@@ -20,7 +20,6 @@ import { BaseWorker } from './base-worker';
 
 class InteractiveSegmenterWorker extends BaseWorker<InteractiveSegmenter> {
   private renderCanvas?: OffscreenCanvas;
-  private currentImagePixelPtr = 0;
 
   protected async initializeTask(): Promise<void> {
     const vision = await this.getVisionFileset();
@@ -58,60 +57,27 @@ class InteractiveSegmenterWorker extends BaseWorker<InteractiveSegmenter> {
 
     if (type === 'SEGMENT' && this.taskInstance) {
       try {
-        const { bitmap, pt, strokes, brushMode } = rest;
+        const { bitmap, strokes } = rest;
         const timestampMs = performance.now();
 
-        const wasmModule = (this.taskInstance as any).i;
-        const handle = (this.taskInstance as any).h;
-
-        if (!wasmModule || !handle) {
-          throw new Error('WASM module or handle not accessible.');
+        if (bitmap) {
+          this.taskInstance.setImage(bitmap);
+          bitmap.close();
         }
 
-        // Free old pixel data
-        if (this.currentImagePixelPtr !== 0) {
-          wasmModule._free(this.currentImagePixelPtr);
-          this.currentImagePixelPtr = 0;
+        const strokeList = strokes && strokes.length > 0 ? strokes : [];
+
+        // Only segment if there are strokes
+        if (strokeList.length === 0) {
+          (self as any).postMessage({
+            type: 'SEGMENT_RESULT',
+            maskBitmap: null,
+            width: 0,
+            height: 0,
+            inferenceTime: 0,
+          });
+          return;
         }
-
-        // Extract pixels
-        const bitmapWidth = bitmap.width;
-        const bitmapHeight = bitmap.height;
-        const canvas = new OffscreenCanvas(bitmapWidth, bitmapHeight);
-        const ctx = canvas.getContext('2d')!;
-        ctx.drawImage(bitmap, 0, 0);
-        const pixels = ctx.getImageData(0, 0, bitmapWidth, bitmapHeight).data;
-        bitmap.close();
-
-        // Allocate and copy
-        const pixelPtr = wasmModule._malloc(pixels.length);
-        wasmModule.HEAPU8.set(pixels, pixelPtr);
-        this.currentImagePixelPtr = pixelPtr;
-
-        // Set image
-        const success = wasmModule._interactive_segmenter_set_image(
-          handle,
-          pixelPtr,
-          bitmapWidth,
-          bitmapHeight,
-          4 // numChannels
-        );
-
-        if (!success) {
-          throw new Error('Failed to set image on native engine.');
-        }
-
-        // Segment with provided strokes list or construct single point stroke
-        const strokeList =
-          strokes && strokes.length > 0
-            ? strokes
-            : [
-                {
-                  isCompleted: true,
-                  brushMode: brushMode ?? 1, // Default to POSITIVE (1)
-                  point: pt ? [{ x: pt.x, y: pt.y }] : [],
-                },
-              ];
 
         const mask = this.taskInstance.segment(strokeList);
 
