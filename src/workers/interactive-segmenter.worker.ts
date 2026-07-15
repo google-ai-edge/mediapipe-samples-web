@@ -20,6 +20,7 @@ import { BaseWorker } from './base-worker';
 
 class InteractiveSegmenterWorker extends BaseWorker<InteractiveSegmenter> {
   private renderCanvas?: OffscreenCanvas;
+  private drawingUtils?: DrawingUtils;
 
   protected async initializeTask(): Promise<void> {
     const vision = await this.getVisionFileset();
@@ -35,6 +36,11 @@ class InteractiveSegmenterWorker extends BaseWorker<InteractiveSegmenter> {
       },
       canvas: this.renderCanvas,
     });
+
+    const glCtx = this.renderCanvas.getContext('webgl2') as WebGL2RenderingContext;
+    if (glCtx) {
+      this.drawingUtils = new DrawingUtils(glCtx);
+    }
   }
 
   protected async handleCustomMessage(data: any): Promise<void> {
@@ -84,23 +90,30 @@ class InteractiveSegmenterWorker extends BaseWorker<InteractiveSegmenter> {
           width = mask.width;
           height = mask.height;
 
-          if (this.renderCanvas) {
-            this.renderCanvas.width = width;
-            this.renderCanvas.height = height;
+          if (this.renderCanvas && this.drawingUtils) {
+            let sizeChanged = false;
+            if (this.renderCanvas.width !== width) {
+              this.renderCanvas.width = width;
+              sizeChanged = true;
+            }
+            if (this.renderCanvas.height !== height) {
+              this.renderCanvas.height = height;
+              sizeChanged = true;
+            }
 
             const glCtx = this.renderCanvas.getContext('webgl2') as WebGL2RenderingContext;
-            if (glCtx) {
-              const drawingUtils = new DrawingUtils(glCtx);
-
-              // Using drawConfidenceMask as the new API returns a confidence-like mask.
-              // We color Foreground semi-transparent blue, and Background transparent.
-              drawingUtils.drawConfidenceMask(
-                mask,
-                [0, 0, 0, 0], // Background -> Transparent
-                [0, 0, 255, 128] // Foreground -> Semi-transparent blue
-              );
-              maskBitmap = this.renderCanvas.transferToImageBitmap();
+            if (glCtx && sizeChanged) {
+              glCtx.viewport(0, 0, width, height);
             }
+
+            // Using drawConfidenceMask as the new API returns a confidence-like mask.
+            // We color Foreground semi-transparent blue, and Background transparent.
+            this.drawingUtils.drawConfidenceMask(
+              mask,
+              [0, 0, 0, 0], // Background -> Transparent
+              [0, 0, 255, 128] // Foreground -> Semi-transparent blue
+            );
+            maskBitmap = this.renderCanvas.transferToImageBitmap();
           }
           mask.close();
         }
