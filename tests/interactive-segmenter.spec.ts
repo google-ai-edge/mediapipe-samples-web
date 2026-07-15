@@ -61,6 +61,25 @@ test.describe('Interactive Segmenter Task', () => {
     await expect(page.locator('#inference-time')).toContainText('Inference Time:');
   });
 
+  test('should not crash on single point stroke', async ({ page }) => {
+    // Wait for model ready
+    await expect(page.locator('#status-message')).toHaveText('Ready', { timeout: 30000 });
+
+    // Switch to Image view mode
+    await page.click('button[data-value="image"]');
+    await expect(page.locator('#test-image')).toBeVisible();
+    await expect(page.locator('#status-message')).toHaveText('Ready', { timeout: 30000 });
+
+    await page.waitForTimeout(500);
+
+    // Perform a single click to simulate a single point stroke
+    const outputCanvas = page.locator('#output_canvas');
+    await outputCanvas.click({ position: { x: 150, y: 150 } });
+
+    // Wait for "Done in ..." status to confirm the webgl stroke calculator didn't crash
+    await expect(page.locator('#status-message')).toHaveText(/Done in/, { timeout: 15000 });
+  });
+
   test('should handle delegate selection', async ({ page }) => {
     await page.selectOption('#delegate-select', 'CPU');
     await expect(page.locator('#status-message')).toHaveText('Ready', { timeout: 60000 });
