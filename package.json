@@ -15,9 +15,9 @@
     "prepare": "husky"
   },
   "dependencies": {
-    "@mediapipe/tasks-audio": "^0.10.35",
-    "@mediapipe/tasks-text": "^0.10.35",
-    "@mediapipe/tasks-vision": "link:/Users/mrschmidt/Documents/newestbuild/artifacts/tasks-vision"
+    "@mediapipe/tasks-audio": "^1.0.0",
+    "@mediapipe/tasks-text": "^1.0.0",
+    "@mediapipe/tasks-vision": "^1.0.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.61.1",

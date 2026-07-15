@@ -19,16 +19,7 @@ import { BaseVisionTask, BaseVisionTaskOptions } from '../components/base-vision
 // @ts-ignore
 import template from '../templates/interactive-segmenter.html?raw';
 // @ts-ignore
-
-interface Point {
-  x: number;
-  y: number;
-}
-interface Stroke {
-  brushMode: number;
-  point: Point[];
-  isCompleted: boolean;
-}
+import { Point, Stroke, BrushMode } from '@mediapipe/tasks-vision';
 
 class InteractiveSegmenterTask extends BaseVisionTask {
   private isFrozen = false;
@@ -40,7 +31,7 @@ class InteractiveSegmenterTask extends BaseVisionTask {
   private webcamCtx!: CanvasRenderingContext2D;
   private overlayCtx!: CanvasRenderingContext2D;
 
-  private currentStrokeMode: number = 1; // 1: Positive, 2: Negative, 3: Lasso
+  private currentStrokeMode: BrushMode = 1; // 1: Positive, 2: Negative, 3: Lasso
   private accumulatedStrokes: Stroke[] = [];
   private isPointerDown = false;
   private currentStrokePoints: Point[] = [];
@@ -90,12 +81,16 @@ class InteractiveSegmenterTask extends BaseVisionTask {
       targetEl: HTMLElement,
       source: 'image' | 'webcam'
     ): Point => {
+      // e.offsetX gives the exact pixel coordinate relative to the padding edge, but can be error-prone
+      // with certain flex/grid layouts. getBoundingClientRect is safer.
       const rect = targetEl.getBoundingClientRect();
       let clickX = e.clientX - rect.left;
       let clickY = e.clientY - rect.top;
       let x = clickX / rect.width;
       const y = clickY / rect.height;
 
+      // The WebCam feed visually mirrors logic, so X must be flipped.
+      // Image mode natively aligns, so no X flip is necessary.
       if (source === 'webcam') {
         x = 1 - x;
       }
@@ -171,15 +166,6 @@ class InteractiveSegmenterTask extends BaseVisionTask {
         } catch (_) {}
 
         if (this.currentStrokePoints.length > 0) {
-          // WebGL stroke calculator crashes if a stroke has exactly 1 point
-          // Add a microscopic offset to create a valid line segment for single clicks
-          if (this.currentStrokePoints.length === 1) {
-            this.currentStrokePoints.push({
-              x: this.currentStrokePoints[0].x + 0.001,
-              y: this.currentStrokePoints[0].y + 0.001,
-            });
-          }
-
           this.accumulatedStrokes.push({
             brushMode: this.currentStrokeMode,
             point: [...this.currentStrokePoints],
@@ -224,6 +210,7 @@ class InteractiveSegmenterTask extends BaseVisionTask {
       this.clearStrokes();
     });
   }
+
   private redrawOverlay(source: 'image' | 'webcam') {
     const ctx = source === 'webcam' ? this.overlayCtx : this.canvasCtx;
     const canvas = source === 'webcam' ? this.webcamOverlay : this.canvasElement;

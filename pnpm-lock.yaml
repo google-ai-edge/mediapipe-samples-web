@@ -9,14 +9,14 @@ importers:
   .:
     dependencies:
       '@mediapipe/tasks-audio':
-        specifier: ^0.10.35
-        version: 0.10.35
+        specifier: ^1.0.0
+        version: 1.0.0
       '@mediapipe/tasks-text':
-        specifier: ^0.10.35
-        version: 0.10.35
+        specifier: ^1.0.0
+        version: 1.0.0
       '@mediapipe/tasks-vision':
-        specifier: link:/Users/mrschmidt/Documents/newestbuild/artifacts/tasks-vision
-        version: link:../../../Documents/newestbuild/artifacts/tasks-vision
+        specifier: ^1.0.0
+        version: 1.0.0
     devDependencies:
       '@playwright/test':
         specifier: ^1.61.1

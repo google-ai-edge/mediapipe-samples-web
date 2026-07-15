@@ -37,10 +37,6 @@ class InteractiveSegmenterWorker extends BaseWorker<InteractiveSegmenter> {
     });
   }
 
-  protected async updateOptions(_: any): Promise<void> {
-    // InteractiveSegmenter (New API) options only support canvas and baseOptions.
-  }
-
   protected async handleCustomMessage(data: any): Promise<void> {
     const { type, ...rest } = data;
 
