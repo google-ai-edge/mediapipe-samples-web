@@ -45,7 +45,6 @@ class InteractiveSegmenterTask extends BaseVisionTask {
   private isPointerDown = false;
   private currentStrokePoints: Point[] = [];
   private currentMaskBitmap: ImageBitmap | null = null;
-  private imageSet = false;
 
   constructor(options: BaseVisionTaskOptions) {
     super(options);
@@ -92,44 +91,10 @@ class InteractiveSegmenterTask extends BaseVisionTask {
       source: 'image' | 'webcam'
     ): Point => {
       const rect = targetEl.getBoundingClientRect();
-
-      let renderedWidth = rect.width;
-      let renderedHeight = rect.height;
-      let renderedLeft = 0;
-      let renderedTop = 0;
-
-      let naturalWidth = 0;
-      let naturalHeight = 0;
-      if (targetEl instanceof HTMLImageElement) {
-        naturalWidth = targetEl.naturalWidth || targetEl.width;
-        naturalHeight = targetEl.naturalHeight || targetEl.height;
-      } else if (targetEl instanceof HTMLCanvasElement) {
-        naturalWidth = targetEl.width;
-        naturalHeight = targetEl.height;
-      } else if (targetEl.tagName === 'VIDEO') {
-        naturalWidth = (targetEl as HTMLVideoElement).videoWidth;
-        naturalHeight = (targetEl as HTMLVideoElement).videoHeight;
-      }
-
-      if (naturalWidth > 0 && naturalHeight > 0) {
-        const containerRatio = rect.width / rect.height;
-        const imageRatio = naturalWidth / naturalHeight;
-
-        if (imageRatio > containerRatio) {
-          renderedWidth = rect.width;
-          renderedHeight = rect.width / imageRatio;
-          renderedTop = (rect.height - renderedHeight) / 2;
-        } else {
-          renderedHeight = rect.height;
-          renderedWidth = rect.height * imageRatio;
-          renderedLeft = (rect.width - renderedWidth) / 2;
-        }
-      }
-
-      let clickX = e.clientX - rect.left - renderedLeft;
-      let clickY = e.clientY - rect.top - renderedTop;
-      let x = clickX / renderedWidth;
-      const y = clickY / renderedHeight;
+      let clickX = e.clientX - rect.left;
+      let clickY = e.clientY - rect.top;
+      let x = clickX / rect.width;
+      const y = clickY / rect.height;
 
       if (source === 'webcam') {
         x = 1 - x;
@@ -151,24 +116,15 @@ class InteractiveSegmenterTask extends BaseVisionTask {
 
       this.updateStatus('Segmenting...');
       try {
-        let bitmap = null;
-        if (!this.imageSet) {
-          bitmap = await createImageBitmap(originalBitmapSource);
-          this.imageSet = true;
-        }
-
-        const msg: any = {
-          type: 'SEGMENT',
-          strokes: this.accumulatedStrokes,
-        };
-
-        const transfer = [];
-        if (bitmap) {
-          msg.bitmap = bitmap;
-          transfer.push(bitmap);
-        }
-
-        this.worker?.postMessage(msg, transfer);
+        const bitmap = await createImageBitmap(originalBitmapSource);
+        this.worker?.postMessage(
+          {
+            type: 'SEGMENT',
+            bitmap,
+            strokes: this.accumulatedStrokes,
+          },
+          [bitmap]
+        );
       } catch (err) {
         console.error(err);
       }
@@ -256,6 +212,18 @@ class InteractiveSegmenterTask extends BaseVisionTask {
     }
   }
 
+  protected override async initializeTask(): Promise<void> {
+    this.clearStrokes();
+    await super.initializeTask();
+  }
+
+  protected override setupImageUpload() {
+    super.setupImageUpload();
+    const imageUpload = document.getElementById('image-upload') as HTMLInputElement;
+    imageUpload?.addEventListener('change', () => {
+      this.clearStrokes();
+    });
+  }
   private redrawOverlay(source: 'image' | 'webcam') {
     const ctx = source === 'webcam' ? this.overlayCtx : this.canvasCtx;
     const canvas = source === 'webcam' ? this.webcamOverlay : this.canvasElement;
@@ -312,7 +280,14 @@ class InteractiveSegmenterTask extends BaseVisionTask {
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
 
-    if (stroke.point.length === 1) {
+    // Check if it's a single point or a workaround stroke (2 very close points)
+    const isSinglePoint =
+      stroke.point.length === 1 ||
+      (stroke.point.length === 2 &&
+        Math.abs(stroke.point[0].x - stroke.point[1].x) < 0.002 &&
+        Math.abs(stroke.point[0].y - stroke.point[1].y) < 0.002);
+
+    if (isSinglePoint) {
       const p = stroke.point[0];
       ctx.beginPath();
       ctx.arc(p.x * width, p.y * height, 4, 0, 2 * Math.PI);
@@ -362,17 +337,20 @@ class InteractiveSegmenterTask extends BaseVisionTask {
   // Interactive Segmenter responds to CLI clicks, not continuous video frames
   protected override async predictWebcam() {}
 
-  protected override async detectImage(_: HTMLImageElement) {
+  protected override async detectImage(image: HTMLImageElement) {
     this.clearStrokes();
-    this.imageSet = false;
     if (this.runningMode !== 'IMAGE') this.runningMode = 'IMAGE';
     this.isWorkerReady = true;
     this.updateStatus('Ready');
+
+    if (image) {
+      this.canvasElement.width = image.naturalWidth;
+      this.canvasElement.height = image.naturalHeight;
+    }
   }
 
   protected override async enableCam() {
     this.clearStrokes();
-    this.imageSet = false;
     await super.enableCam();
     if (this.freezeButton) {
       this.freezeButton.disabled = false;
@@ -423,7 +401,6 @@ class InteractiveSegmenterTask extends BaseVisionTask {
       this.webcamOverlay.style.width = '100%';
 
       this.isFrozen = true;
-      this.imageSet = false;
       this.clearStrokes();
       this.freezeButton.innerText = 'Unfreeze';
       this.updateStatus('Frozen! Click on object to segment');
@@ -431,7 +408,6 @@ class InteractiveSegmenterTask extends BaseVisionTask {
       if (infoSpan) infoSpan.innerText = 'Click on an object to segment it, or click Unfreeze to restart.';
     } else {
       this.isFrozen = false;
-      this.imageSet = false;
       this.clearStrokes();
       this.freezeButton.innerText = 'Freeze & Segment';
       this.video.style.display = 'block';
@@ -481,7 +457,7 @@ export async function setupInteractiveSegmenter(container: HTMLElement) {
     defaultModelName: 'interactive_segmentation',
     defaultModelUrl:
       'https://storage.googleapis.com/mediapipe-models/interactive_segmenter_v2/magic_touch/int8/1/interactive_segmentation.task',
-    defaultDelegate: 'CPU',
+    defaultDelegate: 'GPU',
     workerFactory: () =>
       new Worker(new URL('../workers/interactive-segmenter.worker.ts', import.meta.url), { type: 'module' }),
   });
