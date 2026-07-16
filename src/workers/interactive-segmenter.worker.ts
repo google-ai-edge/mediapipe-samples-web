@@ -29,6 +29,9 @@ class InteractiveSegmenterWorker extends BaseWorker<InteractiveSegmenter> {
       this.renderCanvas = new OffscreenCanvas(1, 1);
     }
 
+    // Initialize WebGL context BEFORE passing to MediaPipe.
+    const glCtx = this.renderCanvas.getContext('webgl2') as WebGL2RenderingContext;
+
     this.taskInstance = await InteractiveSegmenter.createFromOptions(vision, {
       baseOptions: {
         modelAssetPath: this.currentOptions.modelAssetPath,
@@ -37,7 +40,6 @@ class InteractiveSegmenterWorker extends BaseWorker<InteractiveSegmenter> {
       canvas: this.renderCanvas,
     });
 
-    const glCtx = this.renderCanvas.getContext('webgl2') as WebGL2RenderingContext;
     if (glCtx) {
       this.drawingUtils = new DrawingUtils(glCtx);
     }
@@ -57,16 +59,36 @@ class InteractiveSegmenterWorker extends BaseWorker<InteractiveSegmenter> {
       return;
     }
 
-    if (type === 'SEGMENT' && this.taskInstance) {
-      try {
-        const { bitmap, strokes } = rest;
-        const timestampMs = performance.now();
+    if (type === 'SET_IMAGE' && this.taskInstance) {
+      const { bitmap } = rest;
+      if (bitmap) {
+        if (this.renderCanvas) {
+          let sizeChanged = false;
+          if (this.renderCanvas.width !== bitmap.width) {
+            this.renderCanvas.width = bitmap.width;
+            sizeChanged = true;
+          }
+          if (this.renderCanvas.height !== bitmap.height) {
+            this.renderCanvas.height = bitmap.height;
+            sizeChanged = true;
+          }
 
-        if (bitmap) {
-          this.taskInstance.setImage(bitmap);
-          bitmap.close();
+          const glCtx = this.renderCanvas.getContext('webgl2') as WebGL2RenderingContext;
+          if (glCtx && sizeChanged) {
+            glCtx.viewport(0, 0, bitmap.width, bitmap.height);
+          }
         }
 
+        this.taskInstance.setImage(bitmap);
+        bitmap.close();
+      }
+      return;
+    }
+
+    if (type === 'SEGMENT' && this.taskInstance) {
+      try {
+        const { strokes } = rest;
+        const timestampMs = performance.now();
         const strokeList = strokes && strokes.length > 0 ? strokes : [];
 
         // Only segment if there are strokes

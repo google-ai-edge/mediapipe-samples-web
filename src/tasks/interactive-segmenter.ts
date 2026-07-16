@@ -36,9 +36,30 @@ class InteractiveSegmenterTask extends BaseVisionTask {
   private isPointerDown = false;
   private currentStrokePoints: Point[] = [];
   private currentMaskBitmap: ImageBitmap | null = null;
+  private imageSet = false;
 
   constructor(options: BaseVisionTaskOptions) {
     super(options);
+  }
+
+  private async setImageOnWorker(source: HTMLImageElement | HTMLCanvasElement) {
+    if (!this.worker || !this.isWorkerReady) return;
+    this.updateStatus('Setting image...');
+    try {
+      const bitmap = await createImageBitmap(source);
+      this.worker.postMessage(
+        {
+          type: 'SET_IMAGE',
+          bitmap: bitmap,
+        },
+        [bitmap]
+      );
+      this.imageSet = true;
+      this.updateStatus('Ready');
+    } catch (err) {
+      console.error('Failed to set image on worker:', err);
+      this.updateStatus('Error setting image');
+    }
   }
 
   protected override onInitializeUI() {
@@ -97,32 +118,20 @@ class InteractiveSegmenterTask extends BaseVisionTask {
       return { x: Math.max(0, Math.min(1, x)), y: Math.max(0, Math.min(1, y)) };
     };
 
-    const triggerSegment = async (source: 'image' | 'webcam') => {
+    const triggerSegment = async () => {
       if (!this.isWorkerReady) return;
 
-      let originalBitmapSource: HTMLImageElement | HTMLCanvasElement;
-      if (source === 'image') {
-        if (!testImage.src) return;
-        originalBitmapSource = testImage;
-      } else {
-        if (!this.isFrozen) return;
-        originalBitmapSource = this.webcamCapture;
+      if (!this.imageSet) {
+        console.warn('Image not set on worker yet!');
+        this.updateStatus('Waiting for image setup...');
+        return;
       }
 
       this.updateStatus('Segmenting...');
-      try {
-        const bitmap = await createImageBitmap(originalBitmapSource);
-        this.worker?.postMessage(
-          {
-            type: 'SEGMENT',
-            bitmap,
-            strokes: this.accumulatedStrokes,
-          },
-          [bitmap]
-        );
-      } catch (err) {
-        console.error(err);
-      }
+      this.worker?.postMessage({
+        type: 'SEGMENT',
+        strokes: this.accumulatedStrokes,
+      });
     };
 
     const setupInteractiveEvents = (targetEl: HTMLElement, source: 'image' | 'webcam') => {
@@ -173,7 +182,7 @@ class InteractiveSegmenterTask extends BaseVisionTask {
           });
           this.currentStrokePoints = [];
           this.redrawOverlay(source);
-          triggerSegment(source);
+          triggerSegment();
         }
       };
 
@@ -208,6 +217,7 @@ class InteractiveSegmenterTask extends BaseVisionTask {
     const imageUpload = document.getElementById('image-upload') as HTMLInputElement;
     imageUpload?.addEventListener('change', () => {
       this.clearStrokes();
+      this.imageSet = false;
     });
   }
 
@@ -326,6 +336,7 @@ class InteractiveSegmenterTask extends BaseVisionTask {
 
   protected override async detectImage(image: HTMLImageElement) {
     this.clearStrokes();
+    this.imageSet = false;
     if (this.runningMode !== 'IMAGE') this.runningMode = 'IMAGE';
     this.isWorkerReady = true;
     this.updateStatus('Ready');
@@ -333,11 +344,13 @@ class InteractiveSegmenterTask extends BaseVisionTask {
     if (image) {
       this.canvasElement.width = image.naturalWidth;
       this.canvasElement.height = image.naturalHeight;
+      await this.setImageOnWorker(image);
     }
   }
 
   protected override async enableCam() {
     this.clearStrokes();
+    this.imageSet = false;
     await super.enableCam();
     if (this.freezeButton) {
       this.freezeButton.disabled = false;
@@ -369,7 +382,7 @@ class InteractiveSegmenterTask extends BaseVisionTask {
     if (infoSpan) infoSpan.innerText = 'Click on an object in the image or video to segment it.';
   }
 
-  private toggleFreeze() {
+  private async toggleFreeze() {
     if (!this.video || !this.video.srcObject) return;
 
     if (!this.isFrozen) {
@@ -389,13 +402,16 @@ class InteractiveSegmenterTask extends BaseVisionTask {
 
       this.isFrozen = true;
       this.clearStrokes();
+      this.imageSet = false;
       this.freezeButton.innerText = 'Unfreeze';
+      await this.setImageOnWorker(this.webcamCapture);
       this.updateStatus('Frozen! Click on object to segment');
       const infoSpan = document.querySelector('.instructions-banner span:nth-of-type(2)') as HTMLSpanElement;
       if (infoSpan) infoSpan.innerText = 'Click on an object to segment it, or click Unfreeze to restart.';
     } else {
       this.isFrozen = false;
       this.clearStrokes();
+      this.imageSet = false;
       this.freezeButton.innerText = 'Freeze & Segment';
       this.video.style.display = 'block';
       this.webcamCapture.style.display = 'none';
