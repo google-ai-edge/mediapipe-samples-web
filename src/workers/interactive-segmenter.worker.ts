@@ -59,6 +59,7 @@ class InteractiveSegmenterWorker extends BaseWorker<InteractiveSegmenter> {
         width: 0,
         height: 0,
         inferenceTime: 0,
+        reqId: rest.reqId,
       });
       return;
     }
@@ -104,6 +105,7 @@ class InteractiveSegmenterWorker extends BaseWorker<InteractiveSegmenter> {
             width: 0,
             height: 0,
             inferenceTime: 0,
+            reqId: rest.reqId,
           });
           return;
         }
@@ -134,11 +136,11 @@ class InteractiveSegmenterWorker extends BaseWorker<InteractiveSegmenter> {
             }
 
             try {
-              // drawConfidenceMask colors Foreground semi-transparent blue.
+              // Use bright magenta to ensure it stands out on almost any background, especially blue.
               this.drawingUtils.drawConfidenceMask(
                 mask,
                 [0, 0, 0, 0], // Background -> Transparent
-                [0, 0, 255, 128] // Foreground -> Semi-transparent blue
+                [255, 0, 255, 180] // Foreground -> Bright magenta
               );
               maskBitmap = this.renderCanvas.transferToImageBitmap();
             } catch (e) {
@@ -155,6 +157,7 @@ class InteractiveSegmenterWorker extends BaseWorker<InteractiveSegmenter> {
             width,
             height,
             inferenceTime: performance.now() - timestampMs,
+            reqId: rest.reqId,
           },
           maskBitmap ? [maskBitmap] : []
         );
