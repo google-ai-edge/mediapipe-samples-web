@@ -59,6 +59,7 @@ class InteractiveSegmenterWorker extends BaseWorker<InteractiveSegmenter> {
         width: 0,
         height: 0,
         inferenceTime: 0,
+        reqId: rest.reqId,
       });
       return;
     }
@@ -77,8 +78,9 @@ class InteractiveSegmenterWorker extends BaseWorker<InteractiveSegmenter> {
             if (glCtx && !glCtx.isContextLost()) {
               try {
                 glCtx.viewport(0, 0, bitmap.width, bitmap.height);
+                this.drawingUtils = new DrawingUtils(glCtx);
               } catch (e) {
-                console.warn('Failed to update WebGL viewport on SET_IMAGE:', e);
+                console.warn('Failed to update WebGL viewport or DrawingUtils on SET_IMAGE:', e);
               }
             }
           }
@@ -104,6 +106,7 @@ class InteractiveSegmenterWorker extends BaseWorker<InteractiveSegmenter> {
             width: 0,
             height: 0,
             inferenceTime: 0,
+            reqId: rest.reqId,
           });
           return;
         }
@@ -131,14 +134,20 @@ class InteractiveSegmenterWorker extends BaseWorker<InteractiveSegmenter> {
             const glCtx = this.renderCanvas.getContext('webgl2') as WebGL2RenderingContext | null;
             if (glCtx && !glCtx.isContextLost() && sizeChanged) {
               glCtx.viewport(0, 0, width, height);
+              // Recreate DrawingUtils after resizing the canvas to avoid dimension mismatch errors on CPU
+              try {
+                this.drawingUtils = new DrawingUtils(glCtx);
+              } catch (e) {
+                console.warn('Failed to recreate DrawingUtils:', e);
+              }
             }
 
             try {
-              // drawConfidenceMask colors Foreground semi-transparent blue.
+              // Use bright magenta to ensure it stands out on almost any background, especially blue.
               this.drawingUtils.drawConfidenceMask(
                 mask,
                 [0, 0, 0, 0], // Background -> Transparent
-                [0, 0, 255, 128] // Foreground -> Semi-transparent blue
+                [255, 0, 255, 180] // Foreground -> Bright magenta
               );
               maskBitmap = this.renderCanvas.transferToImageBitmap();
             } catch (e) {
@@ -155,6 +164,7 @@ class InteractiveSegmenterWorker extends BaseWorker<InteractiveSegmenter> {
             width,
             height,
             inferenceTime: performance.now() - timestampMs,
+            reqId: rest.reqId,
           },
           maskBitmap ? [maskBitmap] : []
         );
