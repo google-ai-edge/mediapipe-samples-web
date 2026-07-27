@@ -29,8 +29,8 @@ class InteractiveSegmenterWorker extends BaseWorker<InteractiveSegmenter> {
       this.renderCanvas = new OffscreenCanvas(1, 1);
     }
 
-    // Initialize WebGL context BEFORE passing to MediaPipe.
-    const glCtx = this.renderCanvas.getContext('webgl2') as WebGL2RenderingContext;
+    // Try to get WebGL2 context safely (do not fail if creation returns null)
+    const glCtx = this.renderCanvas.getContext('webgl2') as WebGL2RenderingContext | null;
 
     this.taskInstance = await InteractiveSegmenter.createFromOptions(vision, {
       baseOptions: {
@@ -41,7 +41,11 @@ class InteractiveSegmenterWorker extends BaseWorker<InteractiveSegmenter> {
     });
 
     if (glCtx) {
-      this.drawingUtils = new DrawingUtils(glCtx);
+      try {
+        this.drawingUtils = new DrawingUtils(glCtx);
+      } catch (e) {
+        console.warn('Failed to initialize DrawingUtils with WebGL context:', e);
+      }
     }
   }
 
@@ -63,19 +67,20 @@ class InteractiveSegmenterWorker extends BaseWorker<InteractiveSegmenter> {
       const { bitmap } = rest;
       if (bitmap) {
         if (this.renderCanvas) {
-          let sizeChanged = false;
-          if (this.renderCanvas.width !== bitmap.width) {
-            this.renderCanvas.width = bitmap.width;
-            sizeChanged = true;
-          }
-          if (this.renderCanvas.height !== bitmap.height) {
-            this.renderCanvas.height = bitmap.height;
-            sizeChanged = true;
-          }
+          const sizeChanged = this.renderCanvas.width !== bitmap.width || this.renderCanvas.height !== bitmap.height;
 
-          const glCtx = this.renderCanvas.getContext('webgl2') as WebGL2RenderingContext;
-          if (glCtx && sizeChanged) {
-            glCtx.viewport(0, 0, bitmap.width, bitmap.height);
+          if (sizeChanged) {
+            this.renderCanvas.width = bitmap.width;
+            this.renderCanvas.height = bitmap.height;
+
+            const glCtx = this.renderCanvas.getContext('webgl2') as WebGL2RenderingContext | null;
+            if (glCtx && !glCtx.isContextLost()) {
+              try {
+                glCtx.viewport(0, 0, bitmap.width, bitmap.height);
+              } catch (e) {
+                console.warn('Failed to update WebGL viewport on SET_IMAGE:', e);
+              }
+            }
           }
         }
 
@@ -123,19 +128,22 @@ class InteractiveSegmenterWorker extends BaseWorker<InteractiveSegmenter> {
               sizeChanged = true;
             }
 
-            const glCtx = this.renderCanvas.getContext('webgl2') as WebGL2RenderingContext;
-            if (glCtx && sizeChanged) {
+            const glCtx = this.renderCanvas.getContext('webgl2') as WebGL2RenderingContext | null;
+            if (glCtx && !glCtx.isContextLost() && sizeChanged) {
               glCtx.viewport(0, 0, width, height);
             }
 
-            // Using drawConfidenceMask as the new API returns a confidence-like mask.
-            // We color Foreground semi-transparent blue, and Background transparent.
-            this.drawingUtils.drawConfidenceMask(
-              mask,
-              [0, 0, 0, 0], // Background -> Transparent
-              [0, 0, 255, 128] // Foreground -> Semi-transparent blue
-            );
-            maskBitmap = this.renderCanvas.transferToImageBitmap();
+            try {
+              // drawConfidenceMask colors Foreground semi-transparent blue.
+              this.drawingUtils.drawConfidenceMask(
+                mask,
+                [0, 0, 0, 0], // Background -> Transparent
+                [0, 0, 255, 128] // Foreground -> Semi-transparent blue
+              );
+              maskBitmap = this.renderCanvas.transferToImageBitmap();
+            } catch (e) {
+              console.warn('DrawingUtils drawConfidenceMask failed:', e);
+            }
           }
           mask.close();
         }
