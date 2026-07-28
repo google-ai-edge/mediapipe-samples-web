@@ -259,7 +259,7 @@ class InteractiveSegmenterTask extends BaseVisionTask {
 
           this.hasUnprocessedStrokes = true;
           if (!this.isWorkerProcessing) {
-            this.triggerSegment(source);
+            this.triggerSegment();
           }
         } else {
           if (progressContainer) progressContainer.style.display = 'none';
@@ -287,7 +287,7 @@ class InteractiveSegmenterTask extends BaseVisionTask {
     }
   }
 
-  private async triggerSegment(source: 'image' | 'webcam') {
+  private async triggerSegment() {
     if (!this.isWorkerReady) return;
 
     if (!this.imageSet) {
@@ -552,7 +552,7 @@ class InteractiveSegmenterTask extends BaseVisionTask {
 
       if (this.hasUnprocessedStrokes) {
         // The user drew more strokes while we were segmenting!
-        setTimeout(() => this.triggerSegment(this.runningMode === 'VIDEO' ? 'webcam' : 'image'), 0);
+        setTimeout(() => this.triggerSegment(), 0);
       } else {
         this.isWorkerProcessing = false;
         const testImage = document.getElementById('test-image') as HTMLImageElement;
