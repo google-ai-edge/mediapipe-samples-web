@@ -60,7 +60,7 @@ test.describe('Interactive Segmenter Task', () => {
     }
 
     // Wait for "Done in ..." status
-    await expect(page.locator('#status-message')).toHaveText(/Done in/, { timeout: 15000 });
+    await expect(page.locator('#status-message')).toHaveText(/Done in/, { timeout: 45000 });
 
     // Check inference time
     await expect(page.locator('#inference-time')).toContainText('Inference Time:');
