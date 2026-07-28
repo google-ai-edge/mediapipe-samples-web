@@ -215,9 +215,8 @@ class InteractiveSegmenterTask extends BaseVisionTask {
 
         if (this.currentStrokePoints.length > 0) {
           const len = this.getStrokeLength(this.currentStrokePoints);
-          const isSingleClick = this.currentStrokePoints.length === 1;
 
-          if (!isSingleClick && len < this.MIN_STROKE_LENGTH) {
+          if (len < this.MIN_STROKE_LENGTH) {
             // Stroke too short
             if (progressContainer && progressTooltip) {
               if (!this.hasDrawnValidStroke) {
