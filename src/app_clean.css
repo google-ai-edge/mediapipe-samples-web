@@ -1188,3 +1188,25 @@ video {
   font-weight: 500;
   color: var(--primary, #007f8b);
 }
+
+@keyframes breath {
+  0% {
+    opacity: 1;
+    filter: brightness(1);
+  }
+  50% {
+    opacity: 0.75;
+    filter: brightness(0.8);
+  }
+  100% {
+    opacity: 1;
+    filter: brightness(1);
+  }
+}
+
+.breathing-animation {
+  animation: breath 1.5s ease-in-out infinite;
+  transition:
+    opacity 0.3s ease,
+    filter 0.3s ease;
+}

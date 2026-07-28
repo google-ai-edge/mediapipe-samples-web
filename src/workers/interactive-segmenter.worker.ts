@@ -15,11 +15,12 @@
  */
 
 /// <reference types="vite/client" />
-import { InteractiveSegmenter, DrawingUtils, RGBAColor } from '@mediapipe/tasks-vision';
+import { InteractiveSegmenter, DrawingUtils } from '@mediapipe/tasks-vision';
 import { BaseWorker } from './base-worker';
 
 class InteractiveSegmenterWorker extends BaseWorker<InteractiveSegmenter> {
   private renderCanvas?: OffscreenCanvas;
+  private drawingUtils?: DrawingUtils;
 
   protected async initializeTask(): Promise<void> {
     const vision = await this.getVisionFileset();
@@ -28,68 +29,132 @@ class InteractiveSegmenterWorker extends BaseWorker<InteractiveSegmenter> {
       this.renderCanvas = new OffscreenCanvas(1, 1);
     }
 
+    // Try to get WebGL2 context safely (do not fail if creation returns null)
+    const glCtx = this.renderCanvas.getContext('webgl2') as WebGL2RenderingContext | null;
+
     this.taskInstance = await InteractiveSegmenter.createFromOptions(vision, {
       baseOptions: {
         modelAssetPath: this.currentOptions.modelAssetPath,
         delegate: this.currentOptions.delegate || 'GPU',
       },
       canvas: this.renderCanvas,
-      outputCategoryMask: true,
-      outputConfidenceMasks: false,
     });
-  }
 
-  protected async updateOptions(_: any): Promise<void> {
-    if (this.taskInstance) {
-      await this.taskInstance.setOptions({
-        runningMode: 'IMAGE',
-        outputCategoryMask: true,
-        outputConfidenceMasks: false,
-      });
+    if (glCtx) {
+      try {
+        this.drawingUtils = new DrawingUtils(glCtx);
+      } catch (e) {
+        console.warn('Failed to initialize DrawingUtils with WebGL context:', e);
+      }
     }
   }
 
   protected async handleCustomMessage(data: any): Promise<void> {
     const { type, ...rest } = data;
 
+    if (type === 'CLEAR') {
+      (self as any).postMessage({
+        type: 'SEGMENT_RESULT',
+        maskBitmap: null,
+        width: 0,
+        height: 0,
+        inferenceTime: 0,
+        reqId: rest.reqId,
+      });
+      return;
+    }
+
+    if (type === 'SET_IMAGE' && this.taskInstance) {
+      const { bitmap } = rest;
+      if (bitmap) {
+        if (this.renderCanvas) {
+          const sizeChanged = this.renderCanvas.width !== bitmap.width || this.renderCanvas.height !== bitmap.height;
+
+          if (sizeChanged) {
+            this.renderCanvas.width = bitmap.width;
+            this.renderCanvas.height = bitmap.height;
+
+            const glCtx = this.renderCanvas.getContext('webgl2') as WebGL2RenderingContext | null;
+            if (glCtx && !glCtx.isContextLost()) {
+              try {
+                glCtx.viewport(0, 0, bitmap.width, bitmap.height);
+                this.drawingUtils = new DrawingUtils(glCtx);
+              } catch (e) {
+                console.warn('Failed to update WebGL viewport or DrawingUtils on SET_IMAGE:', e);
+              }
+            }
+          }
+        }
+
+        this.taskInstance.setImage(bitmap);
+        bitmap.close();
+      }
+      return;
+    }
+
     if (type === 'SEGMENT' && this.taskInstance) {
       try {
-        const { bitmap, pt } = rest;
+        const { strokes } = rest;
         const timestampMs = performance.now();
+        const strokeList = strokes && strokes.length > 0 ? strokes : [];
 
-        const result = this.taskInstance.segment(bitmap, {
-          keypoint: { x: pt.x, y: pt.y },
-        });
+        // Only segment if there are strokes
+        if (strokeList.length === 0) {
+          (self as any).postMessage({
+            type: 'SEGMENT_RESULT',
+            maskBitmap: null,
+            width: 0,
+            height: 0,
+            inferenceTime: 0,
+            reqId: rest.reqId,
+          });
+          return;
+        }
+        const mask = this.taskInstance.segment(strokeList);
 
-        const categoryMask = result.categoryMask;
         let maskBitmap: ImageBitmap | null = null;
         let width = 0;
         let height = 0;
 
-        if (categoryMask) {
-          width = categoryMask.width;
-          height = categoryMask.height;
+        if (mask) {
+          width = mask.width;
+          height = mask.height;
 
-          if (this.renderCanvas) {
-            this.renderCanvas.width = width;
-            this.renderCanvas.height = height;
+          if (this.renderCanvas && this.drawingUtils) {
+            let sizeChanged = false;
+            if (this.renderCanvas.width !== width) {
+              this.renderCanvas.width = width;
+              sizeChanged = true;
+            }
+            if (this.renderCanvas.height !== height) {
+              this.renderCanvas.height = height;
+              sizeChanged = true;
+            }
 
-            const glCtx = this.renderCanvas.getContext('webgl2') as WebGL2RenderingContext;
-            if (glCtx) {
-              const drawingUtils = new DrawingUtils(glCtx);
-              const transparent: RGBAColor = [0, 0, 0, /* alpha= */ 0];
-
-              // Target (category === 0) gets semi-transparent blue, everything else gets transparent
-              const colors: RGBAColor[] = [];
-              for (let i = 0; i < 256; i++) {
-                colors.push(i === 0 ? [0, 0, 255, /* alpha= */ 128] : transparent);
+            const glCtx = this.renderCanvas.getContext('webgl2') as WebGL2RenderingContext | null;
+            if (glCtx && !glCtx.isContextLost() && sizeChanged) {
+              glCtx.viewport(0, 0, width, height);
+              // Recreate DrawingUtils after resizing the canvas to avoid dimension mismatch errors on CPU
+              try {
+                this.drawingUtils = new DrawingUtils(glCtx);
+              } catch (e) {
+                console.warn('Failed to recreate DrawingUtils:', e);
               }
+            }
 
-              drawingUtils.drawCategoryMask(categoryMask, colors, transparent);
+            try {
+              // Use bright magenta to ensure it stands out on almost any background, especially blue.
+              this.drawingUtils.drawConfidenceMask(
+                mask,
+                [0, 0, 0, 0], // Background -> Transparent
+                [255, 0, 255, 180] // Foreground -> Bright magenta
+              );
               maskBitmap = this.renderCanvas.transferToImageBitmap();
+            } catch (e) {
+              console.warn('DrawingUtils drawConfidenceMask failed:', e);
             }
           }
-          categoryMask.close();
+          mask.close();
         }
 
         (self as any).postMessage(
@@ -99,6 +164,7 @@ class InteractiveSegmenterWorker extends BaseWorker<InteractiveSegmenter> {
             width,
             height,
             inferenceTime: performance.now() - timestampMs,
+            reqId: rest.reqId,
           },
           maskBitmap ? [maskBitmap] : []
         );

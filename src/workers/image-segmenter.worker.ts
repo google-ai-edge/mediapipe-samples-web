@@ -91,9 +91,6 @@ class ImageSegmentationWorker extends BaseWorker<ImageSegmenter> {
               this.renderCanvas = new OffscreenCanvas(width, height);
             }
 
-            this.renderCanvas.width = width;
-            this.renderCanvas.height = height;
-
             const glCtx = this.renderCanvas.getContext('webgl2') as WebGL2RenderingContext;
             if (glCtx) {
               const drawingUtils = new DrawingUtils(glCtx);

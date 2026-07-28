@@ -23,7 +23,15 @@ test.describe('Interactive Segmenter Task', () => {
     await page.waitForSelector('#status-message', { state: 'visible', timeout: 30000 });
   });
 
-  test('should load model and handle click interaction', async ({ page }) => {
+  test.afterEach(async ({ page }) => {
+    await page.evaluate(() => {
+      if ((window as any).cleanupActiveTask) {
+        (window as any).cleanupActiveTask();
+      }
+    });
+  });
+
+  test('should load model and handle stroke interaction', async ({ page }) => {
     // Wait for model ready
     await expect(page.locator('#status-message')).toHaveText('Ready', { timeout: 30000 });
 
@@ -38,10 +46,18 @@ test.describe('Interactive Segmenter Task', () => {
     // Wait for Ready status before interaction
     await expect(page.locator('#status-message')).toHaveText('Ready', { timeout: 30000 });
 
-    // We click near the center of the image (assuming cat/dog object is central)
+    // We drag a stroke near the center of the image
     // Adding minor delay to ensure event listeners are fully attached to new view state
     await page.waitForTimeout(500); 
-    await testImage.click({ position: { x: 150, y: 150 } }); // Assuming 300x300 image roughly
+
+    const outputCanvas = page.locator('#output_canvas');
+    const box = await outputCanvas.boundingBox();
+    if (box) {
+      await page.mouse.move(box.x + 100, box.y + 150);
+      await page.mouse.down();
+      await page.mouse.move(box.x + 200, box.y + 150, { steps: 5 });
+      await page.mouse.up();
+    }
 
     // Wait for "Done in ..." status
     await expect(page.locator('#status-message')).toHaveText(/Done in/, { timeout: 15000 });
@@ -50,11 +66,28 @@ test.describe('Interactive Segmenter Task', () => {
     await expect(page.locator('#inference-time')).toContainText('Inference Time:');
   });
 
-  test('should handle delegate switching', async ({ page }) => {
-    await page.selectOption('#delegate-select', 'CPU');
-    await expect(page.locator('#status-message')).toHaveText('Ready', { timeout: 60000 });
+  test('should ignore single point stroke', async ({ page }) => {
+    // Wait for model ready
+    await expect(page.locator('#status-message')).toHaveText('Ready', { timeout: 30000 });
 
-    await page.selectOption('#delegate-select', 'GPU');
+    // Switch to Image view mode
+    await page.click('button[data-value="image"]');
+    await expect(page.locator('#test-image')).toBeVisible();
+    await expect(page.locator('#status-message')).toHaveText('Ready', { timeout: 30000 });
+
+    await page.waitForTimeout(500);
+
+    // Perform a single click to simulate a single point stroke
+    const outputCanvas = page.locator('#output_canvas');
+    await outputCanvas.click({ position: { x: 150, y: 150 } });
+
+    // Ensure status stays ready since single point stroke is rejected
+    await page.waitForTimeout(1000); 
+    await expect(page.locator('#status-message')).toHaveText('Ready', { timeout: 5000 });
+  });
+
+  test('should handle delegate selection', async ({ page }) => {
+    await page.selectOption('#delegate-select', 'CPU');
     await expect(page.locator('#status-message')).toHaveText('Ready', { timeout: 60000 });
   });
 });

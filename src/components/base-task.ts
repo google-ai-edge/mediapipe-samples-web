@@ -67,6 +67,8 @@ export abstract class BaseTask {
     }
   }
 
+  protected hadDelegateFallback = false;
+
   protected handleWorkerMessage(event: MessageEvent) {
     const { type } = event.data;
 
@@ -80,10 +82,14 @@ export abstract class BaseTask {
         break;
 
       case 'DELEGATE_FALLBACK':
-        console.warn('Worker fell back to CPU delegate.');
+        const { reason, advice } = event.data;
+        const msg = advice ? `${reason} (${advice})` : 'GPU unavailable.';
+        console.warn(`Worker fell back to CPU delegate: ${msg}`);
         this.currentDelegate = 'CPU';
-        const delegateSelect = document.getElementById('delegate-select') as HTMLSelectElement;
-        if (delegateSelect) delegateSelect.value = 'CPU';
+        this.hadDelegateFallback = true;
+        const delSelect = document.getElementById('delegate-select') as HTMLSelectElement;
+        if (delSelect) delSelect.value = 'CPU';
+        this.renderFallbackWarning(msg);
         break;
 
       case 'ERROR':
@@ -110,7 +116,12 @@ export abstract class BaseTask {
     this.modelSelector?.hideProgress();
     document.querySelector('.viewport')?.classList.remove('loading-model');
     this.isWorkerReady = true;
-    this.updateStatus('Ready');
+    if (this.hadDelegateFallback) {
+      this.updateStatus('GPU unavailable. Using CPU delegate (Ready).');
+      this.hadDelegateFallback = false;
+    } else {
+      this.updateStatus('Ready');
+    }
   }
 
   protected setupDelegateSelect() {
@@ -188,6 +199,23 @@ export abstract class BaseTask {
     }
 
     this.isWorkerReady = false;
+  }
+
+  protected renderFallbackWarning(msg: string) {
+    let warningEl = document.getElementById('fallback-warning');
+    if (!warningEl) {
+      const statusGroup = document.querySelector('.status-group');
+      if (statusGroup) {
+        warningEl = document.createElement('div');
+        warningEl.id = 'fallback-warning';
+        warningEl.className = 'fallback-warning';
+        warningEl.style.cssText = 'color: #d97706; font-size: 0.85rem; margin-top: 4px;' + ' font-weight: 500;';
+        statusGroup.appendChild(warningEl);
+      }
+    }
+    if (warningEl) {
+      warningEl.innerText = `⚠️ GPU Unavailable (${msg}). Switched to CPU delegate.`;
+    }
   }
 
   protected onInitializeUI(): void {}

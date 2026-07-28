@@ -19,23 +19,72 @@ import { BaseVisionTask, BaseVisionTaskOptions } from '../components/base-vision
 // @ts-ignore
 import template from '../templates/interactive-segmenter.html?raw';
 // @ts-ignore
+import { Point, Stroke, BrushMode } from '@mediapipe/tasks-vision';
 
 class InteractiveSegmenterTask extends BaseVisionTask {
   private isFrozen = false;
   private webcamCapture!: HTMLCanvasElement;
   private webcamOverlay!: HTMLCanvasElement;
   private freezeButton!: HTMLButtonElement;
+  private strokeModeSelect!: HTMLSelectElement;
+  private clearStrokesBtn!: HTMLButtonElement;
   private webcamCtx!: CanvasRenderingContext2D;
   private overlayCtx!: CanvasRenderingContext2D;
 
+  private currentStrokeMode: BrushMode = 1; // 1: Positive, 2: Negative, 3: Lasso
+  private accumulatedStrokes: Stroke[] = [];
+  private isPointerDown = false;
+  private currentStrokePoints: Point[] = [];
+  private currentMaskBitmap: ImageBitmap | null = null;
+  private imageSet = false;
+  private readonly MIN_STROKE_LENGTH = 0.05;
+  private hasDrawnValidStroke = false;
+
+  /** True if the worker is currently computing a mask. */
+  private isWorkerProcessing = false;
+  /** True if the user drew new strokes while the worker was busy. */
+  private hasUnprocessedStrokes = false;
+  /** An auto-incrementing ID used to drop stale results. */
+  private activeRequestId = 0;
+
   constructor(options: BaseVisionTaskOptions) {
     super(options);
+  }
+
+  private async setImageOnWorker(source: HTMLImageElement | HTMLCanvasElement) {
+    if (!this.worker || !this.isWorkerReady) return;
+    this.updateStatus('Setting image...');
+    try {
+      const bitmap = await createImageBitmap(source);
+      this.worker.postMessage(
+        {
+          type: 'SET_IMAGE',
+          bitmap: bitmap,
+        },
+        [bitmap]
+      );
+      this.imageSet = true;
+      this.updateStatus('Ready');
+    } catch (err) {
+      console.error('Failed to set image on worker:', err);
+      this.updateStatus('Error setting image');
+    }
+  }
+
+  private getStrokeLength(points: Point[]): number {
+    let len = 0;
+    for (let i = 1; i < points.length; i++) {
+      len += Math.hypot(points[i].x - points[i - 1].x, points[i].y - points[i - 1].y);
+    }
+    return len;
   }
 
   protected override onInitializeUI() {
     this.webcamCapture = document.getElementById('webcam-capture') as HTMLCanvasElement;
     this.webcamOverlay = document.getElementById('webcam-overlay') as HTMLCanvasElement;
     this.freezeButton = document.getElementById('freezeButton') as HTMLButtonElement;
+    this.strokeModeSelect = document.getElementById('stroke-mode-select') as HTMLSelectElement;
+    this.clearStrokesBtn = document.getElementById('clear-strokes-btn') as HTMLButtonElement;
     this.webcamCtx = this.webcamCapture.getContext('2d', { willReadFrequently: true })!;
     this.overlayCtx = this.webcamOverlay.getContext('2d', { willReadFrequently: true })!;
 
@@ -51,58 +100,182 @@ class InteractiveSegmenterTask extends BaseVisionTask {
       this.freezeButton.disabled = true; // Disabled initially until webcam starts
     }
 
+    if (this.strokeModeSelect) {
+      this.strokeModeSelect.addEventListener('change', () => {
+        this.currentStrokeMode = parseInt(this.strokeModeSelect.value, 10) || 1;
+      });
+    }
+
+    if (this.clearStrokesBtn) {
+      this.clearStrokesBtn.addEventListener('click', () => {
+        this.clearStrokes();
+      });
+    }
+
     const testImage = document.getElementById('test-image') as HTMLImageElement;
 
-    const handleInteraction = async (e: MouseEvent, source: 'image' | 'webcam') => {
-      if (!this.isWorkerReady) return;
-
-      let originalBitmapSource: HTMLImageElement | HTMLCanvasElement;
-
-      if (source === 'image') {
-        if (!testImage.src) return;
-        originalBitmapSource = testImage;
-      } else {
-        if (!this.isFrozen) return;
-        originalBitmapSource = this.webcamCapture;
-      }
-
+    const getNormalizedPoint = (
+      e: MouseEvent | PointerEvent,
+      targetEl: HTMLElement,
+      source: 'image' | 'webcam'
+    ): Point => {
       // e.offsetX gives the exact pixel coordinate relative to the padding edge, but can be error-prone
       // with certain flex/grid layouts. getBoundingClientRect is safer.
-      const clickElement = e.target as HTMLElement;
-      const rect = clickElement.getBoundingClientRect();
+      const rect = targetEl.getBoundingClientRect();
       let clickX = e.clientX - rect.left;
       let clickY = e.clientY - rect.top;
-
       let x = clickX / rect.width;
       const y = clickY / rect.height;
 
       // The WebCam feed visually mirrors logic, so X must be flipped.
       // Image mode natively aligns, so no X flip is necessary.
       if (source === 'webcam') {
-        x = 1 - x; // Adjust for mirrored CSS transform: rotateY(180deg)
+        x = 1 - x;
       }
-
-      this.updateStatus('Segmenting...');
-      try {
-        const bitmap = await createImageBitmap(originalBitmapSource);
-        this.worker?.postMessage(
-          {
-            type: 'SEGMENT',
-            bitmap,
-            pt: { x, y },
-          },
-          [bitmap]
-        );
-      } catch (err) {
-        console.error(err);
-      }
+      return { x: Math.max(0, Math.min(1, x)), y: Math.max(0, Math.min(1, y)) };
     };
 
-    testImage.addEventListener('click', (e) => handleInteraction(e, 'image'));
-    this.canvasElement.addEventListener('click', (e) => handleInteraction(e, 'image'));
+    const setupInteractiveEvents = (targetEl: HTMLElement, source: 'image' | 'webcam') => {
+      targetEl.style.cursor = 'crosshair';
+      if (source === 'image') {
+        targetEl.style.pointerEvents = 'auto';
+      }
 
-    this.webcamCapture.addEventListener('click', (e) => handleInteraction(e, 'webcam'));
-    this.webcamOverlay.addEventListener('click', (e) => handleInteraction(e, 'webcam'));
+      const progressContainer = document.getElementById('stroke-progress-container');
+      const progressCircle = document.getElementById('stroke-progress-circle');
+      const progressTooltip = document.getElementById('stroke-progress-tooltip');
+
+      const onPointerDown = (e: PointerEvent) => {
+        if (e.button !== 0) return; // Only main left click
+        if (source === 'webcam' && !this.isFrozen) return;
+
+        if (this.strokeModeSelect) {
+          this.currentStrokeMode = parseInt(this.strokeModeSelect.value, 10) || 1;
+        }
+
+        try {
+          targetEl.setPointerCapture(e.pointerId);
+        } catch (_) {}
+
+        this.isPointerDown = true;
+        this.currentStrokePoints = [getNormalizedPoint(e, targetEl, source)];
+        this.redrawOverlay(source);
+
+        if (progressContainer && progressCircle && progressTooltip) {
+          progressContainer.style.display = 'block';
+          progressContainer.style.opacity = '1';
+          progressContainer.style.transform = 'translate(-50%, -50%) scale(1)';
+          progressContainer.style.left = `${e.clientX}px`;
+          progressContainer.style.top = `${e.clientY}px`;
+          progressCircle.setAttribute('stroke-dasharray', '0, 100');
+          progressCircle.setAttribute('stroke', '#ff5722');
+          progressCircle.style.opacity = '1';
+
+          if (!this.hasDrawnValidStroke) {
+            progressTooltip.style.opacity = '1';
+          } else {
+            progressTooltip.style.opacity = '0';
+          }
+        }
+      };
+
+      const onPointerMove = (e: PointerEvent) => {
+        if (!this.isPointerDown) return;
+        const pt = getNormalizedPoint(e, targetEl, source);
+        const lastPt = this.currentStrokePoints[this.currentStrokePoints.length - 1];
+        if (!lastPt || Math.hypot(pt.x - lastPt.x, pt.y - lastPt.y) > 0.003) {
+          this.currentStrokePoints.push(pt);
+          this.redrawOverlay(source);
+        }
+
+        if (progressContainer && progressCircle) {
+          progressContainer.style.left = `${e.clientX}px`;
+          progressContainer.style.top = `${e.clientY}px`;
+
+          const len = this.getStrokeLength(this.currentStrokePoints);
+          const percentage = Math.min(100, (len / this.MIN_STROKE_LENGTH) * 100);
+          progressCircle.setAttribute('stroke-dasharray', `${percentage}, 100`);
+
+          if (percentage >= 100) {
+            progressCircle.setAttribute('stroke', '#4caf50');
+            if (progressTooltip) progressTooltip.style.opacity = '0';
+          } else {
+            progressCircle.setAttribute('stroke', '#ff5722');
+            if (progressTooltip && !this.hasDrawnValidStroke) progressTooltip.style.opacity = '1';
+          }
+        }
+      };
+
+      const onPointerUp = (e: PointerEvent) => {
+        if (!this.isPointerDown) return;
+        this.isPointerDown = false;
+        try {
+          targetEl.releasePointerCapture(e.pointerId);
+        } catch (_) {}
+
+        if (this.currentStrokePoints.length > 0) {
+          const len = this.getStrokeLength(this.currentStrokePoints);
+
+          if (len < this.MIN_STROKE_LENGTH) {
+            // Stroke too short
+            if (progressContainer && progressTooltip) {
+              if (!this.hasDrawnValidStroke) {
+                progressTooltip.style.opacity = '1';
+              }
+              setTimeout(() => {
+                progressContainer.style.opacity = '0';
+                setTimeout(() => {
+                  progressContainer.style.display = 'none';
+                }, 200);
+              }, 600);
+            }
+            this.currentStrokePoints = [];
+            this.redrawOverlay(source);
+            return;
+          }
+
+          // Stroke was valid! Mark it.
+          this.hasDrawnValidStroke = true;
+
+          if (progressContainer) {
+            progressContainer.style.display = 'none';
+          }
+
+          this.accumulatedStrokes.push({
+            brushMode: this.currentStrokeMode,
+            point: [...this.currentStrokePoints],
+            isCompleted: true,
+          });
+          this.currentStrokePoints = [];
+          this.redrawOverlay(source);
+
+          // Start the animation instantly on mouse up
+          if (source === 'image') {
+            const testImg = document.getElementById('test-image') as HTMLImageElement;
+            if (testImg) testImg.classList.add('breathing-animation');
+          } else {
+            this.webcamCapture.classList.add('breathing-animation');
+          }
+
+          this.hasUnprocessedStrokes = true;
+          if (!this.isWorkerProcessing) {
+            this.triggerSegment(source);
+          }
+        } else {
+          if (progressContainer) progressContainer.style.display = 'none';
+        }
+      };
+
+      targetEl.addEventListener('pointerdown', onPointerDown);
+      targetEl.addEventListener('pointermove', onPointerMove);
+      targetEl.addEventListener('pointerup', onPointerUp);
+      targetEl.addEventListener('pointercancel', onPointerUp);
+    };
+
+    setupInteractiveEvents(testImage, 'image');
+    setupInteractiveEvents(this.canvasElement, 'image');
+    setupInteractiveEvents(this.webcamCapture, 'webcam');
+    setupInteractiveEvents(this.webcamOverlay, 'webcam');
 
     if (this.video) {
       this.video.style.cursor = 'pointer';
@@ -114,16 +287,183 @@ class InteractiveSegmenterTask extends BaseVisionTask {
     }
   }
 
+  private async triggerSegment(source: 'image' | 'webcam') {
+    if (!this.isWorkerReady) return;
+
+    if (!this.imageSet) {
+      console.warn('Image not set on worker yet!');
+      this.updateStatus('Waiting for image setup...');
+      return;
+    }
+
+    this.hasUnprocessedStrokes = false;
+    this.isWorkerProcessing = true;
+    this.activeRequestId++;
+    const reqId = this.activeRequestId;
+
+    this.updateStatus('Segmenting...');
+    try {
+      this.worker?.postMessage({
+        type: 'SEGMENT',
+        strokes: this.accumulatedStrokes,
+        reqId,
+      });
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  protected override async initializeTask(): Promise<void> {
+    this.clearStrokes();
+    await super.initializeTask();
+  }
+
+  protected override setupImageUpload() {
+    super.setupImageUpload();
+    const imageUpload = document.getElementById('image-upload') as HTMLInputElement;
+    imageUpload?.addEventListener('change', () => {
+      this.clearStrokes();
+      this.imageSet = false;
+    });
+  }
+
+  private redrawOverlay(source: 'image' | 'webcam') {
+    const ctx = source === 'webcam' ? this.overlayCtx : this.canvasCtx;
+    const canvas = source === 'webcam' ? this.webcamOverlay : this.canvasElement;
+    if (!ctx || !canvas) return;
+
+    if (source === 'image') {
+      const testImage = document.getElementById('test-image') as HTMLImageElement;
+      if (testImage && (canvas.width === 0 || canvas.height === 0 || canvas.width === 300)) {
+        canvas.width = testImage.naturalWidth || testImage.clientWidth || 300;
+        canvas.height = testImage.naturalHeight || testImage.clientHeight || 300;
+      }
+    }
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    if (this.currentMaskBitmap) {
+      ctx.drawImage(this.currentMaskBitmap, 0, 0, canvas.width, canvas.height);
+    }
+
+    for (const stroke of this.accumulatedStrokes) {
+      this.drawSingleStrokeOnCanvas(ctx, stroke);
+    }
+
+    if (this.isPointerDown && this.currentStrokePoints.length > 0) {
+      const activeStroke: Stroke = {
+        brushMode: this.currentStrokeMode,
+        point: this.currentStrokePoints,
+        isCompleted: false,
+      };
+      this.drawSingleStrokeOnCanvas(ctx, activeStroke);
+    }
+  }
+
+  private drawSingleStrokeOnCanvas(ctx: CanvasRenderingContext2D, stroke: Stroke) {
+    if (!stroke.point || stroke.point.length === 0) return;
+
+    const width = ctx.canvas.width;
+    const height = ctx.canvas.height;
+
+    ctx.save();
+    let color = 'rgba(76, 175, 80, 0.85)'; // Positive (Green)
+    let lineWidth = 4;
+    if (stroke.brushMode === 2) {
+      color = 'rgba(229, 57, 53, 0.85)'; // Negative (Red)
+      lineWidth = 4;
+    } else if (stroke.brushMode === 3) {
+      color = 'rgba(33, 150, 243, 0.85)'; // Lasso (Blue)
+      lineWidth = 3;
+    }
+
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.lineWidth = lineWidth;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    // Check if it's a single point or a workaround stroke (2 very close points)
+    const isSinglePoint =
+      stroke.point.length === 1 ||
+      (stroke.point.length === 2 &&
+        Math.abs(stroke.point[0].x - stroke.point[1].x) < 0.002 &&
+        Math.abs(stroke.point[0].y - stroke.point[1].y) < 0.002);
+
+    if (isSinglePoint) {
+      const p = stroke.point[0];
+      ctx.beginPath();
+      ctx.arc(p.x * width, p.y * height, 4, 0, 2 * Math.PI);
+      ctx.fill();
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = '#ffffff';
+      ctx.stroke();
+    } else {
+      ctx.beginPath();
+      ctx.moveTo(stroke.point[0].x * width, stroke.point[0].y * height);
+      for (let i = 1; i < stroke.point.length; i++) {
+        ctx.lineTo(stroke.point[i].x * width, stroke.point[i].y * height);
+      }
+      if (stroke.brushMode === 3) {
+        if (stroke.isCompleted || stroke.point.length > 2) {
+          ctx.closePath();
+        }
+        ctx.fillStyle = 'rgba(33, 150, 243, 0.15)';
+        ctx.fill();
+      }
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  private clearStrokes() {
+    this.accumulatedStrokes = [];
+    this.currentStrokePoints = [];
+    this.isPointerDown = false;
+
+    this.isWorkerProcessing = false;
+    this.hasUnprocessedStrokes = false;
+    this.activeRequestId++;
+    const testImage = document.getElementById('test-image') as HTMLImageElement;
+    if (testImage) testImage.classList.remove('breathing-animation');
+    if (this.webcamCapture) this.webcamCapture.classList.remove('breathing-animation');
+
+    if (this.currentMaskBitmap) {
+      this.currentMaskBitmap.close();
+      this.currentMaskBitmap = null;
+    }
+
+    if (this.canvasCtx) {
+      this.canvasCtx.clearRect(0, 0, this.canvasElement.width, this.canvasElement.height);
+    }
+    if (this.overlayCtx) {
+      this.overlayCtx.clearRect(0, 0, this.webcamOverlay.width, this.webcamOverlay.height);
+    }
+
+    this.worker?.postMessage({ type: 'CLEAR', reqId: this.activeRequestId });
+    this.updateStatus('Strokes cleared');
+  }
+
   // Interactive Segmenter responds to CLI clicks, not continuous video frames
   protected override async predictWebcam() {}
 
-  protected override async detectImage(_: HTMLImageElement) {
+  protected override async detectImage(image: HTMLImageElement) {
+    this.clearStrokes();
+    this.imageSet = false;
     if (this.runningMode !== 'IMAGE') this.runningMode = 'IMAGE';
     this.isWorkerReady = true;
     this.updateStatus('Ready');
+
+    if (image) {
+      this.canvasElement.width = image.naturalWidth;
+      this.canvasElement.height = image.naturalHeight;
+      await this.setImageOnWorker(image);
+    }
   }
 
   protected override async enableCam() {
+    this.clearStrokes();
+    this.imageSet = false;
     await super.enableCam();
     if (this.freezeButton) {
       this.freezeButton.disabled = false;
@@ -136,7 +476,8 @@ class InteractiveSegmenterTask extends BaseVisionTask {
 
     const infoSpan = document.querySelector('.instructions-banner span:nth-of-type(2)') as HTMLSpanElement;
     if (infoSpan)
-      infoSpan.innerText = 'Click anywhere on the webcam feed to freeze it, then click the object to segment.';
+      infoSpan.innerText =
+        'Click anywhere on the webcam feed to freeze it, then draw a stroke on the object to segment.';
   }
 
   protected override stopCam(persistState = true) {
@@ -152,10 +493,10 @@ class InteractiveSegmenterTask extends BaseVisionTask {
     }
 
     const infoSpan = document.querySelector('.instructions-banner span:nth-of-type(2)') as HTMLSpanElement;
-    if (infoSpan) infoSpan.innerText = 'Click on an object in the image or video to segment it.';
+    if (infoSpan) infoSpan.innerText = 'Draw a stroke on an object in the image to segment it.';
   }
 
-  private toggleFreeze() {
+  private async toggleFreeze() {
     if (!this.video || !this.video.srcObject) return;
 
     if (!this.isFrozen) {
@@ -174,12 +515,17 @@ class InteractiveSegmenterTask extends BaseVisionTask {
       this.webcamOverlay.style.width = '100%';
 
       this.isFrozen = true;
+      this.clearStrokes();
+      this.imageSet = false;
       this.freezeButton.innerText = 'Unfreeze';
-      this.updateStatus('Frozen! Click on object to segment');
+      await this.setImageOnWorker(this.webcamCapture);
+      this.updateStatus('Frozen! Draw on object to segment');
       const infoSpan = document.querySelector('.instructions-banner span:nth-of-type(2)') as HTMLSpanElement;
-      if (infoSpan) infoSpan.innerText = 'Click on an object to segment it, or click Unfreeze to restart.';
+      if (infoSpan) infoSpan.innerText = 'Draw a stroke on an object to segment it, or click Unfreeze to restart.';
     } else {
       this.isFrozen = false;
+      this.clearStrokes();
+      this.imageSet = false;
       this.freezeButton.innerText = 'Freeze & Segment';
       this.video.style.display = 'block';
       this.webcamCapture.style.display = 'none';
@@ -194,30 +540,41 @@ class InteractiveSegmenterTask extends BaseVisionTask {
   protected override handleWorkerMessage(event: MessageEvent) {
     const { type } = event.data;
     if (type === 'SEGMENT_RESULT') {
-      const { maskBitmap, width, height, inferenceTime } = event.data;
-      this.updateInferenceTime(inferenceTime);
+      const { reqId } = event.data;
 
-      if (this.runningMode === 'VIDEO') {
-        this.drawMask(maskBitmap, width, height, this.overlayCtx);
-      } else {
-        this.drawMask(maskBitmap, width, height, this.canvasCtx);
+      // Drop stale results
+      if (reqId !== undefined && reqId !== this.activeRequestId) {
+        if (event.data.maskBitmap) {
+          event.data.maskBitmap.close();
+        }
+        return;
       }
 
-      this.updateStatus(`Done in ${Math.round(inferenceTime)}ms`);
+      if (this.hasUnprocessedStrokes) {
+        // The user drew more strokes while we were segmenting!
+        setTimeout(() => this.triggerSegment(this.runningMode === 'VIDEO' ? 'webcam' : 'image'), 0);
+      } else {
+        this.isWorkerProcessing = false;
+        const testImage = document.getElementById('test-image') as HTMLImageElement;
+        if (testImage) testImage.classList.remove('breathing-animation');
+        if (this.webcamCapture) this.webcamCapture.classList.remove('breathing-animation');
+      }
+
+      const { maskBitmap, inferenceTime } = event.data;
+      if (inferenceTime > 0) {
+        this.updateInferenceTime(inferenceTime);
+        this.updateStatus(`Done in ${Math.round(inferenceTime)}ms`);
+      }
+
+      if (this.currentMaskBitmap) {
+        this.currentMaskBitmap.close();
+        this.currentMaskBitmap = null;
+      }
+      this.currentMaskBitmap = maskBitmap;
+      this.redrawOverlay(this.runningMode === 'VIDEO' ? 'webcam' : 'image');
     } else {
       super.handleWorkerMessage(event);
     }
-  }
-
-  private drawMask(maskBitmap: ImageBitmap | null, width: number, height: number, ctx: CanvasRenderingContext2D) {
-    if (!maskBitmap) return;
-
-    ctx.canvas.width = width;
-    ctx.canvas.height = height;
-    ctx.clearRect(0, 0, width, height);
-    ctx.drawImage(maskBitmap, 0, 0);
-
-    maskBitmap.close();
   }
 
   protected override getWorkerInitParams(): Record<string, any> {
@@ -234,9 +591,9 @@ export async function setupInteractiveSegmenter(container: HTMLElement) {
   activeTask = new InteractiveSegmenterTask({
     container,
     template,
-    defaultModelName: 'magic_touch',
+    defaultModelName: 'interactive_segmentation',
     defaultModelUrl:
-      'https://storage.googleapis.com/mediapipe-models/interactive_segmenter/magic_touch/float32/1/magic_touch.tflite',
+      'https://storage.googleapis.com/mediapipe-models/interactive_segmenter_v2/magic_touch/int8/1/interactive_segmentation.task',
     defaultDelegate: 'GPU',
     workerFactory: () =>
       new Worker(new URL('../workers/interactive-segmenter.worker.ts', import.meta.url), { type: 'module' }),
