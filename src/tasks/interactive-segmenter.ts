@@ -135,7 +135,6 @@ class InteractiveSegmenterTask extends BaseVisionTask {
       return { x: Math.max(0, Math.min(1, x)), y: Math.max(0, Math.min(1, y)) };
     };
 
-
     const setupInteractiveEvents = (targetEl: HTMLElement, source: 'image' | 'webcam') => {
       targetEl.style.cursor = 'crosshair';
       if (source === 'image') {
@@ -216,7 +215,9 @@ class InteractiveSegmenterTask extends BaseVisionTask {
 
         if (this.currentStrokePoints.length > 0) {
           const len = this.getStrokeLength(this.currentStrokePoints);
-          if (len < this.MIN_STROKE_LENGTH) {
+          const isSingleClick = this.currentStrokePoints.length === 1;
+
+          if (!isSingleClick && len < this.MIN_STROKE_LENGTH) {
             // Stroke too short
             if (progressContainer && progressTooltip) {
               if (!this.hasDrawnValidStroke) {

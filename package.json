@@ -17,7 +17,8 @@
   "dependencies": {
     "@mediapipe/tasks-audio": "^1.0.0",
     "@mediapipe/tasks-text": "^1.0.0",
-    "@mediapipe/tasks-vision": "^1.0.0"
+    "@mediapipe/tasks-vision": "^1.0.0",
+    "mediapipe-od-ts": "link:"
   },
   "devDependencies": {
     "@playwright/test": "^1.61.1",
