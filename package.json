@@ -15,21 +15,21 @@
     "prepare": "husky"
   },
   "dependencies": {
-    "@mediapipe/tasks-audio": "^1.0.0",
-    "@mediapipe/tasks-text": "^1.0.0",
-    "@mediapipe/tasks-vision": "^1.0.0",
+    "@mediapipe/tasks-audio": "^1.0.1",
+    "@mediapipe/tasks-text": "^1.0.1",
+    "@mediapipe/tasks-vision": "^1.0.1",
     "mediapipe-od-ts": "link:"
   },
   "devDependencies": {
-    "@playwright/test": "^1.61.1",
-    "@types/node": "^26.0.1",
+    "@playwright/test": "^1.62.1",
+    "@types/node": "^26.1.2",
     "esbuild": "^0.28.1",
     "eslint-plugin-html": "^8.1.4",
     "husky": "^9.1.7",
-    "lint-staged": "^17.0.8",
-    "prettier": "^3.8.4",
-    "typescript": "^6.0.3",
-    "vite": "^8.1.0"
+    "lint-staged": "^17.3.0",
+    "prettier": "^3.9.6",
+    "typescript": "^7.0.2",
+    "vite": "^8.2.0"
   },
   "lint-staged": {
     "src/**/*.{ts,html,css}": "prettier --write"
