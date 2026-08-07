@@ -1,7 +1,16 @@
-import { defineConfig, type Plugin } from 'vite';
+import { createLogger, defineConfig, type Plugin } from 'vite';
 import fs from 'node:fs';
 import path from 'node:path';
 import { copyWasmFiles } from './copy-wasm.js';
+
+const customLogger = createLogger();
+const originalWarn = customLogger.warn;
+customLogger.warn = (msg, options) => {
+  if (msg.includes('Failed to load source map') || msg.includes('SOURCEMAP_ERROR')) {
+    return;
+  }
+  originalWarn(msg, options);
+};
 
 function mediapipeWasmPlugin(): Plugin {
   return {
@@ -42,6 +51,7 @@ function mediapipeWasmPlugin(): Plugin {
 
 export default defineConfig({
   base: '/mediapipe-samples-web/',
+  customLogger,
 
   plugins: [mediapipeWasmPlugin()],
   optimizeDeps: {
@@ -53,6 +63,17 @@ export default defineConfig({
   },
   worker: {
     format: 'es'
+  },
+  build: {
+    sourcemap: false,
+    rollupOptions: {
+      onwarn(warning, defaultHandler) {
+        if (warning.code === 'SOURCEMAP_ERROR') {
+          return;
+        }
+        defaultHandler(warning);
+      },
+    },
   },
   server: {
     port: 5174,
