@@ -1,30 +1,42 @@
 import fs from 'fs';
 import path from 'path';
+import { createRequire } from 'module';
 
-const srcDirs = [
-  'node_modules/@mediapipe/tasks-audio/wasm',
-  'node_modules/@mediapipe/tasks-vision/wasm',
-  'node_modules/@mediapipe/tasks-text/wasm',
+const require = createRequire(import.meta.url);
+
+const targets = [
+  { name: '@mediapipe/tasks-vision', entry: '@mediapipe/tasks-vision/vision_wasm_internal.js' },
+  { name: '@mediapipe/tasks-audio', entry: '@mediapipe/tasks-audio/audio_wasm_internal.js' },
+  { name: '@mediapipe/tasks-text', entry: '@mediapipe/tasks-text/text_wasm_internal.js' },
 ];
 
-const destDir = 'public/wasm';
+const destDir = path.resolve('public/wasm');
 
-if (!fs.existsSync(destDir)) {
-  fs.mkdirSync(destDir, { recursive: true });
+export function copyWasmFiles(dest = destDir) {
+  if (!fs.existsSync(dest)) {
+    fs.mkdirSync(dest, { recursive: true });
+  }
+
+  targets.forEach(({ name, entry }) => {
+    try {
+      const entryPath = require.resolve(entry);
+      const srcDir = path.dirname(entryPath);
+      if (fs.existsSync(srcDir)) {
+        const files = fs.readdirSync(srcDir);
+        files.forEach(file => {
+          const srcFile = path.join(srcDir, file);
+          const destFile = path.join(dest, file);
+          fs.copyFileSync(srcFile, destFile);
+        });
+      }
+    } catch (e) {
+      console.warn(`Could not resolve WASM assets for ${name}:`, e.message);
+    }
+  });
+
+  console.log('Successfully prepared WASM static assets.');
 }
 
-srcDirs.forEach(srcDir => {
-  if (fs.existsSync(srcDir)) {
-    const files = fs.readdirSync(srcDir);
-    files.forEach(file => {
-      const srcFile = path.join(srcDir, file);
-      const destFile = path.join(destDir, file);
-      fs.copyFileSync(srcFile, destFile);
-      console.log(`Copied ${srcFile} to ${destFile}`);
-    });
-  } else {
-    console.warn(`Source directory does not exist: ${srcDir}`);
-  }
-});
-
-console.log('Successfully prepared WASM static assets.');
+if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(new URL(import.meta.url).pathname)) {
+  copyWasmFiles();
+}

@@ -1,9 +1,22 @@
-import { defineConfig } from 'vite';
+import { defineConfig, type Plugin } from 'vite';
+import { copyWasmFiles } from './copy-wasm.js';
+
+function mediapipeWasmPlugin(): Plugin {
+  return {
+    name: 'mediapipe-wasm-plugin',
+    buildStart() {
+      copyWasmFiles();
+    },
+    configureServer() {
+      copyWasmFiles();
+    },
+  };
+}
 
 export default defineConfig({
   base: '/mediapipe-samples-web/',
 
-  plugins: [],
+  plugins: [mediapipeWasmPlugin()],
   optimizeDeps: {
     exclude: [
       '@mediapipe/tasks-vision',
