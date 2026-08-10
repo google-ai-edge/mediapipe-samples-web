@@ -140,6 +140,41 @@ body {
   margin-top: 8px;
 }
 
+.sidebar-nav {
+  flex: 1;
+}
+
+.sidebar-footer {
+  padding: 16px 24px;
+  border-top: 1px solid var(--border-color);
+  margin-top: auto;
+}
+
+.sidebar-footer-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.sidebar-footer-link .material-icons {
+  font-size: 20px;
+  color: var(--text-secondary);
+  transition: color 0.2s ease;
+}
+
+.sidebar-footer-link:hover {
+  color: var(--primary);
+}
+
+.sidebar-footer-link:hover .material-icons {
+  color: var(--primary);
+}
+
 .main-content {
   flex: 1;
   overflow: hidden;
