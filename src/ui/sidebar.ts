@@ -51,5 +51,11 @@ export function renderSidebar(container: HTMLElement) {
         <li><a href="#/text/text_embedder" class="nav-button" data-task="text-embedder">Text Embedder</a></li>
       </ul>
     </nav>
+    <div class="sidebar-footer">
+      <a href="https://goo.gle/mediapipe-privacy" target="_blank" rel="noopener noreferrer" class="sidebar-footer-link">
+        <span class="material-icons">privacy_tip</span>
+        <span>Privacy Notice</span>
+      </a>
+    </div>
   `;
 }

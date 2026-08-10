@@ -60,4 +60,13 @@ test.describe('Navigation & UI', () => {
     await page.click('.sidebar-header .menu-toggle', { force: true });
     await expect(mobileSidebar).toBeHidden({ timeout: 5000 }).catch(() => {});
   });
+
+  test('should display privacy notice link in sidebar', async ({ page }) => {
+    const privacyLink = page.locator('.sidebar-footer a.sidebar-footer-link');
+    await expect(privacyLink).toBeVisible();
+    await expect(privacyLink).toContainText('Privacy Notice');
+    await expect(privacyLink).toHaveAttribute('href', 'https://goo.gle/mediapipe-privacy');
+    await expect(privacyLink).toHaveAttribute('target', '_blank');
+    await expect(privacyLink).toHaveAttribute('rel', 'noopener noreferrer');
+  });
 });
