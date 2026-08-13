@@ -40,11 +40,13 @@ class TextClassifierWorker extends BaseWorker<TextClassifier> {
       }
 
       try {
+        const startTimeMs = performance.now();
         const result = this.taskInstance.classify(data.text);
+        const inferenceTime = performance.now() - startTimeMs;
         self.postMessage({
           type: 'CLASSIFY_RESULT',
           result,
-          timestampMs: data.timestampMs,
+          inferenceTime,
         });
       } catch (error: any) {
         console.error('Worker classify error:', error);

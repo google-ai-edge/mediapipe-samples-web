@@ -99,9 +99,8 @@ class TextClassifierTask extends BaseTextTask {
 
     switch (type) {
       case 'CLASSIFY_RESULT':
-        const { result, timestampMs } = event.data;
-        const duration = performance.now() - timestampMs;
-        this.updateInferenceTime(duration);
+        const { result, inferenceTime } = event.data;
+        this.updateInferenceTime(inferenceTime);
         this.displayResults(result);
         if (this.classifyBtn) this.classifyBtn.disabled = false;
         this.updateStatus('Done');
@@ -136,7 +135,6 @@ class TextClassifierTask extends BaseTextTask {
     this.worker.postMessage({
       type: 'CLASSIFY',
       text: text,
-      timestampMs: performance.now(),
     });
   }
 

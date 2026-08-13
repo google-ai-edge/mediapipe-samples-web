@@ -138,9 +138,8 @@ class ImageEmbedderTask extends BaseVisionTask {
     const { type } = event.data;
 
     if (type === 'EMBED_RESULT') {
-      const { similarity, timestampMs } = event.data;
-      const duration = performance.now() - timestampMs;
-      this.updateInferenceTime(duration);
+      const { similarity, inferenceTime } = event.data;
+      this.updateInferenceTime(inferenceTime);
       this.displayResults(similarity);
       this.updateStatus('Done');
     } else {
@@ -167,7 +166,6 @@ class ImageEmbedderTask extends BaseVisionTask {
         type: 'EMBED',
         image1: bitmap1,
         image2: bitmap2,
-        timestampMs: performance.now(),
       },
       [bitmap1, bitmap2]
     );

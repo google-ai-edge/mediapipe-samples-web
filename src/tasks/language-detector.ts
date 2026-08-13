@@ -102,9 +102,8 @@ class LanguageDetectorTask extends BaseTextTask {
 
     switch (type) {
       case 'DETECT_RESULT':
-        const { result, timestampMs } = event.data;
-        const duration = performance.now() - timestampMs;
-        this.updateInferenceTime(duration);
+        const { result, inferenceTime } = event.data;
+        this.updateInferenceTime(inferenceTime);
         this.displayResults(result);
         if (this.detectBtn) this.detectBtn.disabled = false;
         this.updateStatus('Done');
@@ -139,7 +138,6 @@ class LanguageDetectorTask extends BaseTextTask {
     this.worker.postMessage({
       type: 'DETECT',
       text: text,
-      timestampMs: performance.now(),
     });
   }
 
