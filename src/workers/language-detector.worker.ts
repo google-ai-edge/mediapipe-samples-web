@@ -37,11 +37,13 @@ class LanguageDetectorWorker extends BaseWorker<LanguageDetector> {
 
     if (type === 'DETECT' && this.taskInstance && 'text' in data) {
       try {
+        const startTimeMs = performance.now();
         const result = this.taskInstance.detect(data.text);
+        const inferenceTime = performance.now() - startTimeMs;
         self.postMessage({
           type: 'DETECT_RESULT',
           result,
-          timestampMs: data.timestampMs,
+          inferenceTime,
         });
       } catch (error: any) {
         self.postMessage({ type: 'ERROR', error: error.message || String(error) });

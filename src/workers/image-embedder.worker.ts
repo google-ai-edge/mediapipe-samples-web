@@ -40,6 +40,7 @@ class ImageEmbedderWorker extends BaseWorker<ImageEmbedder> {
       }
 
       try {
+        const startTimeMs = performance.now();
         const result1 = this.taskInstance.embed(data.image1);
         data.image1.close();
 
@@ -54,13 +55,14 @@ class ImageEmbedderWorker extends BaseWorker<ImageEmbedder> {
           const embedding2 = result2.embeddings[0];
           similarity = ImageEmbedder.cosineSimilarity(embedding1, embedding2);
         }
+        const inferenceTime = performance.now() - startTimeMs;
 
         self.postMessage({
           type: 'EMBED_RESULT',
           result1,
           result2,
           similarity,
-          timestampMs: data.timestampMs,
+          inferenceTime,
         });
       } catch (error: any) {
         console.error('Worker embed error:', error);
