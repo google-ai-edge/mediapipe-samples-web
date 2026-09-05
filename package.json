@@ -21,15 +21,15 @@
     "mediapipe-od-ts": "link:"
   },
   "devDependencies": {
-    "@playwright/test": "^1.62.1",
-    "@types/node": "^26.2.0",
+    "@playwright/test": "^1.63.0",
+    "@types/node": "^26.4.1",
     "esbuild": "^0.28.2",
-    "eslint-plugin-html": "^8.1.4",
+    "eslint-plugin-html": "^8.2.0",
     "husky": "^9.1.7",
-    "lint-staged": "^17.3.0",
+    "lint-staged": "^17.4.1",
     "prettier": "^3.9.6",
     "typescript": "^7.0.2",
-    "vite": "^8.2.1"
+    "vite": "^8.2.2"
   },
   "lint-staged": {
     "src/**/*.{ts,html,css}": "prettier --write"
