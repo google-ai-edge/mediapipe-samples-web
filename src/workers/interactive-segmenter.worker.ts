@@ -95,7 +95,6 @@ class InteractiveSegmenterWorker extends BaseWorker<InteractiveSegmenter> {
     if (type === 'SEGMENT' && this.taskInstance) {
       try {
         const { strokes } = rest;
-        const timestampMs = performance.now();
         const strokeList = strokes && strokes.length > 0 ? strokes : [];
 
         // Only segment if there are strokes
@@ -110,7 +109,10 @@ class InteractiveSegmenterWorker extends BaseWorker<InteractiveSegmenter> {
           });
           return;
         }
+
+        const startTimeMs = performance.now();
         const mask = this.taskInstance.segment(strokeList);
+        const inferenceTime = performance.now() - startTimeMs;
 
         let maskBitmap: ImageBitmap | null = null;
         let width = 0;
@@ -163,7 +165,7 @@ class InteractiveSegmenterWorker extends BaseWorker<InteractiveSegmenter> {
             maskBitmap,
             width,
             height,
-            inferenceTime: performance.now() - timestampMs,
+            inferenceTime,
             reqId: rest.reqId,
           },
           maskBitmap ? [maskBitmap] : []

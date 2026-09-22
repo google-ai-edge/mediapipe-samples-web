@@ -38,6 +38,7 @@ class TextEmbedderWorker extends BaseWorker<TextEmbedder> {
       }
 
       try {
+        const startTimeMs = performance.now();
         const result1 = this.taskInstance.embed(data.text1);
         let result2: TextEmbedderResult | undefined;
         let similarity: number | undefined;
@@ -48,13 +49,14 @@ class TextEmbedderWorker extends BaseWorker<TextEmbedder> {
           const embedding2 = result2.embeddings[0];
           similarity = TextEmbedder.cosineSimilarity(embedding1, embedding2);
         }
+        const inferenceTime = performance.now() - startTimeMs;
 
         self.postMessage({
           type: 'EMBED_RESULT',
           result1,
           result2,
           similarity,
-          timestampMs: data.timestampMs,
+          inferenceTime,
         });
       } catch (error: any) {
         console.error('Worker embed error:', error);

@@ -103,9 +103,8 @@ class TextEmbedderTask extends BaseTextTask {
 
     switch (type) {
       case 'EMBED_RESULT':
-        const { similarity, timestampMs } = event.data;
-        const duration = performance.now() - timestampMs;
-        this.updateInferenceTime(duration);
+        const { similarity, inferenceTime } = event.data;
+        this.updateInferenceTime(inferenceTime);
         this.displayResults(similarity);
         if (this.embedBtn) this.embedBtn.disabled = false;
         this.updateStatus('Done');
@@ -141,7 +140,6 @@ class TextEmbedderTask extends BaseTextTask {
       type: 'EMBED',
       text1: text1,
       text2: text2,
-      timestampMs: performance.now(),
     });
   }
 
