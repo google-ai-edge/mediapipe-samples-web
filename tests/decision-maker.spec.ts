@@ -50,13 +50,13 @@ test.describe('Decision Maker Task', () => {
     await expect(loadBtn).toBeVisible();
     await expect(loadBtn).toBeEnabled();
     await expect(loadBtn).toHaveText('Initialize Task');
-    await expect(page.locator(`#${containerId}-standard-status`)).toHaveText(/Not downloaded yet/);
+    await expect(page.locator(`#${containerId}-standard-status`)).toHaveText(/Not loaded yet/);
     await expect(page.locator(`#${containerId}-model-badge`)).toBeHidden();
 
     // Nothing runs before a model is loaded
     await expect(page.locator('#status-message')).toHaveText('Load a model to begin');
-    await expect(page.locator('#dm-play')).toBeDisabled();
-    await expect(page.locator('#dm-step')).toBeDisabled();
+    // The Dino Game (and its play/step controls) is its own page now; here the Evaluate button is the gate.
+    await expect(page.locator('#dt-evaluate')).toBeDisabled();
 
     // Changing the delegate or the model selection must not start a download either
     await page.selectOption('#delegate-select', 'CPU');

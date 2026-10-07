@@ -22,7 +22,7 @@
  */
 
 import { ModelSelector, type ModelSelection } from './model-selector';
-import { DECISION_MODELS, decisionRuntime, type Delegate, resolveModelDownloadUrl } from './decision-runtime';
+import { DECISION_MODELS, decisionModelDownloadUrl, decisionRuntime, type Delegate } from './decision-runtime';
 
 const MODEL_PANEL_HTML = `
   <div class="section-title">Model Selection</div>
@@ -71,12 +71,10 @@ export function mountDecisionModelPanel(modelContainer: HTMLElement, delegateCon
       autoLoad: false,
       accept: '.task,.tflite,.litertlm',
       uploadLabel: 'Choose .task / .tflite / .litertlm File',
-      resolveUrl: (value) => {
-        const m = DECISION_MODELS[value];
-        if (!m) return undefined;
-        if (m.url) return resolveModelDownloadUrl(m.url);
-        return new URL(`local-models/${m.file}`, new URL(import.meta.env.BASE_URL, window.location.origin)).href;
-      },
+      // Same URL the runtime downloads, so the cache lookup matches.
+      resolveUrl: decisionModelDownloadUrl,
+      // If e.g. the text+vision model was already downloaded for the embedder
+      // demos, start with it instead of asking for another download.
       preferCached: true,
     }
   );

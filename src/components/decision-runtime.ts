@@ -24,16 +24,26 @@
  */
 
 import type { QuestionKind } from '../tasks/decision-maker-json';
+import { resolveModelDownloadUrl } from './model-cache';
+import { EMBEDDING_GEMMA_2_TEXT_270M, EMBEDDING_GEMMA_2_TEXT_VISION_440M } from './model-registry';
 
 /**
- * Built-in models. `url` models are downloaded directly; the others are served
- * by the dev server from LOCAL_MODELS_DIR (see vite.config.ts).
+ * Built-in models. `url` models are downloaded directly (through the shared
+ * model cache, so one already fetched by another demo is reused); the others are
+ * served by the dev server from LOCAL_MODELS_DIR (see vite.config.ts).
  */
 export const DECISION_MODELS: Record<string, { label: string; file: string; url?: string; unsupported?: boolean }> = {
   embeddinggemma2_270m: {
-    label: 'EmbeddingGemma-2 Text 270M',
-    file: 'embeddinggemma-2-text-270m.litertlm',
-    url: 'https://huggingface.co/litert-community/embeddinggemma-2-text-270m-litert-lm',
+    label: EMBEDDING_GEMMA_2_TEXT_270M.name,
+    file: EMBEDDING_GEMMA_2_TEXT_270M.fileName,
+    url: EMBEDDING_GEMMA_2_TEXT_270M.url,
+  },
+  // Same model the Universal Embedder / Semantic Retriever demos use: if it was
+  // loaded there it is already on disk and loads here without a download.
+  embeddinggemma2_text_vision_440m: {
+    label: EMBEDDING_GEMMA_2_TEXT_VISION_440M.name,
+    file: EMBEDDING_GEMMA_2_TEXT_VISION_440M.fileName,
+    url: EMBEDDING_GEMMA_2_TEXT_VISION_440M.url,
   },
   laya_s256: {
     label: 'Laya S256',
@@ -42,30 +52,12 @@ export const DECISION_MODELS: Record<string, { label: string; file: string; url?
   },
 };
 
-/**
- * Resolves model page URLs (e.g. Hugging Face repository or tree URLs) to their
- * direct binary download endpoints suitable for HTTP fetching and streaming.
- */
-export function resolveModelDownloadUrl(rawUrl: string): string {
-  const trimmed = rawUrl.trim();
-  const hfRepoMatch = trimmed.match(
-    /^https?:\/\/huggingface\.co\/([^/]+)\/([^/]+)(?:\/(?:tree|blob|resolve)\/([^/]+)(?:\/(.+))?)?$/
-  );
-  if (hfRepoMatch) {
-    const [, org, repo, branchOrType, filePath] = hfRepoMatch;
-    // 1. Direct download endpoint already specified
-    if (branchOrType === 'resolve' && filePath) {
-      return trimmed;
-    }
-    // 2. Look up the specific model filename for known repository versions
-    const matched = Object.values(DECISION_MODELS).find((m) => m.url?.includes(`${org}/${repo}`));
-    const fileName = filePath || (matched ? matched.file : `${repo}.litertlm`);
-    // 3. Preserve custom git branch/tag/revision if specified, otherwise default to 'main'
-    const branch = branchOrType && branchOrType !== 'tree' && branchOrType !== 'blob' ? branchOrType : 'main';
-    return `https://huggingface.co/${org}/${repo}/resolve/${branch}/${fileName}`;
-  }
-  // Passthrough for non-Hugging Face URLs (GCS, local dev server, direct CDNs)
-  return trimmed;
+/** Direct download URL of a built-in model (remote, or the dev server's local-models route). */
+export function decisionModelDownloadUrl(name: string): string | undefined {
+  const model = DECISION_MODELS[name];
+  if (!model) return undefined;
+  if (model.url) return resolveModelDownloadUrl(model.url, model.file);
+  return new URL(`local-models/${model.file}`, new URL(import.meta.env.BASE_URL, window.location.origin)).href;
 }
 
 /** `schema` evaluates a whole ClassifierSchema in one request. */
@@ -168,15 +160,13 @@ class DecisionRuntimeManager {
     this.emit({ type: 'status', text: `Loading ${this.customModel?.name ?? model.file}...` });
 
     const baseUrl = import.meta.env.BASE_URL;
-    const localUrl = new URL(`local-models/${model.file}`, new URL(baseUrl, window.location.origin)).href;
-    const modelUrl = this.customModel ? undefined : model.url ? resolveModelDownloadUrl(model.url) : localUrl;
-    if (model.url && !this.customModel) {
-      this.emit({ type: 'status', text: `Downloading ${model.file} (first load may take a while)...` });
-    }
+    // Downloaded through the shared model cache in the worker, so a model
+    // already fetched by another demo is served from disk.
+    const modelUrl = this.customModel ? undefined : decisionModelDownloadUrl(this.modelName);
 
     // Local models are served from LOCAL_MODELS_DIR by the dev server. Check
     // it's there first; otherwise the wasm gets an error page instead of a model.
-    if (modelUrl === localUrl && !(await this.isModelAvailable(modelUrl))) {
+    if (modelUrl && !model.url && !(await this.isModelAvailable(modelUrl))) {
       if (epoch !== this.epoch) return;
       this.fail(
         `${model.file} not found. Upload a model, or set LOCAL_MODELS_DIR in .env.local and restart the dev server.`
