@@ -15,6 +15,7 @@
  */
 
 import { FilesetResolver } from '@mediapipe/tasks-vision';
+import { openModelStream, trackProgress, type ModelStream } from '../components/model-cache';
 
 export abstract class BaseWorker<T> {
   protected taskInstance: T | undefined;
@@ -52,14 +53,14 @@ export abstract class BaseWorker<T> {
 
     try {
       if (type === 'INIT') {
-        const { modelAssetPath, delegate, baseUrl, ...rest } = event.data;
+        const { modelAssetPath, delegate, baseUrl, modelName, ...rest } = event.data;
         this.basePath = baseUrl || '/';
-        this.currentOptions = { modelAssetPath, delegate, ...rest };
+        this.currentOptions = { modelAssetPath, delegate, modelName, ...rest };
 
         await this.initializeBase(event.data);
 
         const payload = this.getInitPayload();
-        self.postMessage({ type: 'INIT_DONE', ...payload });
+        self.postMessage({ type: 'INIT_DONE', modelName, ...payload });
       } else if (type === 'SET_OPTIONS') {
         const { type: _type, ...optionsToUpdate } = event.data;
         Object.assign(this.currentOptions, optionsToUpdate);
@@ -164,43 +165,41 @@ export abstract class BaseWorker<T> {
     };
   }
 
+  /**
+   * Opens the model selected by the page as a byte stream, reporting download
+   * progress to the page. Uploaded files (`modelFile`) are streamed directly;
+   * URLs (`modelAssetPath`) go through the shared model cache so a model is only
+   * downloaded once and then reused by every task.
+   */
+  protected async openModelStream(): Promise<ModelStream> {
+    const onProgress = (loaded: number, total: number) => {
+      self.postMessage({ type: 'LOAD_PROGRESS', loaded, total });
+    };
+
+    const file: File | undefined = this.currentOptions.modelFile;
+    if (file) {
+      return {
+        stream: trackProgress(file.stream(), file.size, onProgress),
+        size: file.size,
+        fromCache: false,
+        cached: Promise.resolve(false),
+      };
+    }
+
+    const url: string | undefined = this.currentOptions.modelAssetPath;
+    if (!url) {
+      throw new Error('No model selected');
+    }
+    const model = await openModelStream(url, onProgress);
+    // Let the page refresh its "already downloaded" indicators once the model is on disk.
+    model.cached.then((ok) => ok && self.postMessage({ type: 'MODEL_CACHED', url }));
+    return model;
+  }
+
+  /** Loads the whole model into memory (for tasks that take a `Uint8Array`). */
   protected async loadModelAsset(): Promise<ArrayBuffer> {
-    const response = await fetch(this.currentOptions.modelAssetPath);
-    if (!response.ok) {
-      throw new Error(`Failed to load model: ${response.statusText}`);
-    }
-
-    const contentLength = response.headers.get('content-length');
-    const total = contentLength ? parseInt(contentLength, 10) : 0;
-
-    const reader = response.body?.getReader();
-    if (!reader) {
-      return response.arrayBuffer();
-    }
-
-    let receivedLength = 0;
-    const chunks: Uint8Array[] = [];
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      chunks.push(value);
-      receivedLength += value.length;
-
-      if (total > 0) {
-        self.postMessage({ type: 'LOAD_PROGRESS', loaded: receivedLength, total });
-      }
-    }
-
-    const chunksAll = new Uint8Array(receivedLength);
-    let position = 0;
-    for (const chunk of chunks) {
-      chunksAll.set(chunk, position);
-      position += chunk.length;
-    }
-
-    return chunksAll.buffer;
+    const { stream } = await this.openModelStream();
+    return new Response(stream).arrayBuffer();
   }
 
   protected getWasmPath(): string {

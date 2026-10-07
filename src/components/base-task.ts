@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { ModelSelector } from './model-selector';
+import { ModelSelector, type ModelSelectorConfig } from './model-selector';
 import { InferenceTimer } from './inference-timer';
 
 export interface BaseTaskOptions {
@@ -22,6 +22,7 @@ export interface BaseTaskOptions {
   template: string;
   defaultModelName: string;
   defaultModelUrl: string;
+  models?: Record<string, string>;
   workerFactory: () => Worker;
   defaultDelegate?: 'CPU' | 'GPU';
 }
@@ -32,9 +33,12 @@ export abstract class BaseTask {
 
   protected currentModel: string;
   protected models: Record<string, string> = {};
+  /** Set when the user uploads a model file; used while `currentModel` is 'custom'. */
+  protected customModelFile: File | undefined;
   protected modelSelector!: ModelSelector;
   protected currentDelegate: 'CPU' | 'GPU' = 'GPU';
   protected inferenceTimer = new InferenceTimer();
+  protected initQueue: string[] = [];
 
   protected isWorkerReady = false;
 
@@ -42,6 +46,7 @@ export abstract class BaseTask {
     this.container = options.container;
     this.currentModel = options.defaultModelName;
     this.models[options.defaultModelName] = options.defaultModelUrl;
+    if (options.models) Object.assign(this.models, options.models);
     if (options.defaultDelegate) {
       this.currentDelegate = options.defaultDelegate;
     }
@@ -80,7 +85,11 @@ export abstract class BaseTask {
         break;
 
       case 'INIT_DONE':
-        this.handleInitDone();
+        this.handleInitDone(event.data);
+        break;
+
+      case 'MODEL_CACHED':
+        this.modelSelector?.refreshCacheState();
         break;
 
       case 'DELEGATE_FALLBACK':
@@ -97,7 +106,12 @@ export abstract class BaseTask {
       case 'ERROR':
       case 'DETECT_ERROR':
       case 'CLASSIFY_ERROR':
+        if (this.initQueue.length > 0) {
+          this.initQueue.shift();
+        }
         console.error('Worker error:', event.data.error);
+        this.modelSelector?.hideProgress();
+        this.modelSelector?.setBusy(false);
         this.updateStatus(`Error: ${event.data.error}`);
         break;
     }
@@ -110,12 +124,27 @@ export abstract class BaseTask {
       if (progress >= 1) setTimeout(() => this.modelSelector?.hideProgress(), 500);
     } else if (loaded !== undefined && total !== undefined) {
       this.modelSelector?.showProgress(loaded, total);
-      if (loaded >= total) setTimeout(() => this.modelSelector?.hideProgress(), 500);
+      if (total > 0 && loaded >= total) setTimeout(() => this.modelSelector?.hideProgress(), 500);
     }
   }
 
-  protected handleInitDone() {
+  protected handleInitDone(data?: any) {
+    let loadedModel = data?.modelName;
+    if (loadedModel === undefined) {
+      loadedModel = this.initQueue.length > 0 ? this.initQueue[0] : this.currentModel;
+    }
+    if (this.initQueue.length > 0) {
+      this.initQueue.shift();
+    }
+
+    if (loadedModel !== this.currentModel) {
+      // Ignore INIT_DONE for a previous model if the user already switched to a new one
+      return;
+    }
+
     this.modelSelector?.hideProgress();
+    this.modelSelector?.setBusy(false);
+    this.modelSelector?.setLoaded(loadedModel === 'custom' ? null : loadedModel);
     document.querySelector('.viewport')?.classList.remove('loading-model');
     this.isWorkerReady = true;
     if (this.hadDelegateFallback) {
@@ -140,41 +169,67 @@ export abstract class BaseTask {
   protected setupUI() {
     this.modelSelector = new ModelSelector(
       'model-selector-container',
-      [{ label: this.options.defaultModelName, value: this.options.defaultModelName, isDefault: true }],
+      Object.keys(this.models).map((name) => ({
+        label: name,
+        value: name,
+        isDefault: name === this.options.defaultModelName,
+      })),
       async (selection) => {
         if (selection.type === 'standard') {
           this.currentModel = selection.value;
+          this.customModelFile = undefined;
         } else if (selection.type === 'custom') {
-          this.models['custom'] = URL.createObjectURL(selection.file);
+          this.customModelFile = selection.file;
           this.currentModel = 'custom';
         }
         await this.initializeTask();
-      }
+      },
+      this.getModelSelectorConfig()
     );
     this.inferenceTimer.mount();
+  }
+
+  /**
+   * Model selector configuration. The default (auto-load on selection) suits
+   * the small .tflite models; tasks with large models should override this to
+   * return `{ autoLoad: false }` so nothing downloads before "Initialize Task".
+   */
+  protected getModelSelectorConfig(): ModelSelectorConfig {
+    return { resolveUrl: (value) => this.resolveModelUrl(value) };
+  }
+
+  /** Absolute download URL of a standard model, or undefined if unknown. */
+  protected resolveModelUrl(modelName: string): string | undefined {
+    const modelPath = this.models[modelName];
+    if (!modelPath) return undefined;
+    if (modelPath.startsWith('http')) return modelPath;
+    // @ts-ignore
+    const baseUrl = import.meta.env.BASE_URL;
+    return new URL(modelPath, new URL(baseUrl, window.location.origin)).href;
   }
 
   protected async initializeTask(): Promise<void> {
     document.querySelector('.viewport')?.classList.add('loading-model');
     this.isWorkerReady = false;
     this.inferenceTimer.resetRollingWindow();
+    this.modelSelector?.setBusy(true);
     this.updateStatus('Loading Model...');
 
     // @ts-ignore
     const baseUrl = import.meta.env.BASE_URL;
-    let modelPath = this.models[this.currentModel];
-
-    if (this.currentModel === 'custom' && this.models['custom']) {
-      modelPath = this.models['custom'];
-    } else if (!modelPath.startsWith('http')) {
-      modelPath = new URL(modelPath, new URL(baseUrl, window.location.origin)).href;
-    }
+    const modelFile = this.currentModel === 'custom' ? this.customModelFile : undefined;
+    const modelPath = modelFile ? undefined : this.resolveModelUrl(this.currentModel);
 
     const initParams = this.getWorkerInitParamsInner();
 
+    // The worker downloads `modelAssetPath` through the shared model cache, or
+    // streams `modelFile` (an uploaded File) directly.
+    this.initQueue.push(this.currentModel);
     this.worker?.postMessage({
       type: 'INIT',
+      modelName: this.currentModel,
       modelAssetPath: modelPath,
+      modelFile,
       delegate: this.currentDelegate,
       baseUrl,
       ...initParams,

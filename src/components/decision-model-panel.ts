@@ -22,26 +22,11 @@
  */
 
 import { ModelSelector, type ModelSelection } from './model-selector';
-import { DECISION_MODELS, decisionRuntime, type Delegate } from './decision-runtime';
+import { DECISION_MODELS, decisionRuntime, type Delegate, resolveModelDownloadUrl } from './decision-runtime';
 
 const MODEL_PANEL_HTML = `
   <div class="section-title">Model Selection</div>
-  <div id="model-selector-container"></div>
-  <button
-    type="button"
-    id="dm-load-btn"
-    class="action-button secondary"
-    style="width: 100%; padding: 8px 12px; font-size: 0.84rem; margin: 8px 0"
-  >
-    Load Model
-  </button>
-  <div id="dm-load-status" class="status-text">Ready to load model</div>
-  <div id="dm-progress-wrap" style="display: none; margin-top: 10px">
-    <div class="progress-container">
-      <div class="progress-bar" id="dm-progress-bar"></div>
-    </div>
-    <div class="progress-text" id="dm-progress-text">Streaming model... 0%</div>
-  </div>`;
+  <div id="model-selector-container"></div>`;
 
 const DELEGATE_HTML = `
   <div class="control-group">
@@ -63,79 +48,56 @@ const DELEGATE_HTML = `
 export function mountDecisionModelPanel(modelContainer: HTMLElement, delegateContainer: HTMLElement): () => void {
   modelContainer.innerHTML = MODEL_PANEL_HTML;
   delegateContainer.innerHTML = DELEGATE_HTML;
-  const $ = (id: string) => modelContainer.querySelector<HTMLElement>(`#${id}`)!;
-  const loadBtn = $('dm-load-btn') as HTMLButtonElement;
-  const loadStatus = $('dm-load-status');
-  const progressWrap = $('dm-progress-wrap');
-  const progressBar = $('dm-progress-bar');
-  const progressText = $('dm-progress-text');
   const delegateSelect = delegateContainer.querySelector<HTMLSelectElement>('#delegate-select')!;
 
-  new ModelSelector(
+  // Enhanced ModelSelector now natively handles the "Load Model" (Initialize Task) button,
+  // file upload accept tags, caching indicators, and progress streaming.
+  const selector = new ModelSelector(
     'model-selector-container',
     Object.entries(DECISION_MODELS).map(([value, m]) => ({
       value,
       label: m.label,
       isDefault: value === decisionRuntime.modelName,
+      disabled: m.unsupported,
     })),
     (selection: ModelSelection) => {
+      // With autoLoad: false, this is called when the user explicitly clicks the load button
+      // or selects a file. We just update the state and call load().
       if (selection.type === 'custom') decisionRuntime.selectFile(selection.file);
       else decisionRuntime.select(selection.value);
+      decisionRuntime.load();
+    },
+    {
+      autoLoad: false,
+      accept: '.task,.tflite,.litertlm',
+      uploadLabel: 'Choose .task / .tflite / .litertlm File',
+      resolveUrl: (value) => {
+        const m = DECISION_MODELS[value];
+        if (!m) return undefined;
+        if (m.url) return resolveModelDownloadUrl(m.url);
+        return new URL(`local-models/${m.file}`, new URL(import.meta.env.BASE_URL, window.location.origin)).href;
+      },
+      preferCached: true,
     }
   );
-  // Listed so users know they're coming, but not selectable yet.
-  for (const [value, m] of Object.entries(DECISION_MODELS)) {
-    if (!m.unsupported) continue;
-    const option = modelContainer.querySelector<HTMLOptionElement>(`.model-select option[value="${value}"]`);
-    if (option) option.disabled = true;
-  }
-  // Decision models also ship as .litertlm (e.g. EmbeddingGemma), so allow those for upload.
-  const upload = modelContainer.querySelector<HTMLInputElement>('.model-upload');
-  if (upload) {
-    upload.accept = '.task,.tflite,.litertlm';
-    const label = upload.parentElement?.firstChild;
-    if (label?.nodeType === Node.TEXT_NODE) label.textContent = 'Choose .task / .tflite / .litertlm File';
-  }
 
-  loadBtn.addEventListener('click', () => decisionRuntime.load());
   delegateSelect.addEventListener('change', () => decisionRuntime.setDelegate(delegateSelect.value as Delegate));
 
-  /** Streaming progress bar, same format as the retrieval demos. */
-  const showProgress = (loaded: number, total: number) => {
-    progressWrap.style.display = 'block';
-    const mbLoaded = (loaded / (1024 * 1024)).toFixed(1);
-    if (total > 0) {
-      const pct = Math.min(100, Math.round((loaded / total) * 100));
-      progressBar.style.width = `${pct}%`;
-      progressText.textContent =
-        loaded >= total
-          ? `Streamed ${mbLoaded} MB · initializing model...`
-          : `Streaming model: ${mbLoaded} / ${(total / (1024 * 1024)).toFixed(1)} MB (${pct}%)`;
-    } else {
-      progressBar.style.width = '100%';
-      progressText.textContent = `Streaming model: ${mbLoaded} MB...`;
-    }
-  };
-
-  /** Syncs the button, the status line under it, the delegate select and the progress bar. */
   const renderState = () => {
     const rt = decisionRuntime;
-    loadBtn.disabled = rt.loading;
-    loadBtn.textContent = rt.loading ? 'Loading…' : 'Load Model';
     delegateSelect.value = rt.delegate;
-    if (!rt.loading) progressWrap.style.display = 'none';
-    const selected = rt.currentLabel();
-    if (rt.loading) loadStatus.textContent = `Loading ${rt.loadingLabel}...`;
-    else if (rt.failed) loadStatus.textContent = `Failed to load ${rt.loadingLabel}`;
-    else if (rt.loadedLabel && rt.loadedLabel === selected) loadStatus.textContent = `✓ Loaded: ${rt.loadedLabel}`;
-    else if (rt.loadedLabel) loadStatus.textContent = `✓ Loaded: ${rt.loadedLabel} · press Load Model to switch`;
-    else loadStatus.textContent = 'Ready to load model';
+    selector.setBusy(rt.loading);
+    if (rt.loading) selector.setStatus(`Loading ${rt.loadingLabel}...`);
+    else if (rt.failed) selector.setStatus(`Failed to load ${rt.loadingLabel}`);
+    else if (rt.loadedLabel) selector.setLoaded(rt.loadedValue);
   };
 
   const unsubscribe = decisionRuntime.subscribe((event) => {
-    if (event.type === 'progress') showProgress(event.loaded, event.total);
-    else if (event.type === 'loading') progressWrap.style.display = 'none';
-    else if (event.type === 'state') renderState();
+    if (event.type === 'progress') selector.showProgress(event.loaded, event.total);
+    else if (event.type === 'cached') selector.refreshCacheState();
+    else if (event.type === 'loading') {
+      /* handled in renderState */
+    } else if (event.type === 'state') renderState();
   });
   renderState();
   return unsubscribe;

@@ -22,59 +22,18 @@ class DecisionMakerWorker extends BaseWorker<DecisionMaker> {
     const fileset = await FilesetResolver.forDecisionTasks(this.getWasmPath(), true);
     fileset.wasmLoaderPath = `${fileset.wasmLoaderPath}?cb=${Date.now()}`; // Force reload
 
-    // Stream the model (URL or uploaded file) so it isn't copied into one big JS
-    // buffer, and report bytes received so the page can show a progress bar.
-    const file: File | undefined = this.currentOptions.modelFile;
-    let stream: ReadableStream<Uint8Array>;
-    let size: number;
-    if (file) {
-      stream = file.stream();
-      size = file.size;
-    } else {
-      const url: string = this.currentOptions.modelAssetPath;
-      const response = await fetch(url);
-      if (!response.ok || !response.body) throw new Error(`HTTP ${response.status} when fetching ${url}`);
-      stream = response.body;
-      size = Number(response.headers.get('content-length') || 0);
-    }
-
+    // Stream the model (cached download or uploaded file) so it isn't copied
+    // into one big JS buffer; the size lets the wasm allocate it in one pass.
+    const { stream, size } = await this.openModelStream();
     this.taskInstance = await DecisionMaker.createFromOptions(fileset, {
       baseOptions: {
-        modelAssetBuffer: this.progressReader(stream, size),
+        modelAssetBuffer: stream.getReader(),
         delegate: this.currentOptions.delegate === 'GPU' ? 'GPU' : 'CPU',
       },
-      ...(size > 0 ? { modelAssetSize: size } : {}),
+      ...(size ? { modelAssetSize: size } : {}),
       // Same as the Android sample; the default (256) is too small for longer inputs.
       maxNumTokens: 4096,
     });
-  }
-
-  /** Wraps a stream so each chunk read posts LOAD_PROGRESS (throttled to ~10/s). */
-  private progressReader(source: ReadableStream<Uint8Array>, total: number): ReadableStreamDefaultReader<Uint8Array> {
-    const reader = source.getReader();
-    let loaded = 0;
-    let lastPost = 0;
-    const post = () => self.postMessage({ type: 'LOAD_PROGRESS', loaded, total });
-    return new ReadableStream<Uint8Array>({
-      async pull(controller) {
-        const { done, value } = await reader.read();
-        if (done) {
-          post();
-          controller.close();
-          return;
-        }
-        loaded += value.byteLength;
-        const now = performance.now();
-        if (now - lastPost > 100) {
-          lastPost = now;
-          post();
-        }
-        controller.enqueue(value);
-      },
-      cancel(reason) {
-        return reader.cancel(reason);
-      },
-    }).getReader();
   }
 
   protected async handleCustomMessage(data: any): Promise<void> {

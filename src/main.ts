@@ -169,13 +169,14 @@ const routes = {
 
 let currentCleanup: (() => void) | undefined;
 
-async function router() {
-  let hash = window.location.hash.slice(1);
+async function applyRoute() {
+  const hash = window.location.hash.slice(1);
 
-  // Handle root or invalid routes by defaulting to home
+  // Handle root or invalid routes by defaulting to home. Changing
+  // the hash fires `hashchange`, which routes again with the valid hash.
   if (!hash || !routes[hash as keyof typeof routes]) {
-    hash = '/home';
-    window.location.hash = hash;
+    window.location.hash = '/home';
+    return;
   }
 
   const route = routes[hash as keyof typeof routes];
@@ -190,28 +191,34 @@ async function router() {
   mainContent.innerHTML = '';
 
   // Setup new task
-  if (route) {
-    const isHome = hash === '/home';
-    sidebar.style.display = isHome ? 'none' : '';
-    const mobileHeader = app.querySelector('.mobile-header') as HTMLElement;
-    if (mobileHeader) mobileHeader.style.display = isHome ? 'none' : '';
+  const isHome = hash === '/home';
+  sidebar.style.display = isHome ? 'none' : '';
+  const mobileHeader = app.querySelector('.mobile-header') as HTMLElement;
+  if (mobileHeader) mobileHeader.style.display = isHome ? 'none' : '';
 
-    updateBanner(hash);
-    await route.setup(mainContent);
-    currentCleanup = route.cleanup;
-    document.title = `${route.label} - MediaPipe Web Task Demo`;
+  updateBanner(hash);
+  await route.setup(mainContent);
+  currentCleanup = route.cleanup;
+  document.title = `${route.label} - MediaPipe Web Task Demo`;
 
-    // Update active state in sidebar
-    const links = sidebar.querySelectorAll('a');
-    links.forEach((l) => {
-      if (l.getAttribute('href') === `#${hash}`) l.classList.add('active');
-      else l.classList.remove('active');
-    });
-  }
+  // Update active state in sidebar
+  const links = sidebar.querySelectorAll('a');
+  links.forEach((l) => {
+    if (l.getAttribute('href') === `#${hash}`) l.classList.add('active');
+    else l.classList.remove('active');
+  });
+}
+
+// Route changes are applied one at a time: a task's (async) setup must finish
+// before it can be cleaned up, otherwise two instances – and two workers
+// loading the same model – would be left running.
+let routing: Promise<void> = Promise.resolve();
+function router() {
+  routing = routing.then(applyRoute).catch((err) => console.error('Failed to set up route:', err));
+  return routing;
 }
 
 window.addEventListener('hashchange', router);
-window.addEventListener('load', router);
 
 // Initialize router immediately to handle initial load
 router();

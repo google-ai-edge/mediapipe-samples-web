@@ -13,7 +13,7 @@
   --text-secondary: #5f6368;
   --border-color: #e0e0e0;
   --sidebar-width: 280px;
-  --controls-width: 320px;
+  --controls-width: 330px;
   --radius-sm: 8px;
   --radius-md: 12px;
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.12);
@@ -414,6 +414,223 @@ select:focus {
   color: var(--text-secondary);
   margin-top: 4px;
   text-align: center;
+}
+
+/* Shared model selector (see components/model-selector.ts) */
+.load-model-btn {
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 0.84rem;
+  margin: 0 0 8px;
+}
+
+.model-loading-progress {
+  margin-top: 10px;
+}
+
+.model-loading-progress .progress-container {
+  margin-top: 0;
+}
+
+.model-select-wrapper::after {
+  left: 12px;
+  right: auto;
+}
+
+.model-select-wrapper select {
+  padding-left: 36px;
+  padding-right: 12px;
+}
+
+/* "Downloaded" / "Loaded" ribbon on the top-right edge of the model dropdown */
+.model-select-wrapper .model-badge-container {
+  position: absolute;
+  top: -9px;
+  right: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  pointer-events: auto;
+  z-index: 10;
+}
+
+.model-select-wrapper .model-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 7px 1px 4px;
+  border-radius: 999px;
+  background: var(--text-secondary);
+  color: #fff;
+  font-size: 0.62rem;
+  font-weight: 700;
+  line-height: 1.5;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.model-select-wrapper .model-badge[data-state='loaded'] {
+  background: var(--primary);
+}
+
+.model-select-wrapper .model-badge-icon {
+  font-size: 0.8rem;
+}
+
+.model-select-wrapper .model-badge[hidden],
+.load-model-btn[hidden] {
+  display: none;
+}
+
+/*
+ * Customizable select (Chrome 135+): the open list can render real markup, so
+ * downloaded / loaded models get a green / teal pill next to their name. Other
+ * browsers keep the native list, where the option text carries a tag instead.
+ */
+@supports (appearance: base-select) {
+  .model-select,
+  .model-select::picker(select) {
+    appearance: base-select;
+  }
+
+  .model-select {
+    display: block;
+  }
+
+  /* The author-provided button is the control's text area. */
+  .model-select > .model-select-button {
+    display: block;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    color: inherit;
+    text-align: left;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: pointer;
+  }
+
+  .model-select > .model-select-button .model-option-actions,
+  .model-select > .model-select-button selectedcontent .model-option-actions {
+    display: none;
+  }
+
+  .model-select::picker-icon {
+    display: none; /* the wrapper draws its own chevron */
+  }
+
+  .model-select::picker(select) {
+    box-sizing: border-box;
+    inline-size: anchor-size(self-inline);
+    margin-top: 4px;
+    padding: 4px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    box-shadow: var(--shadow-md);
+  }
+
+  .model-select option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    color: var(--text-main);
+    white-space: normal; /* long model names wrap; the pill never shrinks */
+  }
+
+  .model-select option:hover,
+  .model-select option:focus-visible {
+    background: var(--surface-color-hover);
+    outline: none;
+  }
+
+  .model-select option:checked {
+    font-weight: 600;
+  }
+
+  .model-select option::checkmark {
+    display: none;
+  }
+
+  .model-option-actions {
+    display: flex;
+    align-items: center;
+    margin-left: auto;
+    gap: 6px;
+  }
+
+  .model-badge-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 54px;
+    flex-shrink: 0;
+    padding: 1px 7px;
+    border-radius: 999px;
+    background: var(--text-secondary);
+    color: #fff;
+    font-size: 0.62rem;
+    font-weight: 700;
+    line-height: 1.5;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .model-badge-pill.loaded {
+    background: var(--primary);
+  }
+
+  .model-option-icon {
+    font-size: 1.1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 4px;
+    flex-shrink: 0;
+  }
+
+  .model-option-icon.active-icon {
+    color: var(--primary);
+  }
+
+  .model-option-delete {
+    color: var(--text-secondary);
+    transition:
+      color 0.2s,
+      background 0.2s;
+    cursor: pointer;
+  }
+
+  .model-option-delete:hover {
+    color: #d32f2f;
+    background: rgba(0, 0, 0, 0.05);
+  }
+}
+
+.link-button {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: var(--primary);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.link-button:hover {
+  color: var(--primary-hover);
 }
 
 .divider {

@@ -22,14 +22,18 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 test.describe('Text Classification Task', () => {
+  let modelFetches = 0;
+
   test.beforeEach(async ({ page }) => {
-    page.on('console', msg => console.log(`[BROWSER ${msg.type()}] ${msg.text()}`));
-    page.on('pageerror', exc => console.log(`[BROWSER UNCAUGHT ERROR] ${exc}`));
+    page.on('console', (msg) => console.log(`[BROWSER ${msg.type()}] ${msg.text()}`));
+    page.on('pageerror', (exc) => console.log(`[BROWSER UNCAUGHT ERROR] ${exc}`));
 
     // Route model to local asset if available (downloaded by global-setup)
-    await page.route('**/bert_classifier.tflite', route => {
+    modelFetches = 0;
+    await page.route('**/bert_classifier.tflite', (route) => {
       const assetPath = path.join(__dirname, 'assets', 'bert_classifier.tflite');
       console.log(`Intercepting BERT model request to: ${assetPath}`);
+      modelFetches++;
       route.fulfill({ path: assetPath });
     });
 
@@ -56,5 +60,38 @@ test.describe('Text Classification Task', () => {
     const inferenceTime = page.locator('#inference-time');
     await expect(inferenceTime).toContainText('ms');
     await expect(inferenceTime).not.toContainText('- ms');
+  });
+
+  test('should cache the downloaded model and reuse it after a reload', async ({ page }) => {
+    const classifyBtn = page.locator('#classify-btn');
+    await expect(classifyBtn).toHaveText('Classify', { timeout: 30000 });
+    expect(modelFetches).toBe(1);
+
+    // The download was written to the shared model cache (keyed by URL).
+    await expect
+      .poll(
+        () =>
+          page.evaluate(async () => {
+            const cache = await caches.open('mediapipe-models-v1');
+            return (await cache.keys()).map((req) => req.url);
+          }),
+        { timeout: 10000 }
+      )
+      .toContainEqual(expect.stringContaining('bert_classifier.tflite'));
+
+    // A second load is served from the cache: no new network request, and the
+    // dropdown shows the model as loaded (badge on the control, tag in the list).
+    await page.reload();
+    await expect(classifyBtn).toHaveText('Classify', { timeout: 30000 });
+    expect(modelFetches).toBe(1);
+    const badge = page.locator('#model-selector-container-model-badge');
+    await expect(badge).toBeVisible();
+    await expect(badge).toHaveText(/Active/);
+    await expect(badge).toHaveAttribute('data-state', 'loaded');
+    await expect(page.locator('.model-select option[value="bert_classifier"]')).toHaveAttribute('data-state', 'loaded');
+    await expect(page.locator('.model-select option[value="average_word_classifier"]')).not.toHaveAttribute(
+      'data-state',
+      /.*/
+    );
   });
 });

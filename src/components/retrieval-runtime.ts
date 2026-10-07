@@ -24,7 +24,20 @@ import {
   UniversalEmbedder,
 } from '@mediapipe/tasks-retrieval';
 
-import { ViewToggle } from './view-toggle';
+import {
+  formatMegabytes,
+  openModelStream,
+  resolveModelDownloadUrl,
+  trackProgress,
+  type ModelProgressCallback,
+} from './model-cache';
+import {
+  EMBEDDING_GEMMA_2_740M,
+  EMBEDDING_GEMMA_2_TEXT_VISION_440M,
+  hostedModelDownloadUrl,
+  type HostedModel,
+} from './model-registry';
+import { ModelSelector } from './model-selector';
 
 export interface SampleImageItem {
   id: string;
@@ -50,66 +63,22 @@ export const SAMPLE_IMAGES: SampleImageItem[] = [
 ];
 
 /** Metadata configuration for standard pre-quantized retrieval models. */
-export interface StandardRetrievalModel {
-  id: string;
-  name: string;
-  url: string;
-  defaultFileName: string;
-  description?: string;
-}
+export type StandardRetrievalModel = HostedModel;
 
 /**
  * Standard pre-configured multimodal retrieval models available in the demo.
+ * Shared with the Decision Maker (see model-registry.ts), so a model downloaded
+ * here is reused there without another download.
  */
 export const STANDARD_RETRIEVAL_MODELS: StandardRetrievalModel[] = [
-  {
-    id: 'embeddinggemma-2-text-vision-440m',
-    name: 'EmbeddingGemma-2 Text-Vision 440M',
-    url: 'https://huggingface.co/litert-community/embeddinggemma-2-text-vision-440m-litert-lm',
-    defaultFileName: 'embeddinggemma-2-text-vision-440m.litertlm',
-    description: 'Multimodal (Text & Image)',
-  },
-  {
-    id: 'embeddinggemma-2-740m',
-    name: 'EmbeddingGemma-2 740M',
-    url: 'https://huggingface.co/litert-community/embeddinggemma-2-740m-litert-lm',
-    defaultFileName: 'embeddinggemma-2-740m.litertlm',
-    description: 'Multimodal (Text & Image & Audio)',
-  },
+  EMBEDDING_GEMMA_2_TEXT_VISION_440M,
+  EMBEDDING_GEMMA_2_740M,
 ];
 
-/**
- * Resolves model page URLs (e.g. Hugging Face repository or tree URLs) to their
- * direct binary download endpoints suitable for HTTP fetching and streaming.
- *
- * Browsers require direct raw binary streams (HTTP 200/206 with binary content)
- * to initialize LiteRT LM via WebAssembly / WebGPU. When users copy links from
- * Hugging Face or select pre-defined models, the input URL can come in multiple
- * web-facing formats rather than a direct raw download URL.
- *
- * @param rawUrl The input URL from UI selection, input field, or configuration.
- * @returns The direct HTTP download URL that resolves to raw model binary bytes.
- */
-export function resolveModelDownloadUrl(rawUrl: string): string {
-  const trimmed = rawUrl.trim();
-  const hfRepoMatch = trimmed.match(
-    /^https?:\/\/huggingface\.co\/([^/]+)\/([^/]+)(?:\/(?:tree|blob|resolve)\/([^/]+)(?:\/(.+))?)?$/
-  );
-  if (hfRepoMatch) {
-    const [, org, repo, branchOrType, filePath] = hfRepoMatch;
-    // 1. Direct download endpoint already specified
-    if (branchOrType === 'resolve' && filePath) {
-      return trimmed;
-    }
-    // 2. Look up the specific model filename for known repository versions
-    const matched = STANDARD_RETRIEVAL_MODELS.find((m) => m.url.includes(`${org}/${repo}`));
-    const fileName = filePath || (matched ? matched.defaultFileName : `${repo}.litertlm`);
-    // 3. Preserve custom git branch/tag/revision if specified, otherwise default to 'main'
-    const branch = branchOrType && branchOrType !== 'tree' && branchOrType !== 'blob' ? branchOrType : 'main';
-    return `https://huggingface.co/${org}/${repo}/resolve/${branch}/${fileName}`;
-  }
-  // Passthrough for non-Hugging Face URLs (GCS, local dev server, direct CDNs)
-  return trimmed;
+/** Direct download URL for a standard model (or any model page URL). */
+export function retrievalModelDownloadUrl(url: string): string {
+  const matched = STANDARD_RETRIEVAL_MODELS.find((m) => m.url === url);
+  return matched ? hostedModelDownloadUrl(matched) : resolveModelDownloadUrl(url);
 }
 
 /**
@@ -122,6 +91,9 @@ export const RETRIEVAL_WASM_PATH = './wasm';
 /** Base path for sample images located in public/images/ */
 export const SAMPLE_IMAGES_PATH = './images';
 
+/** Where the active embedder's model came from, so it can be re-created with new options. */
+export type RetrievalModelSource = { type: 'url'; url: string } | { type: 'file'; file: File };
+
 class RetrievalRuntimeManager {
   public wasmFileset: any = null;
   public embedder: any = null;
@@ -129,6 +101,8 @@ class RetrievalRuntimeManager {
   public activeL2Normalize = true;
   public lastSelectedFile: File | null = null;
   public lastSelectedUrl = STANDARD_RETRIEVAL_MODELS[0].url;
+  /** Source of the currently loaded model (null until one has been loaded). */
+  public activeSource: RetrievalModelSource | null = null;
   public isInitializing = false;
   private imageBytesCache = new Map<string, Uint8Array>();
 
@@ -160,55 +134,26 @@ class RetrievalRuntimeManager {
     return this.embedder !== null && !this.isInitializing;
   }
 
-  createProgressReader(
-    sourceStream: ReadableStream<Uint8Array>,
-    totalBytes: number,
-    onProgress?: ((loaded: number, total: number) => void) | null
-  ): ReadableStreamDefaultReader<Uint8Array> {
-    const rawReader = sourceStream.getReader();
-    let loadedBytes = 0;
-
-    const trackedStream = new ReadableStream<Uint8Array>({
-      async pull(controller) {
-        const { done, value } = await rawReader.read();
-        if (done) {
-          controller.close();
-          return;
-        }
-        loadedBytes += value.byteLength;
-        if (onProgress) {
-          onProgress(loadedBytes, totalBytes);
-        }
-        controller.enqueue(value);
-      },
-      cancel(reason) {
-        return rawReader.cancel(reason);
-      },
-    });
-
-    return trackedStream.getReader();
+  private closeEmbedder() {
+    if (this.embedder) {
+      try {
+        this.embedder.close();
+      } catch {
+        // Ignore close errors
+      }
+      this.embedder = null;
+    }
   }
 
-  async initializeFromFile(
-    file: File,
-    l2Normalize = true,
-    onProgress?: ((loaded: number, total: number) => void) | null
-  ): Promise<any> {
+  async initializeFromFile(file: File, l2Normalize = true, onProgress?: ModelProgressCallback | null): Promise<any> {
     this.lastSelectedFile = file;
     this.isInitializing = true;
 
     try {
       const wasmFileset = await this.resolveWasmFileset();
-      if (this.embedder) {
-        try {
-          this.embedder.close();
-        } catch {
-          // Ignore close errors
-        }
-        this.embedder = null;
-      }
+      this.closeEmbedder();
 
-      const reader = this.createProgressReader(file.stream(), file.size, onProgress);
+      const reader = trackProgress(file.stream(), file.size, onProgress).getReader();
 
       this.embedder = await UniversalEmbedder.createFromOptions(wasmFileset, {
         baseOptions: {
@@ -217,8 +162,9 @@ class RetrievalRuntimeManager {
         l2Normalize,
       });
 
-      this.activeModelLabel = `${file.name} (${(file.size / (1024 * 1024)).toFixed(1)} MB)`;
+      this.activeModelLabel = `${file.name} (${formatMegabytes(file.size)})`;
       this.activeL2Normalize = l2Normalize;
+      this.activeSource = { type: 'file', file };
       return this.embedder;
     } finally {
       this.isInitializing = false;
@@ -228,35 +174,25 @@ class RetrievalRuntimeManager {
   async initializeFromUrl(
     url: string,
     l2Normalize = true,
-    onProgress?: ((loaded: number, total: number) => void) | null
+    onProgress?: ModelProgressCallback | null,
+    onCached?: () => void
   ): Promise<any> {
     this.lastSelectedUrl = url;
     this.isInitializing = true;
 
     try {
       const wasmFileset = await this.resolveWasmFileset();
-      const downloadUrl = resolveModelDownloadUrl(url);
 
-      const response = await fetch(downloadUrl);
-      if (!response.ok || !response.body) {
-        throw new Error(`HTTP ${response.status} when fetching ${downloadUrl}`);
-      }
-
-      if (this.embedder) {
-        try {
-          this.embedder.close();
-        } catch {
-          // Ignore close errors
-        }
-        this.embedder = null;
-      }
-
-      const contentLength = Number(response.headers.get('content-length') || 0);
-      const reader = this.createProgressReader(response.body, contentLength, onProgress);
+      // Served from the shared model cache after the first download, so the
+      // same file is reused by the Universal Embedder, Semantic Retriever and
+      // Decision Maker demos (and across page reloads).
+      const { stream, cached } = await openModelStream(retrievalModelDownloadUrl(url), onProgress);
+      if (onCached) cached.then((ok) => ok && onCached());
+      this.closeEmbedder();
 
       this.embedder = await UniversalEmbedder.createFromOptions(wasmFileset, {
         baseOptions: {
-          modelAssetBuffer: reader,
+          modelAssetBuffer: stream.getReader(),
         },
         l2Normalize,
       });
@@ -264,10 +200,20 @@ class RetrievalRuntimeManager {
       const matched = STANDARD_RETRIEVAL_MODELS.find((m) => m.url === url);
       this.activeModelLabel = matched ? matched.name : url.split('/').pop() || url;
       this.activeL2Normalize = l2Normalize;
+      this.activeSource = { type: 'url', url };
       return this.embedder;
     } finally {
       this.isInitializing = false;
     }
+  }
+
+  /** Re-creates the embedder from the last loaded source with new options. */
+  async reinitialize(l2Normalize: boolean, onProgress?: ModelProgressCallback | null): Promise<any> {
+    const source = this.activeSource;
+    if (!source) throw new Error('No model has been loaded yet.');
+    return source.type === 'file'
+      ? this.initializeFromFile(source.file, l2Normalize, onProgress)
+      : this.initializeFromUrl(source.url, l2Normalize, onProgress);
   }
 
   async createSemanticRetriever(chunkSize = 512, chunkOverlap = 100): Promise<any> {
@@ -301,136 +247,67 @@ export interface ModelSelectorCallbacks {
   onError?: (err: any) => void;
 }
 
-export function mountModelSelector(containerId: string, callbacks: ModelSelectorCallbacks) {
-  const container = document.getElementById(containerId);
-  if (!container) return;
+/**
+ * Mounts the shared model selector for the retrieval demos. Standard models
+ * are only downloaded once the user presses "Initialize Task"; the resulting
+ * embedder lives in `retrievalRuntime` and is shared by both retrieval tasks.
+ */
+export function mountModelSelector(containerId: string, callbacks: ModelSelectorCallbacks): ModelSelector | null {
+  if (!document.getElementById(containerId)) return null;
 
-  const isAlreadyLoaded = retrievalRuntime.isReady();
-  const activeLabel = retrievalRuntime.activeModelLabel || 'No model loaded yet';
+  const selector = new ModelSelector(
+    containerId,
+    STANDARD_RETRIEVAL_MODELS.map((model, idx) => ({ label: model.name, value: model.url, isDefault: idx === 0 })),
+    async (selection) => {
+      const l2Normalize = callbacks.getL2Normalize ? callbacks.getL2Normalize() : true;
+      const name =
+        selection.type === 'custom'
+          ? selection.file.name
+          : (STANDARD_RETRIEVAL_MODELS.find((m) => m.url === selection.value)?.name ?? selection.value);
 
-  container.innerHTML = `
-    <div id="${containerId}-tabs"></div>
+      selector.setBusy(true);
+      selector.setStatus(`Loading ${name}...`);
+      callbacks.onLoadStart?.(`Loading ${name}...`);
 
-    <div id="${containerId}-tab-standard" class="tab-content active">
-      <div class="select-wrapper">
-        <select id="${containerId}-standard-select">
-          ${STANDARD_RETRIEVAL_MODELS.map(
-            (model, idx) => `<option value="${model.url}" ${idx === 0 ? 'selected' : ''}>${model.name}</option>`
-          ).join('')}
-        </select>
-      </div>
-      <button type="button" id="${containerId}-standard-load-btn" class="action-button secondary" style="width: 100%; padding: 8px 12px; font-size: 0.84rem; margin-bottom: 8px;">
-        Load Model
-      </button>
-      <div class="status-text" id="${containerId}-standard-status">
-        ${isAlreadyLoaded ? `✓ Loaded: ${activeLabel}` : 'Ready to load model'}
-      </div>
-    </div>
-
-    <div id="${containerId}-tab-upload" class="tab-content">
-      <label class="file-upload-btn" id="${containerId}-file-label">
-        <span>Choose .litertlm Model</span>
-        <input type="file" id="${containerId}-file-input" accept=".litertlm,.bin,.task,.tflite" />
-      </label>
-      <div class="status-text" id="${containerId}-upload-status">
-        ${isAlreadyLoaded ? `✓ Loaded: ${activeLabel}` : 'Select a local .litertlm file'}
-      </div>
-    </div>
-
-    <div id="${containerId}-progress-wrap" style="display: none; margin-top: 10px;">
-      <div class="progress-container">
-        <div class="progress-bar" id="${containerId}-progress-bar"></div>
-      </div>
-      <div class="progress-text" id="${containerId}-progress-text">Streaming model... 0%</div>
-    </div>
-  `;
-
-  const standardTab = document.getElementById(`${containerId}-tab-standard`)!;
-  const uploadTab = document.getElementById(`${containerId}-tab-upload`)!;
-  const standardSelect = document.getElementById(`${containerId}-standard-select`) as HTMLSelectElement;
-  const standardLoadBtn = document.getElementById(`${containerId}-standard-load-btn`) as HTMLButtonElement;
-  const standardStatus = document.getElementById(`${containerId}-standard-status`)!;
-  const fileInput = document.getElementById(`${containerId}-file-input`) as HTMLInputElement;
-  const uploadStatus = document.getElementById(`${containerId}-upload-status`)!;
-  const progressWrap = document.getElementById(`${containerId}-progress-wrap`)!;
-  const progressBar = document.getElementById(`${containerId}-progress-bar`)!;
-  const progressText = document.getElementById(`${containerId}-progress-text`)!;
-
-  new ViewToggle(
-    `${containerId}-tabs`,
-    [
-      { label: 'Standard', value: 'standard', icon: 'grid_view' },
-      { label: 'Upload', value: 'upload', icon: 'upload' },
-    ],
-    'standard',
-    (tab) => {
-      if (tab === 'standard') {
-        standardTab.classList.add('active');
-        uploadTab.classList.remove('active');
-      } else {
-        uploadTab.classList.add('active');
-        standardTab.classList.remove('active');
+      try {
+        if (selection.type === 'custom') {
+          await retrievalRuntime.initializeFromFile(selection.file, l2Normalize, (l, t) => selector.showProgress(l, t));
+        } else {
+          await retrievalRuntime.initializeFromUrl(
+            selection.value,
+            l2Normalize,
+            (l, t) => selector.showProgress(l, t),
+            () => selector.refreshCacheState()
+          );
+        }
+        selector.hideProgress();
+        selector.setBusy(false);
+        selector.setLoaded(selection.type === 'standard' ? selection.value : null);
+        selector.setStatus(`✓ Active: ${retrievalRuntime.activeModelLabel}`);
+        await callbacks.onModelReady?.();
+      } catch (err: any) {
+        selector.hideProgress();
+        selector.setBusy(false);
+        selector.setStatus(`Failed to load ${name}`);
+        callbacks.onError?.(err);
       }
     },
-    'tabs'
+    {
+      autoLoad: false,
+      accept: '.litertlm,.bin,.task,.tflite',
+      uploadLabel: 'Choose .litertlm Model',
+      resolveUrl: retrievalModelDownloadUrl,
+      preferCached: true,
+    }
   );
 
-  const showProgress = (loaded: number, total: number) => {
-    progressWrap.style.display = 'block';
-    const mbLoaded = (loaded / (1024 * 1024)).toFixed(1);
-    if (total > 0) {
-      const pct = Math.min(100, Math.round((loaded / total) * 100));
-      const mbTotal = (total / (1024 * 1024)).toFixed(1);
-      progressBar.style.width = `${pct}%`;
-      progressText.textContent = `Streaming model: ${mbLoaded} / ${mbTotal} MB (${pct}%)`;
-    } else {
-      progressBar.style.width = '100%';
-      progressText.textContent = `Streaming model: ${mbLoaded} MB...`;
-    }
-  };
+  // A model loaded by the other retrieval demo is still active: reflect it.
+  if (retrievalRuntime.isReady()) {
+    const source = retrievalRuntime.activeSource;
+    if (source?.type === 'url') selector.setSelectedValue(source.url);
+    selector.setLoaded(source?.type === 'url' ? source.url : null);
+    selector.setStatus(`✓ Active: ${retrievalRuntime.activeModelLabel}`);
+  }
 
-  const hideProgress = () => {
-    progressWrap.style.display = 'none';
-  };
-
-  standardLoadBtn.addEventListener('click', async () => {
-    const selectedUrl = standardSelect.value;
-    const selectedModel = STANDARD_RETRIEVAL_MODELS.find((m) => m.url === selectedUrl);
-    const modelName = selectedModel ? selectedModel.name : selectedUrl;
-    const l2Normalize = callbacks.getL2Normalize ? callbacks.getL2Normalize() : true;
-
-    standardStatus.textContent = `Loading ${modelName}...`;
-    callbacks.onLoadStart?.(`Loading ${modelName}...`);
-
-    try {
-      await retrievalRuntime.initializeFromUrl(selectedUrl, l2Normalize, showProgress);
-      hideProgress();
-      standardStatus.textContent = `✓ Loaded: ${retrievalRuntime.activeModelLabel}`;
-      uploadStatus.textContent = `✓ Loaded: ${retrievalRuntime.activeModelLabel}`;
-      await callbacks.onModelReady?.();
-    } catch (err: any) {
-      hideProgress();
-      standardStatus.textContent = `Failed to load ${modelName}`;
-      callbacks.onError?.(err);
-    }
-  });
-
-  fileInput.addEventListener('change', async (e) => {
-    const file = (e.target as HTMLInputElement).files?.[0];
-    if (!file) return;
-    uploadStatus.textContent = `Loading ${file.name}...`;
-    const l2Normalize = callbacks.getL2Normalize ? callbacks.getL2Normalize() : true;
-    callbacks.onLoadStart?.(`Loading ${file.name}...`);
-    try {
-      await retrievalRuntime.initializeFromFile(file, l2Normalize, showProgress);
-      hideProgress();
-      uploadStatus.textContent = `✓ Loaded: ${retrievalRuntime.activeModelLabel}`;
-      standardStatus.textContent = `✓ Loaded: ${retrievalRuntime.activeModelLabel}`;
-      await callbacks.onModelReady?.();
-    } catch (err: any) {
-      hideProgress();
-      uploadStatus.textContent = `Failed to load ${file.name}`;
-      callbacks.onError?.(err);
-    }
-  });
+  return selector;
 }

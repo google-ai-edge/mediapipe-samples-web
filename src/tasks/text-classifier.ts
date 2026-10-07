@@ -163,6 +163,10 @@ export async function setupTextClassifier(container: HTMLElement) {
     defaultModelName: 'bert_classifier',
     defaultModelUrl:
       'https://storage.googleapis.com/mediapipe-models/text_classifier/bert_classifier/float32/1/bert_classifier.tflite',
+    models: {
+      average_word_classifier:
+        'https://storage.googleapis.com/mediapipe-models/text_classifier/average_word_classifier/float32/1/average_word_classifier.tflite',
+    },
     workerFactory: () =>
       new Worker(new URL('../workers/text-classifier.worker.ts', import.meta.url), { type: 'module' }),
     defaultDelegate: 'GPU',

@@ -405,6 +405,12 @@ export async function setupImageSegmenter(container: HTMLElement) {
     defaultModelName: 'deeplab_v3',
     defaultModelUrl:
       'https://storage.googleapis.com/mediapipe-models/image_segmenter/deeplab_v3/float32/1/deeplab_v3.tflite',
+    models: {
+      selfie_segmenter:
+        'https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter/float16/1/selfie_segmenter.tflite',
+      hair_segmenter:
+        'https://storage.googleapis.com/mediapipe-models/image_segmenter/hair_segmenter/float32/1/hair_segmenter.tflite',
+    },
     workerFactory: () =>
       new Worker(new URL('../workers/image-segmenter.worker.ts', import.meta.url), { type: 'module' }),
     defaultDelegate: 'GPU',

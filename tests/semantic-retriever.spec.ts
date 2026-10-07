@@ -18,8 +18,8 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Semantic Retriever Task', () => {
   test.beforeEach(async ({ page }) => {
-    page.on('console', msg => console.log(`[Browser Console]: ${msg.text()}`));
-    page.on('pageerror', err => console.log(`[Browser Error]: ${err}`));
+    page.on('console', (msg) => console.log(`[Browser Console]: ${msg.text()}`));
+    page.on('pageerror', (err) => console.log(`[Browser Error]: ${err}`));
 
     await page.goto('/#/retrieval/semantic_retriever');
     await page.waitForLoadState('domcontentloaded');
@@ -98,10 +98,7 @@ test.describe('Semantic Retriever Task', () => {
     const searchInput = page.locator('#query-input');
     await expect(searchInput).toBeVisible();
     await expect(searchInput).toBeDisabled();
-    await expect(searchInput).toHaveAttribute(
-      'placeholder',
-      /Search images by meaning/
-    );
+    await expect(searchInput).toHaveAttribute('placeholder', /Search images by meaning/);
 
     // Search button is disabled initially before indexing
     const searchBtn = page.locator('#btn-search');
@@ -123,12 +120,12 @@ test.describe('Semantic Retriever Task', () => {
     const containerId = 'model-selector-container';
 
     // Click "Upload" tab
-    await page.click(`#${containerId}-tabs button[data-value="upload"]`);
+    await page.click(`#${containerId}-toggle button[data-value="upload"]`);
     await expect(page.locator(`#${containerId}-tab-upload`)).toHaveClass(/active/);
     await expect(page.locator(`#${containerId}-tab-standard`)).not.toHaveClass(/active/);
 
     // Click back to "Standard" tab
-    await page.click(`#${containerId}-tabs button[data-value="standard"]`);
+    await page.click(`#${containerId}-toggle button[data-value="standard"]`);
     await expect(page.locator(`#${containerId}-tab-standard`)).toHaveClass(/active/);
     await expect(page.locator(`#${containerId}-standard-select`)).toBeVisible();
   });

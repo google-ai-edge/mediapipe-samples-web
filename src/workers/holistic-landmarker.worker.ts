@@ -20,10 +20,11 @@ import { BaseWorker } from './base-worker';
 class HolisticLandmarkerWorker extends BaseWorker<HolisticLandmarker> {
   protected async initializeTask(data: any): Promise<void> {
     const vision = await this.getVisionFileset();
+    const modelBuffer = await this.loadModelAsset();
 
     this.taskInstance = await HolisticLandmarker.createFromOptions(vision, {
       baseOptions: {
-        modelAssetPath: this.currentOptions.modelAssetPath,
+        modelAssetBuffer: new Uint8Array(modelBuffer),
         delegate: this.currentOptions.delegate || 'GPU',
       },
       runningMode: data?.runningMode || 'IMAGE',

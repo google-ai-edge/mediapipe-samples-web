@@ -173,6 +173,12 @@ export async function setupObjectDetector(container: HTMLElement) {
     defaultModelName: 'efficientdet_lite0',
     defaultModelUrl:
       'https://storage.googleapis.com/mediapipe-models/object_detector/efficientdet_lite0/float32/1/efficientdet_lite0.tflite',
+    models: {
+      efficientdet_lite2:
+        'https://storage.googleapis.com/mediapipe-models/object_detector/efficientdet_lite2/float32/1/efficientdet_lite2.tflite',
+      ssd_mobilenet_v2:
+        'https://storage.googleapis.com/mediapipe-models/object_detector/ssd_mobilenet_v2/float16/1/ssd_mobilenet_v2.tflite',
+    },
     workerFactory: () =>
       new Worker(new URL('../workers/object-detector.worker.ts', import.meta.url), { type: 'module' }),
   });

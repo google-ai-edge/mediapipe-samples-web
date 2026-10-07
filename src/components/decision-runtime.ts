@@ -84,7 +84,8 @@ export type RuntimeEvent =
   /** A line for the page's status message. */
   | { type: 'status'; text: string }
   /** loading / ready / selection / delegate changed: re-read the runtime state. */
-  | { type: 'state' };
+  | { type: 'state' }
+  | { type: 'cached' };
 
 class DecisionRuntimeManager {
   modelName = 'embeddinggemma2_270m';
@@ -99,8 +100,11 @@ class DecisionRuntimeManager {
   failed = false;
   /** Label of the loaded model (null = none yet). */
   loadedLabel: string | null = null;
+  /** Value of the loaded model (null = none or custom file). */
+  loadedValue: string | null = null;
   /** Label of the model being loaded (the selection may change while it loads). */
   loadingLabel = '';
+  loadingValue: string | null = null;
 
   private worker: Worker | undefined;
   private requestId = 0;
@@ -156,6 +160,7 @@ class DecisionRuntimeManager {
     this.loading = true;
     this.loadedLabel = null;
     this.loadingLabel = this.currentLabel();
+    this.loadingValue = this.customModel ? null : this.modelName;
     this.emit({ type: 'loading' });
     this.emit({ type: 'state' });
 
@@ -222,10 +227,14 @@ class DecisionRuntimeManager {
       case 'LOAD_PROGRESS':
         if (this.loading) this.emit({ type: 'progress', loaded: msg.loaded, total: msg.total });
         break;
+      case 'MODEL_CACHED':
+        this.emit({ type: 'cached' });
+        break;
       case 'INIT_DONE':
         this.ready = true;
         this.loading = false;
         this.loadedLabel = this.loadingLabel;
+        this.loadedValue = this.loadingValue;
         this.emit({ type: 'state' });
         this.emit({ type: 'status', text: 'Model ready' });
         this.emit({ type: 'ready' });
