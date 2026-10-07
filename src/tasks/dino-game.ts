@@ -509,7 +509,7 @@ class DinoGameTask {
     } else if (decisionRuntime.loading) {
       this.setStatus(`Loading ${decisionRuntime.loadingLabel}...`);
     } else {
-      this.setStatus('Select a model and press "Load Model" to begin');
+      this.setStatus('Load a model to begin');
     }
   }
 

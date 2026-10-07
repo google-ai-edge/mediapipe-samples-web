@@ -18,10 +18,9 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Gesture Recognizer Task', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/');
     page.on('console', msg => console.log(`[Browser Console] ${msg.text()}`));
     page.on('pageerror', err => console.log(`[Browser Error] ${err.message}`));
-    await page.click('a[href="#/vision/gesture_recognizer"]');
+    await page.goto('#/vision/gesture_recognizer');
     await page.waitForSelector('.viewport.loading-model', { state: 'detached', timeout: 30000 });
   });
 

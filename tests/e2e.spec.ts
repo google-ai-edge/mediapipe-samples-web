@@ -23,10 +23,19 @@ const __dirname = path.dirname(__filename);
 
 test.describe('Navigation & UI', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/');
+    // The root redirects to the cover page, which hides the sidebar and docs
+    // banner. Start on a task route so the sidebar-based tests can navigate.
+    await page.goto('#/vision/object_detector');
   });
 
-  test('should redirect to object detection by default', async ({ page }) => {
+  test('should redirect to the home cover page by default', async ({ page }) => {
+    await page.goto('/');
+    await expect(page).toHaveURL(/.*#\/home$/);
+    await expect(page.locator('.cover-page')).toBeVisible();
+    await expect(page.locator('.sidebar')).toBeHidden();
+
+    // Cover page cards link into the tasks and restore the sidebar.
+    await page.click('.cover-card[href="#/vision/object_detector"]');
     await expect(page).toHaveURL(/.*#\/vision\/object_detector/);
     await expect(page.locator('.sidebar-nav .active')).toContainText('Object Detector');
   });
@@ -53,7 +62,7 @@ test.describe('Navigation & UI', () => {
 
   test('should have responsive sidebar', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 667 });
-    await page.goto('/');
+    await page.goto('#/vision/object_detector');
     // Check if sidebar nav is hidden (it might be hidden by CSS, let's check visibility)
     // .sidebar-nav display: none in media query
     const mobileSidebar = page.locator('.sidebar');

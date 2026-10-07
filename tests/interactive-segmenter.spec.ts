@@ -18,8 +18,7 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Interactive Segmenter Task', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/');
-    await page.click('a[href="#/vision/interactive_segmenter"]');
+    await page.goto('#/vision/interactive_segmenter');
     await page.waitForSelector('#status-message', { state: 'visible', timeout: 30000 });
   });
 

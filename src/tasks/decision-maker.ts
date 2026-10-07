@@ -69,7 +69,7 @@ class DecisionMakerTask {
     this.textPlayground.setReady(decisionRuntime.ready);
     if (decisionRuntime.ready) this.setStatus('Model ready');
     else if (decisionRuntime.loading) this.setStatus(`Loading ${decisionRuntime.loadingLabel}...`);
-    else this.setStatus('Select a model and press "Load Model" to begin');
+    else this.setStatus('Load a model to begin');
   }
 
   cleanup() {
