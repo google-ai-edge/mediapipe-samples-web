@@ -681,7 +681,7 @@ class DecisionMakerTask {
         this.modelSelector.hideProgress();
         this.modelSelector.setBusy(false);
         this.modelSelector.setLoaded(this.customModel ? null : this.modelName);
-        this.modelSelector.setStatus(`✓ Loaded: ${this.selectedModelLabel}`);
+        this.modelSelector.setStatus(`✓ Active: ${this.selectedModelLabel}`);
         this.setStatus('Model ready');
         this.refreshPlan();
         break;

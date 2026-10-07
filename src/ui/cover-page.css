@@ -1,0 +1,230 @@
+.cover-page {
+  padding: 0;
+  margin: 0;
+  overflow-y: auto;
+  height: 100%;
+  background: var(--bg-color);
+}
+
+.cover-hero {
+  text-align: center;
+  padding: 64px 24px 48px;
+  background: linear-gradient(180deg, rgba(0, 127, 139, 0.08) 0%, rgba(0, 127, 139, 0) 100%);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.hero-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--primary);
+  color: white;
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  margin-bottom: 20px;
+  box-shadow: 0 8px 16px rgba(0, 127, 139, 0.2);
+}
+
+.hero-icon .material-icons {
+  font-size: 28px;
+}
+
+.cover-title {
+  font-size: 2.75rem;
+  font-weight: 700;
+  color: var(--text-main);
+  margin: 0 0 12px 0;
+  letter-spacing: -0.02em;
+}
+
+.cover-subtitle {
+  font-size: 1.125rem;
+  color: var(--text-secondary);
+  margin: 0 auto;
+  max-width: 640px;
+  line-height: 1.6;
+}
+
+/* --- Domains & Colors --- */
+.domain-audio {
+  --domain-color: #ef6c00;
+  --domain-bg: #fff3e0;
+}
+.domain-decision {
+  --domain-color: #8e24aa;
+  --domain-bg: #f3e5f5;
+}
+.domain-retrieval {
+  --domain-color: #00897b;
+  --domain-bg: #e0f2f1;
+}
+.domain-text {
+  --domain-color: #1e88e5;
+  --domain-bg: #e3f2fd;
+}
+.domain-vision {
+  --domain-color: #43a047;
+  --domain-bg: #e8f5e9;
+}
+
+.cover-content {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 64px 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 48px;
+}
+
+.cover-row-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 48px;
+}
+
+.cover-category {
+  background: var(--surface);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: var(--shadow-sm);
+  border-top: 6px solid var(--domain-color);
+}
+
+.category-header-wrap {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.category-icon {
+  color: var(--domain-color);
+  font-size: 24px;
+  background: var(--domain-bg);
+  padding: 8px;
+  border-radius: 12px;
+}
+
+.cover-category h2 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--text-main);
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+.cover-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.cover-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px;
+  border-radius: 12px;
+  text-decoration: none;
+  color: inherit;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 1px solid transparent;
+}
+
+.cover-card:hover {
+  background: var(--domain-bg);
+  border-color: rgba(0, 0, 0, 0.05);
+  transform: translateX(4px);
+}
+
+.card-icon {
+  font-size: 20px;
+  color: var(--domain-color);
+  background: #fff;
+  padding: 8px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+}
+
+.cover-card:hover .card-icon {
+  background: var(--domain-color);
+  color: white;
+  transform: scale(1.05);
+}
+
+.card-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cover-card h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0;
+  color: var(--text-main);
+}
+
+.cover-card p {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin: 0;
+  line-height: 1.4;
+}
+
+@media (max-width: 1024px) {
+  .cover-row-3 {
+    grid-template-columns: 1fr;
+    gap: 32px;
+  }
+}
+
+@media (max-width: 768px) {
+  .cover-hero {
+    padding: 40px 16px 24px;
+  }
+  .hero-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 14px;
+    margin-bottom: 16px;
+  }
+  .hero-icon .material-icons {
+    font-size: 24px;
+  }
+  .cover-title {
+    font-size: 2rem;
+  }
+  .cover-subtitle {
+    font-size: 1rem;
+  }
+  .cover-content {
+    padding: 32px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+  .cover-row-3 {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+  .cover-category {
+    margin-bottom: 0;
+    padding: 20px;
+  }
+  .cover-grid {
+    grid-template-columns: 1fr;
+  }
+  .cover-card {
+    padding: 10px;
+    gap: 12px;
+  }
+  .card-icon {
+    font-size: 18px;
+    padding: 6px;
+  }
+}

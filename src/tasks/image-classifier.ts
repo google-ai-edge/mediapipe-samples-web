@@ -119,6 +119,10 @@ export async function setupImageClassifier(container: HTMLElement) {
     defaultModelName: 'efficientnet_lite0',
     defaultModelUrl:
       'https://storage.googleapis.com/mediapipe-models/image_classifier/efficientnet_lite0/float32/1/efficientnet_lite0.tflite',
+    models: {
+      efficientnet_lite2:
+        'https://storage.googleapis.com/mediapipe-models/image_classifier/efficientnet_lite2/float32/1/efficientnet_lite2.tflite',
+    },
     workerFactory: () =>
       new Worker(new URL('../workers/image-classifier.worker.ts', import.meta.url), { type: 'module' }),
     defaultDelegate: 'GPU', // Image classifier defaults to GPU in original code

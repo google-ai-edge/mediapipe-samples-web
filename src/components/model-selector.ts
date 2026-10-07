@@ -15,7 +15,7 @@
  */
 
 import { ViewToggle } from './view-toggle';
-import { formatMegabytes, isModelCached, removeCachedModel } from './model-cache';
+import { formatMegabytes, isModelCached, removeCachedModel, clearModelCache } from './model-cache';
 
 export interface ModelOption {
   label: string;
@@ -65,7 +65,7 @@ const DEFAULT_CONFIG = {
  * a badge for the selected model.
  */
 const DOWNLOADED_TAG = '[downloaded]';
-const LOADED_TAG = '[loaded]';
+const LOADED_TAG = '[active]';
 const RICH_OPTIONS = typeof CSS !== 'undefined' && CSS.supports('appearance', 'base-select');
 
 /**
@@ -102,7 +102,9 @@ export class ModelSelector {
   private autoLoadPending = true;
 
   private modelSelect!: HTMLSelectElement;
+  private badgeContainer!: HTMLElement;
   private badge!: HTMLElement;
+  private deleteBtn!: HTMLButtonElement;
   private loadButton: HTMLButtonElement | null = null;
   private standardStatus: HTMLElement | null = null;
   private modelUpload!: HTMLInputElement;
@@ -267,10 +269,13 @@ export class ModelSelector {
               ? '<button type="button" class="model-select-button"><selectedcontent></selectedcontent></button>'
               : ''
           }</select>
-          <span id="${id}-model-badge" class="model-badge" hidden>
-            <span class="material-icons model-badge-icon" aria-hidden="true">download_done</span>
-            <span class="model-badge-text">Downloaded</span>
-          </span>
+          <div id="${id}-badge-container" class="model-badge-container" hidden style="position: absolute; top: -9px; right: 10px; display: flex; align-items: center; z-index: 10;">
+            <span id="${id}-model-badge" class="model-badge" style="position: static; box-shadow: none; pointer-events: auto; padding-left: 2px;">
+              <span class="material-icons model-badge-icon" aria-hidden="true">check_circle</span>
+              <button type="button" id="${id}-model-delete-btn" class="model-delete-btn material-icons" title="Delete from cache" style="background: transparent; border: none; padding: 0; margin-right: 2px; cursor: pointer; color: inherit; font-size: 0.9rem; line-height: 1; display: none;">delete_outline</button>
+              <span class="model-badge-text">Downloaded</span>
+            </span>
+          </div>
         </div>
         ${
           explicitLoad
@@ -300,7 +305,9 @@ export class ModelSelector {
     const standardTab = this.container.querySelector<HTMLElement>(`#${id}-tab-standard`)!;
     const uploadTab = this.container.querySelector<HTMLElement>(`#${id}-tab-upload`)!;
     this.modelSelect = this.container.querySelector('.model-select')!;
+    this.badgeContainer = this.container.querySelector('.model-badge-container')!;
     this.badge = this.container.querySelector('.model-badge')!;
+    this.deleteBtn = this.container.querySelector('.model-delete-btn')!;
     this.loadButton = this.container.querySelector('.load-model-btn');
     this.standardStatus = this.container.querySelector('.standard-status');
     this.modelUpload = this.container.querySelector('.model-upload')!;
@@ -347,6 +354,20 @@ export class ModelSelector {
       this.modelUpload.value = '';
       this.uploadStatus.innerText = 'No file chosen';
       this.emit({ type: 'standard', value: this.modelSelect.value });
+    });
+
+    this.deleteBtn.addEventListener('click', async () => {
+      const selected = this.modelSelect.value;
+      if (selected) {
+        // Prevent multiple clicks while deleting
+        this.deleteBtn.disabled = true;
+        try {
+          await removeCachedModel(selected);
+          await this.refreshCacheState();
+        } finally {
+          this.deleteBtn.disabled = false;
+        }
+      }
     });
 
     this.modelUpload.addEventListener('change', (e) => {
@@ -397,7 +418,7 @@ export class ModelSelector {
       const state = this.stateOf(option.value);
       if (state) {
         option.dataset.state = state;
-        option.dataset.tag = state === 'loaded' ? 'Loaded' : 'Downloaded';
+        option.dataset.tag = state === 'loaded' ? 'Active' : 'Downloaded';
       } else {
         delete option.dataset.state;
         delete option.dataset.tag;
@@ -408,15 +429,27 @@ export class ModelSelector {
     }
 
     const state = this.stateOf(this.modelSelect.value);
-    this.badge.hidden = !state;
+    this.badgeContainer.hidden = !state;
     this.updateLoadButton();
     if (!state) return;
+
+    // When loaded, show the check_circle icon and hide the delete button.
+    // When downloaded, hide the check_circle icon and show the delete button.
+    const iconEl = this.badge.querySelector('.model-badge-icon') as HTMLElement;
+    if (state === 'loaded') {
+      iconEl.style.display = 'inline-block';
+      this.deleteBtn.style.display = 'none';
+      this.badge.querySelector('.model-badge-text')!.textContent = 'Active';
+    } else {
+      iconEl.style.display = 'none';
+      this.deleteBtn.style.display = 'inline-block';
+      this.badge.querySelector('.model-badge-text')!.textContent = 'Downloaded';
+    }
+
     this.badge.dataset.state = state;
-    this.badge.querySelector('.model-badge-icon')!.textContent = state === 'loaded' ? 'check_circle' : 'download_done';
-    this.badge.querySelector('.model-badge-text')!.textContent = state === 'loaded' ? 'Loaded' : 'Downloaded';
     this.badge.title =
       state === 'loaded'
-        ? 'This model is loaded and ready to use'
+        ? 'This model is active and ready to use'
         : 'Already downloaded (cached in this browser) – loads instantly';
   }
 
@@ -455,16 +488,6 @@ export class ModelSelector {
       status.textContent = 'Not downloaded yet';
       return;
     }
-    status.append('Downloaded · cached in this browser · ');
-    const remove = document.createElement('button');
-    remove.type = 'button';
-    remove.className = 'link-button model-cache-remove';
-    remove.textContent = 'remove';
-    remove.title = 'Delete this model from the browser cache';
-    remove.addEventListener('click', async () => {
-      await removeCachedModel(url);
-      this.refreshCacheState();
-    });
-    status.append(remove);
+    status.textContent = 'Downloaded · cached in this browser';
   }
 }

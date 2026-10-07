@@ -86,7 +86,7 @@ test.describe('Text Classification Task', () => {
     expect(modelFetches).toBe(1);
     const badge = page.locator('#model-selector-container-model-badge');
     await expect(badge).toBeVisible();
-    await expect(badge).toHaveText(/Loaded/);
+    await expect(badge).toHaveText(/Active/);
     await expect(badge).toHaveAttribute('data-state', 'loaded');
     await expect(page.locator('.model-select option[value="bert_classifier"]')).toHaveAttribute('data-state', 'loaded');
     await expect(page.locator('.model-select option[value="average_word_classifier"]')).not.toHaveAttribute(

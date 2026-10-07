@@ -78,11 +78,14 @@ class TextEmbedderTask extends BaseTextTask {
     this.models = {
       universal_sentence_encoder:
         'https://storage.googleapis.com/mediapipe-models/text_embedder/universal_sentence_encoder/float32/1/universal_sentence_encoder.tflite',
+      embedding_gemma_v1:
+        'https://storage.googleapis.com/mediapipe-models/text_embedder/embedding_gemma/int4int8/1/embedding_gemma.task',
     };
 
     if (this.modelSelector) {
       this.modelSelector.updateOptions([
         { label: 'Universal Sentence Encoder', value: 'universal_sentence_encoder', isDefault: true },
+        { label: 'Embedding Gemma V1', value: 'embedding_gemma_v1' },
       ]);
     }
   }
@@ -163,6 +166,10 @@ export async function setupTextEmbedder(container: HTMLElement) {
     defaultModelName: 'universal_sentence_encoder',
     defaultModelUrl:
       'https://storage.googleapis.com/mediapipe-models/text_embedder/universal_sentence_encoder/float32/1/universal_sentence_encoder.tflite',
+    models: {
+      embedding_gemma_v1:
+        'https://storage.googleapis.com/mediapipe-models/text_embedder/embedding_gemma/int4int8/1/embedding_gemma.task',
+    },
     workerFactory: () => new Worker(new URL('../workers/text-embedder.worker.ts', import.meta.url), { type: 'module' }),
     defaultDelegate: 'GPU',
   });

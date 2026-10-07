@@ -283,7 +283,7 @@ export function mountModelSelector(containerId: string, callbacks: ModelSelector
         selector.hideProgress();
         selector.setBusy(false);
         selector.setLoaded(selection.type === 'standard' ? selection.value : null);
-        selector.setStatus(`✓ Loaded: ${retrievalRuntime.activeModelLabel}`);
+        selector.setStatus(`✓ Active: ${retrievalRuntime.activeModelLabel}`);
         await callbacks.onModelReady?.();
       } catch (err: any) {
         selector.hideProgress();
@@ -306,7 +306,7 @@ export function mountModelSelector(containerId: string, callbacks: ModelSelector
     const source = retrievalRuntime.activeSource;
     if (source?.type === 'url') selector.setSelectedValue(source.url);
     selector.setLoaded(source?.type === 'url' ? source.url : null);
-    selector.setStatus(`✓ Loaded: ${retrievalRuntime.activeModelLabel}`);
+    selector.setStatus(`✓ Active: ${retrievalRuntime.activeModelLabel}`);
   }
 
   return selector;

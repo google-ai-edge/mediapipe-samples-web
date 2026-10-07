@@ -22,6 +22,7 @@ export interface BaseTaskOptions {
   template: string;
   defaultModelName: string;
   defaultModelUrl: string;
+  models?: Record<string, string>;
   workerFactory: () => Worker;
   defaultDelegate?: 'CPU' | 'GPU';
 }
@@ -44,6 +45,7 @@ export abstract class BaseTask {
     this.container = options.container;
     this.currentModel = options.defaultModelName;
     this.models[options.defaultModelName] = options.defaultModelUrl;
+    if (options.models) Object.assign(this.models, options.models);
     if (options.defaultDelegate) {
       this.currentDelegate = options.defaultDelegate;
     }
@@ -150,7 +152,11 @@ export abstract class BaseTask {
   protected setupUI() {
     this.modelSelector = new ModelSelector(
       'model-selector-container',
-      [{ label: this.options.defaultModelName, value: this.options.defaultModelName, isDefault: true }],
+      Object.keys(this.models).map((name) => ({
+        label: name,
+        value: name,
+        isDefault: name === this.options.defaultModelName,
+      })),
       async (selection) => {
         if (selection.type === 'standard') {
           this.currentModel = selection.value;
