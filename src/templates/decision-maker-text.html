@@ -3,13 +3,59 @@
   <p id="dt-kind-help" class="dt-kind-help"></p>
 
   <div id="dt-form-card" class="dt-card">
+    <div id="dt-polymorphic-fields">
+      <label class="dt-section-label" for="dt-preset-select">Select Decision Scenario:</label>
+      <div class="dt-scenario-row">
+        <select id="dt-preset-select" class="dt-field"></select>
+        <button
+          type="button"
+          id="dt-toggle-schema"
+          class="dt-btn-outline active"
+          title="View or edit the schema domain context, questions, and option prompts"
+        >
+          <span>✏️</span>
+          <span id="dt-toggle-schema-label">Hide Prompts &amp; Options</span>
+        </button>
+      </div>
+
+      <div id="dt-poly-editor" class="dt-poly-editor">
+        <label class="dt-section-label" for="dt-poly-context">
+          Schema Domain Context (Prepended to All Question Prompts):
+        </label>
+        <input
+          id="dt-poly-context"
+          class="dt-field"
+          type="text"
+          placeholder="e.g. Enterprise customer support ticket router."
+        />
+
+        <label class="dt-section-label" style="margin-top: 14px">
+          Polymorphic Questions in Schema (Evaluated Together):
+        </label>
+        <div id="dt-poly-questions"></div>
+        <button type="button" id="dt-add-poly-question" class="dt-btn-sm" style="margin-top: 6px">
+          + Add Question to Schema
+        </button>
+      </div>
+    </div>
+
+    <div id="dt-candidates-group" class="dt-candidates-group">
+      <label class="dt-section-label">Quick Test Candidate Queries:</label>
+      <div id="dt-candidates" class="dt-chips-container"></div>
+    </div>
+
     <div class="dt-input-header">
-      <label class="dt-label" for="dt-input">Input text <span class="dt-hint">what the model reads</span></label>
-      <div id="dt-samples" class="dt-samples"></div>
+      <label class="dt-label" for="dt-input" style="margin: 0">
+        Input Query / Document <span class="dt-hint">what the model reads</span>
+      </label>
+      <div class="dt-input-header-right">
+        <div id="dt-samples" class="dt-samples"></div>
+        <span id="dt-token-badge" class="dt-token-badge">~0 query tokens</span>
+      </div>
     </div>
     <textarea id="dt-input" class="dt-field" rows="3"></textarea>
 
-    <div id="dt-boolean-fields">
+    <div id="dt-boolean-fields" style="display: none">
       <label class="dt-label" for="dt-condition">
         Condition <span class="dt-hint">a statement the model checks against the input text</span>
       </label>
@@ -36,7 +82,7 @@
       <input id="dt-threshold" type="range" min="0.05" max="0.95" step="0.05" value="0.5" class="range-slider" />
     </div>
 
-    <div id="dt-list-fields">
+    <div id="dt-list-fields" style="display: none">
       <label class="dt-label" for="dt-instructions"
         >Instructions <span class="dt-hint">the question to answer</span></label
       >
@@ -50,15 +96,22 @@
       </button>
     </div>
 
-    <label class="dt-label" for="dt-context"
-      >Context <span class="dt-hint">optional · background that helps the model</span></label
-    >
-    <input id="dt-context" class="dt-field" type="text" placeholder="e.g. Screening emails sent to a company inbox." />
+    <div id="dt-single-context-group" style="display: none">
+      <label class="dt-label" for="dt-context"
+        >Context <span class="dt-hint">optional · background that helps the model</span></label
+      >
+      <input
+        id="dt-context"
+        class="dt-field"
+        type="text"
+        placeholder="e.g. Screening emails sent to a company inbox."
+      />
+    </div>
 
     <div class="dt-actions">
       <div class="dt-actions-left">
         <button id="dt-reset" class="dt-link-btn">Restore sample</button>
-        <button id="dt-open-json" class="dt-link-btn" title="Open this question in the JSON tab">
+        <button id="dt-open-json" class="dt-link-btn" title="Open this schema or question in the JSON tab">
           <span class="material-icons">data_object</span>Edit as JSON
         </button>
       </div>
@@ -68,37 +121,11 @@
     </div>
   </div>
 
-  <div id="dt-combined-card" class="dt-card" style="display: none">
-    <label class="dt-label" for="dt-c-input">Input text <span class="dt-hint">what the model reads</span></label>
-    <textarea id="dt-c-input" class="dt-field" rows="3"></textarea>
-
-    <label class="dt-label" for="dt-c-context"
-      >Schema context <span class="dt-hint">optional · prepended to every question</span></label
-    >
-    <input id="dt-c-context" class="dt-field" type="text" />
-
-    <div class="dt-label">Questions <span class="dt-hint">evaluated together on the same input</span></div>
-    <div id="dt-c-questions"></div>
-    <button id="dt-c-add-question" class="dt-link-btn"><span class="material-icons">add</span>Add question</button>
-
-    <div class="dt-actions">
-      <div class="dt-actions-left">
-        <button id="dt-c-reset" class="dt-link-btn">Restore sample</button>
-        <button id="dt-c-open-json" class="dt-link-btn" title="Open this schema in the JSON tab">
-          <span class="material-icons">data_object</span>Edit as JSON
-        </button>
-      </div>
-      <button id="dt-c-evaluate" class="dt-action-btn" disabled>
-        <span class="material-icons">psychology</span> Evaluate
-      </button>
-    </div>
-  </div>
-
   <div id="dt-json-card" class="dt-card" style="display: none">
     <p class="dt-json-help">
-      Paste a Decision API request: one question, as passed to <code>evaluateBoolean</code> /
-      <code>evaluateChoice</code> / <code>evaluateScore</code>, or a <code>ClassifierSchema</code> whose
-      <code>questions</code> are all evaluated together with <code>evaluate(input, schema)</code>.
+      Paste a Decision API request: a <code>ClassifierSchema</code> with <code>questions</code> (`binary`,
+      <code>categorical</code>, <code>ordinal</code>) evaluated together, or a single question for
+      <code>evaluateBoolean</code> / <code>evaluateChoice</code> / <code>evaluateScore</code>.
     </p>
     <textarea
       id="dt-json-text"
@@ -113,7 +140,11 @@
           <span class="material-icons">auto_fix_high</span>Insert example
         </button>
         <button id="dt-json-clear" class="dt-link-btn">Clear</button>
-        <button id="dt-json-to-form" class="dt-link-btn" title="Open a schema in Combined, or one question in its tab">
+        <button
+          id="dt-json-to-form"
+          class="dt-link-btn"
+          title="Open a schema in Polymorphic, or one question in its tab"
+        >
           <span class="material-icons">edit_note</span>Load into form
         </button>
       </div>
@@ -124,19 +155,22 @@
   </div>
 
   <div class="dt-card">
-    <div class="dt-label">Result</div>
-    <div id="dt-results"></div>
+    <div class="dt-label">Decision Result</div>
+    <div id="dt-headline" class="dt-headline dt-muted">-</div>
+    <div id="dt-subtitle" class="dt-subtitle"></div>
+    <div id="dt-bars"></div>
+    <div id="dt-poly-results" class="poly-decisions-grid" style="display: none"></div>
   </div>
 
   <style>
     .dt-root {
       width: 100%;
-      max-width: 800px;
+      max-width: 860px;
     }
     .dt-card {
       border: 1px solid var(--border-color);
       border-radius: var(--radius-sm);
-      padding: 16px;
+      padding: 18px;
       margin-bottom: 12px;
       background: var(--surface);
     }
@@ -149,16 +183,193 @@
       color: var(--text-secondary);
       margin: 12px 0 6px;
     }
+    .dt-section-label {
+      display: block;
+      font-size: 0.8rem;
+      font-weight: 500;
+      color: var(--text-secondary);
+      margin: 10px 0 6px;
+    }
+    .dt-scenario-row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    .dt-scenario-row select {
+      flex: 1;
+    }
+    .dt-btn-outline {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 9px 14px;
+      font-size: 0.8rem;
+      font-weight: 500;
+      color: var(--primary);
+      background: var(--bg-color, #fff);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.2s;
+    }
+    .dt-btn-outline:hover,
+    .dt-btn-outline.active {
+      background: #e8f0fe;
+      border-color: var(--primary);
+      color: #1967d2;
+    }
+    .dt-poly-editor {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid var(--border-color);
+    }
+    .poly-question-block {
+      padding: 10px 0 12px;
+      border-bottom: 1px dashed var(--border-color);
+    }
+    .poly-question-block:last-child {
+      border-bottom: none;
+    }
+    .poly-question-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 8px;
+    }
+    .poly-type-badge {
+      font-family: 'Roboto Mono', monospace;
+      font-size: 0.68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      padding: 3px 8px;
+      border-radius: 10px;
+      background: #e8f0fe;
+      color: #1967d2;
+      border: 1px solid #d2e3fc;
+      white-space: nowrap;
+    }
+    .poly-id-input {
+      width: 170px !important;
+      padding: 7px 10px !important;
+      font-size: 0.85rem !important;
+    }
+    .poly-type-select {
+      width: 185px !important;
+      padding: 7px 10px !important;
+      font-size: 0.85rem !important;
+    }
+    .poly-prompt-input {
+      margin-bottom: 8px;
+    }
+    .poly-opts-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .poly-opt-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .poly-opt-label {
+      flex: 1;
+      min-width: 120px;
+    }
+    .poly-opt-desc {
+      flex: 2.2;
+    }
+    .dt-btn-remove {
+      background: var(--bg-color, #fff);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      padding: 7px 11px;
+      font-size: 0.8rem;
+      line-height: 1;
+    }
+    .dt-btn-remove:hover {
+      background: #fce8e6;
+      color: #c5221f;
+      border-color: #fad2cf;
+    }
+    .dt-btn-sm {
+      background: #f1f3f4;
+      color: var(--text-main);
+      border: 1px solid var(--border-color);
+      padding: 6px 12px;
+      font-size: 0.78rem;
+      font-weight: 500;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .dt-btn-sm:hover {
+      background: #e8eaed;
+    }
+    .dt-candidates-group {
+      margin-top: 12px;
+      margin-bottom: 12px;
+      padding-top: 10px;
+      border-top: 1px solid var(--border-color);
+    }
+    .dt-chips-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+      margin-top: 6px;
+    }
+    .dt-chip {
+      background: #f8f9fa;
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 6px 12px;
+      font-size: 0.78rem;
+      color: var(--text-main);
+      cursor: pointer;
+      transition: all 0.15s;
+      text-align: left;
+      line-height: 1.35;
+      max-width: 100%;
+    }
+    .dt-chip:hover {
+      background: #e8f0fe;
+      border-color: #d2e3fc;
+      color: #1967d2;
+    }
+    .dt-chip.active {
+      background: #e8f0fe;
+      border-color: var(--primary);
+      color: #1967d2;
+      font-weight: 500;
+    }
     .dt-input-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
       gap: 8px;
       flex-wrap: wrap;
-      margin-bottom: 10px;
+      margin: 12px 0 8px;
     }
-    .dt-input-header .dt-label {
-      margin: 0;
+    .dt-input-header-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .dt-token-badge {
+      font-family: 'Roboto Mono', monospace;
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 2px 9px;
+      border-radius: 10px;
+      background: #e6f4ea;
+      color: #137333;
+      border: 1px solid #ceead6;
+      white-space: nowrap;
     }
     .dt-samples {
       display: flex;
@@ -204,17 +415,21 @@
       .dt-two-col {
         grid-template-columns: 1fr;
       }
+      .dt-scenario-row {
+        flex-direction: column;
+        align-items: stretch;
+      }
     }
     .dt-field {
       width: 100%;
       box-sizing: border-box;
-      padding: 10px 12px;
+      padding: 9px 12px;
       border-radius: var(--radius-sm);
       border: 1px solid var(--border-color);
       background: var(--bg-color);
       color: var(--text-main);
       font-family: 'Roboto', sans-serif;
-      font-size: 0.9rem;
+      font-size: 0.88rem;
       resize: vertical;
     }
     .dt-field:focus {
@@ -285,61 +500,8 @@
       background: var(--border-color);
       cursor: not-allowed;
     }
-    .dt-q {
-      border: 1px solid var(--border-color);
-      border-radius: var(--radius-sm);
-      padding: 12px;
-      margin-bottom: 10px;
-    }
-    .dt-q-head {
-      display: grid;
-      grid-template-columns: auto 1fr 190px 32px;
-      gap: 8px;
-      align-items: center;
-      margin-bottom: 8px;
-    }
-    .dt-q-badge {
-      font-family: 'Roboto Mono', monospace;
-      font-size: 0.7rem;
-      color: var(--primary);
-      background: rgba(26, 115, 232, 0.08);
-      border-radius: 4px;
-      padding: 3px 6px;
-      white-space: nowrap;
-    }
-    .dt-q-threshold {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      font-size: 0.85rem;
-      color: var(--text-secondary);
-      margin-top: 8px;
-    }
-    .dt-q-threshold input {
-      flex: 1;
-    }
-    .dt-q .dt-item {
-      margin-top: 8px;
-      margin-bottom: 0;
-    }
-    @media (max-width: 600px) {
-      .dt-q-head {
-        grid-template-columns: 1fr 32px;
-      }
-    }
-    .dt-result + .dt-result {
-      border-top: 1px solid var(--border-color);
-      margin-top: 12px;
-      padding-top: 12px;
-    }
-    .dt-result-title {
-      font-family: 'Roboto Mono', monospace;
-      font-size: 0.8rem;
-      color: var(--text-secondary);
-      margin-bottom: 2px;
-    }
     .dt-headline {
-      font-size: 1.6rem;
+      font-size: 1.55rem;
       font-weight: 500;
       color: var(--text-main);
     }
@@ -389,6 +551,77 @@
       font-size: 0.8rem;
       text-align: right;
       color: var(--text-main);
+    }
+    .poly-decisions-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 12px;
+      margin-top: 10px;
+    }
+    .poly-decision-card {
+      background: var(--bg-color, #f8f9fa);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 12px 14px;
+    }
+    .poly-decision-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+    .poly-decision-id {
+      font-size: 0.76rem;
+      font-weight: 700;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+    .poly-decision-value {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--primary);
+      margin-bottom: 8px;
+    }
+    .poly-prob-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.78rem;
+      margin-bottom: 4px;
+    }
+    .poly-prob-label {
+      width: 105px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: var(--text-secondary);
+    }
+    .poly-prob-label.winner {
+      font-weight: 700;
+      color: var(--text-main);
+    }
+    .poly-prob-track {
+      flex: 1;
+      height: 6px;
+      background: #e8eaed;
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .poly-prob-fill {
+      height: 100%;
+      background: #bdc1c6;
+      border-radius: 3px;
+    }
+    .poly-prob-fill.winner {
+      background: var(--primary);
+    }
+    .poly-prob-pct {
+      width: 44px;
+      text-align: right;
+      font-family: 'Roboto Mono', monospace;
+      font-size: 0.73rem;
+      color: var(--text-secondary);
     }
     .dt-actions-left {
       display: flex;
