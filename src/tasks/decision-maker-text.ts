@@ -1243,7 +1243,7 @@ interface Outcome {
 
 const KIND_HELP: Record<QuestionKind | 'polymorphic' | 'json', string> = {
   polymorphic:
-    'Combined (Polymorphic Schema): evaluate multiple heterogeneous questions (Binary, Categorical, and Ordinal) simultaneously on the same query with a shared domain context.',
+    'Multi-Question: evaluate multiple heterogeneous questions (Binary, Categorical, and Ordinal) simultaneously on the same query with a shared domain context.',
   boolean: 'Boolean: is the condition true for the input text? The model answers Yes or No, with a probability.',
   choice: 'Choice: which option fits the input text best? The model picks one option and scores all of them.',
   score: 'Score: where does the input text fall on a scale? The model picks a level from your rubric.',
@@ -1350,7 +1350,7 @@ export class DecisionTextPlayground {
     this.kindToggle = new ViewToggle(
       'dt-kind-toggle',
       [
-        { label: 'Combined', value: 'polymorphic', icon: 'checklist' },
+        { label: 'Multi-Question', value: 'polymorphic', icon: 'checklist' },
         { label: 'Boolean', value: 'boolean', icon: 'rule' },
         { label: 'Choice', value: 'choice', icon: 'list' },
         { label: 'Score', value: 'score', icon: 'star_half' },
