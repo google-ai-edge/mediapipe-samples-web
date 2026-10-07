@@ -21,6 +21,7 @@ export interface ClassificationItem {
 
 export class ClassificationResult {
   private container: HTMLElement;
+  private maxRowsRendered = 0;
 
   constructor(containerId: string) {
     const el = document.getElementById(containerId);
@@ -86,28 +87,67 @@ export class ClassificationResult {
   }
 
   public updateResults(results: ClassificationItem[]) {
-    this.container.innerHTML = '';
-
-    if (results.length === 0) {
+    if (results.length === 0 && this.maxRowsRendered === 0) {
       results = [{ label: 'No results', score: 0 }];
+    } else {
+      this.maxRowsRendered = Math.max(this.maxRowsRendered, results.length);
     }
+    const totalRows = Math.max(this.maxRowsRendered, results.length);
 
-    results.forEach((result) => {
-      const scorePercent = Math.round(result.score * 100);
+    // Get current rows
+    const currentRows = Array.from(this.container.children) as HTMLElement[];
+
+    // Add missing rows
+    for (let i = currentRows.length; i < totalRows; i++) {
       const row = document.createElement('div');
       row.className = 'classification-item';
       row.innerHTML = `
-        <span class="class-name">${result.label || 'Unknown'}</span>
+        <span class="class-name"></span>
         <div class="class-bar-container">
-          <div class="class-bar" style="width: ${scorePercent}%"></div>
+          <div class="class-bar" style="width: 0%"></div>
         </div>
-        <span class="class-score">${scorePercent}%</span>
+        <span class="class-score"></span>
       `;
       this.container.appendChild(row);
-    });
+      currentRows.push(row);
+    }
+
+    // Remove extra rows
+    while (currentRows.length > totalRows) {
+      const row = currentRows.pop();
+      row?.remove();
+    }
+
+    // Update data
+    for (let i = 0; i < totalRows; i++) {
+      const row = currentRows[i];
+      const nameEl = row.querySelector('.class-name') as HTMLElement;
+      const barEl = row.querySelector('.class-bar') as HTMLElement;
+      const scoreEl = row.querySelector('.class-score') as HTMLElement;
+
+      if (i < results.length) {
+        const result = results[i];
+        const scorePercent = Math.round(result.score * 100);
+        nameEl.textContent = result.label || 'Unknown';
+        barEl.style.width = `${scorePercent}%`;
+        barEl.style.background = 'var(--primary, #007f8b)';
+        scoreEl.textContent = `${scorePercent}%`;
+        scoreEl.style.color = 'var(--primary, #007f8b)';
+        nameEl.style.color = 'var(--text-main, #333)';
+      } else {
+        // Placeholder
+        nameEl.textContent = '--';
+        barEl.style.width = `0%`;
+        barEl.style.background = 'transparent';
+        scoreEl.textContent = `--`;
+        scoreEl.style.color = 'var(--text-secondary, #666)';
+        nameEl.style.color = 'var(--text-secondary, #666)';
+      }
+    }
   }
 
   public clear() {
+    this.maxRowsRendered = 0;
     this.container.innerHTML = '';
   }
 }

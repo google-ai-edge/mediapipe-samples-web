@@ -369,6 +369,16 @@ export function renderBanner(container: HTMLElement) {
 }
 
 export function updateBanner(routeKey: string) {
+  const container = document.getElementById('docs-banner-container');
+  if (container) {
+    if (routeKey === '/home') {
+      container.style.display = 'none';
+      return;
+    } else {
+      container.style.display = 'block';
+    }
+  }
+
   const links = TASK_BANNER_LINKS[routeKey] || TASK_BANNER_LINKS['/vision/object_detector'];
 
   const taskDocsLink = document.getElementById('banner-task-docs') as HTMLAnchorElement | null;

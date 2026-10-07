@@ -104,7 +104,7 @@ class ImageClassifierTask extends BaseVisionTask {
       }));
       this.classificationResultUI.updateResults(items);
     } else {
-      this.classificationResultUI.clear();
+      this.classificationResultUI.updateResults([]);
     }
   }
 }

@@ -122,17 +122,38 @@ body {
   text-decoration: none;
 }
 
+.nav-audio {
+  --nav-color: #ef6c00;
+  --nav-bg: #fff3e0;
+}
+.nav-decision {
+  --nav-color: #8e24aa;
+  --nav-bg: #f3e5f5;
+}
+.nav-retrieval {
+  --nav-color: #00897b;
+  --nav-bg: #e0f2f1;
+}
+.nav-text {
+  --nav-color: #1e88e5;
+  --nav-bg: #e3f2fd;
+}
+.nav-vision {
+  --nav-color: #43a047;
+  --nav-bg: #e8f5e9;
+}
+
 .nav-button:hover {
-  background: rgba(0, 127, 139, 0.08);
-  color: var(--primary);
+  background: var(--nav-bg, var(--primary-soft));
+  color: var(--nav-color, var(--primary));
   padding-left: 20px;
 }
 
 .nav-button.active {
-  background: rgba(0, 127, 139, 0.12);
-  color: var(--primary);
+  background: var(--nav-bg, var(--primary-soft));
+  color: var(--nav-color, var(--primary));
   font-weight: 600;
-  border-left: 3px solid var(--primary);
+  border-left: 3px solid var(--nav-color, var(--primary));
   padding-left: 13px;
 }
 

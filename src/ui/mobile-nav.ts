@@ -16,7 +16,7 @@
 
 export function renderMobileNav(container: HTMLElement) {
   container.innerHTML = `
-      <div style="display: flex; align-items: center; margin-right: 10px;">
+      <div style="display: flex; align-items: center; margin-right: 16px;">
         <span class="material-icons" style="color: #007f8b; font-size: 24px;">analytics</span>
       </div>
       <select id="mobile-task-select" class="mobile-task-select">
