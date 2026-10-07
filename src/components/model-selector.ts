@@ -484,28 +484,20 @@ export class ModelSelector {
     }
 
     const state = this.stateOf(this.modelSelect.value);
-    this.badgeContainer.style.display = state ? 'flex' : 'none';
+    // Only show the floating badge when the selected option is the actively loaded model.
+    this.badgeContainer.style.display = state === 'loaded' ? 'flex' : 'none';
     this.updateLoadButton();
     if (!state) return;
 
-    // When loaded, show the check_circle icon and hide the delete button.
-    // When downloaded, hide the check_circle icon and show the delete button.
+    // The badge is now exclusively for the 'loaded' (Active) state.
     const iconEl = this.badge.querySelector('.model-badge-icon') as HTMLElement;
     if (state === 'loaded') {
       iconEl.style.display = 'inline-block';
       this.deleteBtn.style.display = 'none';
       this.badge.querySelector('.model-badge-text')!.textContent = 'Active';
-    } else {
-      iconEl.style.display = 'none';
-      this.deleteBtn.style.display = 'inline-block';
-      this.badge.querySelector('.model-badge-text')!.textContent = 'Loaded';
+      this.badge.dataset.state = state;
+      this.badge.title = 'This model is active and ready to use';
     }
-
-    this.badge.dataset.state = state;
-    this.badge.title =
-      state === 'loaded'
-        ? 'This model is active and ready to use'
-        : 'Already loaded (cached in this browser) – loads instantly';
   }
 
   /**

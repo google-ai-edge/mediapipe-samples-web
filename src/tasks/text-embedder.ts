@@ -81,7 +81,10 @@ class TextEmbedderTask extends BaseTextTask {
       embedding_gemma_v1:
         'https://storage.googleapis.com/mediapipe-models/text_embedder/embedding_gemma/int4int8/latest/embedding_gemma.task',
     };
+  }
 
+  protected override setupUI() {
+    super.setupUI();
     if (this.modelSelector) {
       this.modelSelector.updateOptions([
         { label: 'Universal Sentence Encoder', value: 'universal_sentence_encoder', isDefault: true },

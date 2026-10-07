@@ -22,7 +22,7 @@
  */
 
 import { ModelSelector, type ModelSelection } from './model-selector';
-import { DECISION_MODELS, decisionRuntime, type Delegate } from './decision-runtime';
+import { DECISION_MODELS, decisionRuntime, type Delegate, resolveModelDownloadUrl } from './decision-runtime';
 
 const MODEL_PANEL_HTML = `
   <div class="section-title">Model Selection</div>
@@ -74,7 +74,7 @@ export function mountDecisionModelPanel(modelContainer: HTMLElement, delegateCon
       resolveUrl: (value) => {
         const m = DECISION_MODELS[value];
         if (!m) return undefined;
-        if (m.url) return m.url;
+        if (m.url) return resolveModelDownloadUrl(m.url);
         return new URL(`local-models/${m.file}`, new URL(import.meta.env.BASE_URL, window.location.origin)).href;
       },
       preferCached: true,
