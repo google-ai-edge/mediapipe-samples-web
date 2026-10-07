@@ -24,6 +24,14 @@ Play with the demos here: https://google-ai-edge.github.io/mediapipe-samples-web
 ### Audio
 - **Audio Classifier**: Classify ambient sounds in real-time.
 
+### Decision
+- **Decision Maker**: Make decisions from text or JSON input using logic rules.
+- **Decision Maker - Dino Game**: Watch the Decision Maker play a runner game by choosing to jump, duck or wait.
+
+### Retrieval
+- **Semantic Retriever**: Index content into a vector store and retrieve it with natural-language queries.
+- **Universal Embedder**: Embed text and images into a shared vector space across modalities.
+
 ### Text
 - **Language Detection**: Identify the language of input text.
 - **Text Classification**: Classify text sentiment (positive/negative).
