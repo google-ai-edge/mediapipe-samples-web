@@ -25,6 +25,7 @@ import {
   type SampleImageItem,
 } from '../components/retrieval-runtime';
 import { InferenceTimer } from '../components/inference-timer';
+import type { ModelSelector } from '../components/model-selector';
 
 function formatSigned(val: number): string {
   const sign = val >= 0 ? '+' : '';
@@ -65,6 +66,7 @@ class UniversalEmbedderTask {
     labelA: 'A',
     labelB: 'B',
   });
+  private modelSelector: ModelSelector | null = null;
 
   private l2Select!: HTMLSelectElement;
 
@@ -109,7 +111,7 @@ class UniversalEmbedderTask {
     this.syncSlotUI('B');
     this.bindEvents();
 
-    mountModelSelector('model-selector-container', {
+    this.modelSelector = mountModelSelector('model-selector-container', {
       getL2Normalize: () => this.l2Select.value === 'true',
       onLoadStart: (msg) => {
         this.setStatus('busy', msg);
@@ -340,16 +342,20 @@ class UniversalEmbedderTask {
 
     this.l2Select.addEventListener('change', async () => {
       const l2 = this.l2Select.value === 'true';
-      if (retrievalRuntime.lastSelectedFile) {
+      if (retrievalRuntime.activeSource) {
         this.setStatus('busy', `Re-initializing model (l2Normalize=${l2})...`);
+        this.modelSelector?.setBusy(true);
         this.updateControlsState();
         try {
-          await retrievalRuntime.initializeFromFile(retrievalRuntime.lastSelectedFile, l2);
+          // Standard models are re-read from the local model cache, so this is quick.
+          await retrievalRuntime.reinitialize(l2, (loaded, total) => this.modelSelector?.showProgress(loaded, total));
           this.setStatus('ready', 'Ready · Click "Compute Similarity"');
           this.invalidateResult();
         } catch (err: any) {
           this.setStatus('error', err?.message || String(err));
         }
+        this.modelSelector?.hideProgress();
+        this.modelSelector?.setBusy(false);
         this.updateControlsState();
       }
     });

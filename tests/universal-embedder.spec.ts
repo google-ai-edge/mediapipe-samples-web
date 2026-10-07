@@ -18,8 +18,8 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Universal Embedder Task', () => {
   test.beforeEach(async ({ page }) => {
-    page.on('console', msg => console.log(`[Browser Console]: ${msg.text()}`));
-    page.on('pageerror', err => console.log(`[Browser Error]: ${err}`));
+    page.on('console', (msg) => console.log(`[Browser Console]: ${msg.text()}`));
+    page.on('pageerror', (err) => console.log(`[Browser Error]: ${err}`));
 
     await page.goto('/#/retrieval/universal_embedder');
     await page.waitForLoadState('domcontentloaded');
@@ -159,13 +159,13 @@ test.describe('Universal Embedder Task', () => {
     const containerId = 'model-selector-container';
 
     // Click "Upload" tab
-    await page.click(`#${containerId}-tabs button[data-value="upload"]`);
+    await page.click(`#${containerId}-toggle button[data-value="upload"]`);
     await expect(page.locator(`#${containerId}-tab-upload`)).toHaveClass(/active/);
     await expect(page.locator(`#${containerId}-tab-standard`)).not.toHaveClass(/active/);
     await expect(page.locator(`#${containerId}-file-input`)).toBeAttached();
 
     // Click back to "Standard" tab
-    await page.click(`#${containerId}-tabs button[data-value="standard"]`);
+    await page.click(`#${containerId}-toggle button[data-value="standard"]`);
     await expect(page.locator(`#${containerId}-tab-standard`)).toHaveClass(/active/);
     await expect(page.locator(`#${containerId}-standard-select`)).toBeVisible();
   });

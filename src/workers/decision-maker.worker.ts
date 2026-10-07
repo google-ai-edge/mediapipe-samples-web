@@ -22,16 +22,15 @@ class DecisionMakerWorker extends BaseWorker<DecisionMaker> {
     const fileset = await FilesetResolver.forDecisionTasks(this.getWasmPath(), true);
     fileset.wasmLoaderPath = `${fileset.wasmLoaderPath}?cb=${Date.now()}`; // Force reload
 
-    // Stream the model (URL or uploaded file) so it isn't copied into one big JS buffer.
-    const file: File | undefined = this.currentOptions.modelFile;
+    // Stream the model (cached download or uploaded file) so it isn't copied
+    // into one big JS buffer; the size lets the wasm allocate it in one pass.
+    const { stream, size } = await this.openModelStream();
     this.taskInstance = await DecisionMaker.createFromOptions(fileset, {
       baseOptions: {
-        ...(file
-          ? { modelAssetBuffer: file.stream().getReader() }
-          : { modelAssetPath: this.currentOptions.modelAssetPath }),
+        modelAssetBuffer: stream.getReader(),
         delegate: this.currentOptions.delegate === 'GPU' ? 'GPU' : 'CPU',
       },
-      ...(file ? { modelAssetSize: file.size } : {}),
+      ...(size ? { modelAssetSize: size } : {}),
       // Same as the Android sample; the default (256) is too small for longer inputs.
       maxNumTokens: 4096,
     });

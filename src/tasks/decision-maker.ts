@@ -29,6 +29,8 @@
 
 import template from '../templates/decision-maker.html?raw';
 import { InferenceTimer } from '../components/inference-timer';
+import { resolveModelDownloadUrl } from '../components/model-cache';
+import { EMBEDDING_GEMMA_2_TEXT_270M, EMBEDDING_GEMMA_2_TEXT_VISION_440M } from '../components/model-registry';
 import { ModelSelector, type ModelSelection } from '../components/model-selector';
 import { ViewToggle } from '../components/view-toggle';
 import { DecisionTextPlayground, type QuestionKind } from './decision-maker-text';
@@ -75,14 +77,22 @@ const DUCK_LEAD_TICKS = 6;
 const BIRD_BOTTOM = 18;
 
 /**
- * Built-in models. `url` models are downloaded directly; the others are served
- * by the dev server from LOCAL_MODELS_DIR (see vite.config.ts).
+ * Built-in models. `url` models are downloaded directly (through the shared
+ * model cache, so one already fetched by another demo is reused); the others are
+ * served by the dev server from LOCAL_MODELS_DIR (see vite.config.ts).
  */
 const MODELS: Record<string, { label: string; file: string; url?: string; unsupported?: boolean }> = {
   embeddinggemma2_270m: {
-    label: 'EmbeddingGemma-2 Text 270M',
-    file: 'embeddinggemma-2-text-270m.litertlm',
-    url: 'https://huggingface.co/litert-community/embeddinggemma-2-text-270m-litert-lm',
+    label: EMBEDDING_GEMMA_2_TEXT_270M.name,
+    file: EMBEDDING_GEMMA_2_TEXT_270M.fileName,
+    url: EMBEDDING_GEMMA_2_TEXT_270M.url,
+  },
+  // Same model the Universal Embedder / Semantic Retriever demos use: if it was
+  // loaded there it is already on disk and loads here without a download.
+  embeddinggemma2_text_vision_440m: {
+    label: EMBEDDING_GEMMA_2_TEXT_VISION_440M.name,
+    file: EMBEDDING_GEMMA_2_TEXT_VISION_440M.fileName,
+    url: EMBEDDING_GEMMA_2_TEXT_VISION_440M.url,
   },
   laya_s256: {
     label: 'Laya S256',
@@ -91,30 +101,12 @@ const MODELS: Record<string, { label: string; file: string; url?: string; unsupp
   },
 };
 
-/**
- * Resolves model page URLs (e.g. Hugging Face repository or tree URLs) to their
- * direct binary download endpoints suitable for HTTP fetching and streaming.
- */
-export function resolveModelDownloadUrl(rawUrl: string): string {
-  const trimmed = rawUrl.trim();
-  const hfRepoMatch = trimmed.match(
-    /^https?:\/\/huggingface\.co\/([^/]+)\/([^/]+)(?:\/(?:tree|blob|resolve)\/([^/]+)(?:\/(.+))?)?$/
-  );
-  if (hfRepoMatch) {
-    const [, org, repo, branchOrType, filePath] = hfRepoMatch;
-    // 1. Direct download endpoint already specified
-    if (branchOrType === 'resolve' && filePath) {
-      return trimmed;
-    }
-    // 2. Look up the specific model filename for known repository versions
-    const matched = Object.values(MODELS).find((m) => m.url?.includes(`${org}/${repo}`));
-    const fileName = filePath || (matched ? matched.file : `${repo}.litertlm`);
-    // 3. Preserve custom git branch/tag/revision if specified, otherwise default to 'main'
-    const branch = branchOrType && branchOrType !== 'tree' && branchOrType !== 'blob' ? branchOrType : 'main';
-    return `https://huggingface.co/${org}/${repo}/resolve/${branch}/${fileName}`;
-  }
-  // Passthrough for non-Hugging Face URLs (GCS, local dev server, direct CDNs)
-  return trimmed;
+/** Direct download URL of a built-in model (remote, or the dev server's local-models route). */
+function modelDownloadUrl(name: string): string | undefined {
+  const model = MODELS[name];
+  if (!model) return undefined;
+  if (model.url) return resolveModelDownloadUrl(model.url, model.file);
+  return new URL(`local-models/${model.file}`, new URL(import.meta.env.BASE_URL, window.location.origin)).href;
 }
 
 /**
@@ -479,6 +471,9 @@ class DecisionMakerTask {
   /** Set when the user uploads a model file instead of picking a standard one. */
   private customModel: File | undefined;
   private delegate: 'GPU' | 'CPU' = 'GPU';
+  private modelSelector!: ModelSelector;
+  /** True once the user pressed "Initialize Task" or uploaded a file; nothing is downloaded before that. */
+  private modelRequested = false;
 
   private worker: Worker | undefined;
   private modelReady = false;
@@ -551,9 +546,15 @@ class DecisionMakerTask {
     );
     this.setMode(this.mode);
 
-    new ModelSelector(
+    this.modelSelector = new ModelSelector(
       'model-selector-container',
-      Object.entries(MODELS).map(([value, m]) => ({ value, label: m.label, isDefault: value === this.modelName })),
+      Object.entries(MODELS).map(([value, m]) => ({
+        value,
+        label: m.label,
+        isDefault: value === this.modelName,
+        // Listed so users know they're coming, but not selectable yet.
+        disabled: m.unsupported,
+      })),
       (selection: ModelSelection) => {
         if (selection.type === 'custom') {
           this.customModel = selection.file;
@@ -561,32 +562,32 @@ class DecisionMakerTask {
           this.customModel = undefined;
           this.modelName = selection.value;
         }
+        this.modelRequested = true;
         this.loadModel();
+      },
+      {
+        // These models are large: only download once the user asks for it.
+        autoLoad: false,
+        // Decision models also ship as .litertlm (e.g. EmbeddingGemma), so allow those for upload.
+        accept: '.task,.tflite,.litertlm',
+        uploadLabel: 'Choose .task / .tflite / .litertlm File',
+        resolveUrl: modelDownloadUrl,
+        // If e.g. the text+vision model was already downloaded for the embedder
+        // demos, start with it instead of asking for another download.
+        preferCached: true,
       }
     );
-    // Listed so users know they're coming, but not selectable yet.
-    for (const [value, m] of Object.entries(MODELS)) {
-      if (!m.unsupported) continue;
-      const option = this.container.querySelector<HTMLOptionElement>(`.model-select option[value="${value}"]`);
-      if (option) option.disabled = true;
-    }
-    // Decision models also ship as .litertlm (e.g. EmbeddingGemma), so allow those for upload.
-    const upload = this.container.querySelector<HTMLInputElement>('.model-upload');
-    if (upload) {
-      upload.accept = '.task,.tflite,.litertlm';
-      const label = upload.parentElement?.firstChild;
-      if (label?.nodeType === Node.TEXT_NODE) label.textContent = 'Choose .task / .tflite / .litertlm File';
-    }
     this.el['delegate-select'].addEventListener('change', (e) => {
       this.delegate = (e.target as HTMLSelectElement).value as 'GPU' | 'CPU';
-      this.loadModel();
+      // Re-initialize with the new delegate, but never start a download the user hasn't asked for.
+      if (this.modelRequested) this.loadModel();
     });
     window.addEventListener('keydown', this.onKeyDown);
 
     this.render();
     this.updatePanel();
     this.inferenceTimer.mount();
-    this.loadModel();
+    this.setStatus('Load a model to begin');
   }
 
   cleanup() {
@@ -601,6 +602,11 @@ class DecisionMakerTask {
   // Model (runs in a worker)
   // -------------------------------------------------------------------------
 
+  /** Label of the model the user picked (file name or built-in model name). */
+  private get selectedModelLabel(): string {
+    return this.customModel?.name ?? MODELS[this.modelName].label;
+  }
+
   private async loadModel() {
     this.setRunning(false);
     this.worker?.terminate();
@@ -613,25 +619,27 @@ class DecisionMakerTask {
     this.resolvers.clear();
     const epoch = ++this.epoch;
     this.inFlight = false;
-    this.setStatus(`Loading ${this.customModel?.name ?? MODELS[this.modelName].file}...`);
+    this.modelSelector.setBusy(true);
+    this.modelSelector.setStatus(`Loading ${this.selectedModelLabel}...`);
+    this.setStatus(`Loading ${this.selectedModelLabel}...`);
 
     const baseUrl = import.meta.env.BASE_URL;
     const model = MODELS[this.modelName];
-    const localUrl = new URL(`local-models/${model.file}`, new URL(baseUrl, window.location.origin)).href;
-    const modelUrl = this.customModel ? undefined : model.url ? resolveModelDownloadUrl(model.url) : localUrl;
-    if (model.url && !this.customModel) this.setStatus(`Downloading ${model.file} (first load may take a while)...`);
+    const modelUrl = this.customModel ? undefined : modelDownloadUrl(this.modelName);
 
     // Local models are served from LOCAL_MODELS_DIR by the dev server. Check
     // it's there first; otherwise the wasm gets an error page instead of a model.
-    if (modelUrl === localUrl && !(await this.isModelAvailable(modelUrl))) {
+    if (modelUrl && !model.url && !(await this.isModelAvailable(modelUrl))) {
       if (epoch !== this.epoch) return;
-      this.setStatus(
-        `Error: ${model.file} not found. Upload a model, or set LOCAL_MODELS_DIR in .env.local and restart the dev server.`
+      this.onModelLoadFailed(
+        `${model.file} not found. Upload a model, or set LOCAL_MODELS_DIR in .env.local and restart the dev server.`
       );
       return;
     }
     if (epoch !== this.epoch) return;
 
+    // The worker downloads the URL through the shared model cache (so a second
+    // load, by this or any other task, is served from disk) or streams the file.
     this.worker = new Worker(new URL('../workers/decision-maker.worker.ts', import.meta.url), { type: 'module' });
     this.worker.onmessage = (event) => this.onWorkerMessage(event.data);
     this.worker.postMessage({
@@ -652,11 +660,28 @@ class DecisionMakerTask {
     }
   }
 
+  private onModelLoadFailed(error: string) {
+    this.modelSelector.hideProgress();
+    this.modelSelector.setBusy(false);
+    this.modelSelector.setStatus(`Failed to load ${this.selectedModelLabel}`);
+    this.setStatus(`Error: ${error}`);
+  }
+
   private onWorkerMessage(msg: any) {
     switch (msg.type) {
+      case 'LOAD_PROGRESS':
+        this.modelSelector.showProgress(msg.loaded, msg.total);
+        break;
+      case 'MODEL_CACHED':
+        this.modelSelector.refreshCacheState();
+        break;
       case 'INIT_DONE':
         this.modelReady = true;
         this.textPlayground.setReady(true);
+        this.modelSelector.hideProgress();
+        this.modelSelector.setBusy(false);
+        this.modelSelector.setLoaded(this.customModel ? null : this.modelName);
+        this.modelSelector.setStatus(`✓ Loaded: ${this.selectedModelLabel}`);
         this.setStatus('Model ready');
         this.refreshPlan();
         break;
@@ -670,7 +695,8 @@ class DecisionMakerTask {
         break;
       case 'ERROR':
         console.error('Decision Maker error:', msg.error);
-        this.setStatus(`Error: ${msg.error}`);
+        if (this.modelReady) this.setStatus(`Error: ${msg.error}`);
+        else this.onModelLoadFailed(msg.error);
         this.setRunning(false);
         for (const resolve of this.resolvers.values()) resolve(msg);
         this.resolvers.clear();

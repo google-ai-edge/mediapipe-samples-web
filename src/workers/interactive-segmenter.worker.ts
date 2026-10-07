@@ -32,9 +32,11 @@ class InteractiveSegmenterWorker extends BaseWorker<InteractiveSegmenter> {
     // Try to get WebGL2 context safely (do not fail if creation returns null)
     const glCtx = this.renderCanvas.getContext('webgl2') as WebGL2RenderingContext | null;
 
+    const modelBuffer = await this.loadModelAsset();
+
     this.taskInstance = await InteractiveSegmenter.createFromOptions(vision, {
       baseOptions: {
-        modelAssetPath: this.currentOptions.modelAssetPath,
+        modelAssetBuffer: new Uint8Array(modelBuffer),
         delegate: this.currentOptions.delegate || 'GPU',
       },
       canvas: this.renderCanvas,
