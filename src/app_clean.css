@@ -13,7 +13,7 @@
   --text-secondary: #5f6368;
   --border-color: #e0e0e0;
   --sidebar-width: 280px;
-  --controls-width: 320px;
+  --controls-width: 340px;
   --radius-sm: 8px;
   --radius-md: 12px;
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.12);
@@ -516,6 +516,10 @@ select:focus {
     cursor: pointer;
   }
 
+  .model-select > .model-select-button .model-option-actions {
+    display: none;
+  }
+
   .model-select::picker-icon {
     display: none; /* the wrapper draws its own chevron */
   }
@@ -553,17 +557,20 @@ select:focus {
   }
 
   .model-select option::checkmark {
-    order: 1;
-    margin-left: 4px;
-    color: var(--primary);
+    display: none;
   }
 
-  .model-select option[data-state]::after {
-    content: attr(data-tag);
+  .model-option-actions {
+    display: flex;
+    align-items: center;
+    margin-left: auto;
+    gap: 6px;
+  }
+
+  .model-badge-pill {
     display: inline-flex;
     align-items: center;
     flex-shrink: 0;
-    margin-left: auto;
     padding: 1px 7px;
     border-radius: 999px;
     background: var(--text-secondary);
@@ -576,8 +583,36 @@ select:focus {
     white-space: nowrap;
   }
 
-  .model-select option[data-state='loaded']::after {
+  .model-badge-pill.loaded {
     background: var(--primary);
+  }
+
+  .model-option-icon {
+    font-size: 1.1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 4px;
+    flex-shrink: 0;
+  }
+
+  .model-option-icon.active-icon {
+    color: var(--primary);
+  }
+
+  .model-option-delete {
+    color: var(--text-secondary);
+    transition:
+      color 0.2s,
+      background 0.2s;
+    cursor: pointer;
+  }
+
+  .model-option-delete:hover {
+    color: #d32f2f;
+    background: rgba(0, 0, 0, 0.05);
   }
 }
 

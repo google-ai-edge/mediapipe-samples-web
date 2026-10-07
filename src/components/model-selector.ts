@@ -64,7 +64,7 @@ const DEFAULT_CONFIG = {
  * `.model-select option::after` in app_clean.css) and the control always shows
  * a badge for the selected model.
  */
-const DOWNLOADED_TAG = '[downloaded]';
+const DOWNLOADED_TAG = '[loaded]';
 const LOADED_TAG = '[active]';
 const RICH_OPTIONS = typeof CSS !== 'undefined' && CSS.supports('appearance', 'base-select');
 
@@ -273,7 +273,7 @@ export class ModelSelector {
             <span id="${id}-model-badge" class="model-badge" style="position: static; box-shadow: none; pointer-events: auto; padding-left: 2px;">
               <span class="material-icons model-badge-icon" aria-hidden="true">check_circle</span>
               <button type="button" id="${id}-model-delete-btn" class="model-delete-btn material-icons" title="Delete from cache" style="background: transparent; border: none; padding: 0; margin-right: 2px; cursor: pointer; color: inherit; font-size: 0.9rem; line-height: 1; display: none;">delete_outline</button>
-              <span class="model-badge-text">Downloaded</span>
+              <span class="model-badge-text">Loaded</span>
             </span>
           </div>
         </div>
@@ -362,7 +362,8 @@ export class ModelSelector {
         // Prevent multiple clicks while deleting
         this.deleteBtn.disabled = true;
         try {
-          await removeCachedModel(selected);
+          const url = this.config.resolveUrl ? this.config.resolveUrl(selected) : selected;
+          if (url) await removeCachedModel(url);
           await this.refreshCacheState();
         } finally {
           this.deleteBtn.disabled = false;
@@ -388,9 +389,16 @@ export class ModelSelector {
     this.options.forEach((opt) => {
       const o = document.createElement('option');
       o.value = opt.value;
-      o.textContent = opt.label;
       o.disabled = Boolean(opt.disabled);
       if (opt.isDefault) o.selected = true;
+      if (RICH_OPTIONS) {
+        o.innerHTML = `
+          <span class="model-label">${opt.label}</span>
+          <span class="model-option-actions"></span>
+        `;
+      } else {
+        o.textContent = opt.label;
+      }
       this.modelSelect.appendChild(o);
     });
     // Keep the user's pick across option refreshes when it is still available.
@@ -414,18 +422,65 @@ export class ModelSelector {
    */
   private renderModelMarks() {
     for (const option of Array.from(this.modelSelect.options)) {
-      const label = this.options.find((opt) => opt.value === option.value)?.label ?? option.textContent ?? '';
+      const label =
+        this.options.find((opt) => opt.value === option.value)?.label ??
+        (RICH_OPTIONS ? option.querySelector('.model-label')?.textContent : option.textContent) ??
+        '';
       const state = this.stateOf(option.value);
       if (state) {
         option.dataset.state = state;
-        option.dataset.tag = state === 'loaded' ? 'Active' : 'Downloaded';
+        option.dataset.tag = state === 'loaded' ? 'Active' : 'Loaded'; // keep for legacy css just in case
       } else {
         delete option.dataset.state;
         delete option.dataset.tag;
       }
-      // Rich options draw the pill from data-tag; plain ones can only show text.
-      const fallbackTag = state === 'loaded' ? LOADED_TAG : DOWNLOADED_TAG;
-      option.textContent = state && !RICH_OPTIONS ? `${label}  ${fallbackTag}` : label;
+
+      if (RICH_OPTIONS) {
+        const actions = option.querySelector('.model-option-actions');
+        if (actions) {
+          actions.innerHTML = ''; // clear previous
+          if (state) {
+            const pill = document.createElement('span');
+            pill.className = `model-badge-pill ${state === 'loaded' ? 'loaded' : 'downloaded'}`;
+            pill.textContent = state === 'loaded' ? 'Active' : 'Loaded';
+            actions.appendChild(pill);
+
+            if (state === 'loaded') {
+              const checkIcon = document.createElement('span');
+              checkIcon.className = 'model-option-icon active-icon material-icons';
+              checkIcon.textContent = 'check';
+              actions.appendChild(checkIcon);
+            } else if (state === 'downloaded') {
+              const delBtn = document.createElement('span');
+              delBtn.className = 'model-option-icon model-option-delete material-icons';
+              delBtn.textContent = 'delete_outline';
+              delBtn.title = 'Delete from cache';
+
+              const stopEvent = (e: Event) => {
+                e.preventDefault();
+                e.stopPropagation();
+              };
+              delBtn.addEventListener('mousedown', stopEvent);
+              delBtn.addEventListener('pointerdown', stopEvent);
+              delBtn.addEventListener('mouseup', stopEvent);
+              delBtn.addEventListener('pointerup', stopEvent);
+
+              delBtn.addEventListener('click', async (e) => {
+                stopEvent(e);
+                delBtn.style.pointerEvents = 'none';
+                delBtn.style.opacity = '0.5';
+                const url = this.config.resolveUrl ? this.config.resolveUrl(option.value) : option.value;
+                if (url) await removeCachedModel(url);
+                await this.refreshCacheState();
+              });
+              actions.appendChild(delBtn);
+            }
+          }
+        }
+      } else {
+        const fallbackTag = state === 'loaded' ? LOADED_TAG : DOWNLOADED_TAG;
+        option.textContent = state ? `${label}  ${fallbackTag}` : label;
+      }
     }
 
     const state = this.stateOf(this.modelSelect.value);
@@ -443,14 +498,14 @@ export class ModelSelector {
     } else {
       iconEl.style.display = 'none';
       this.deleteBtn.style.display = 'inline-block';
-      this.badge.querySelector('.model-badge-text')!.textContent = 'Downloaded';
+      this.badge.querySelector('.model-badge-text')!.textContent = 'Loaded';
     }
 
     this.badge.dataset.state = state;
     this.badge.title =
       state === 'loaded'
         ? 'This model is active and ready to use'
-        : 'Already downloaded (cached in this browser) – loads instantly';
+        : 'Already loaded (cached in this browser) – loads instantly';
   }
 
   /**
@@ -485,9 +540,9 @@ export class ModelSelector {
     status.innerHTML = '';
     if (!url) return;
     if (!cached) {
-      status.textContent = 'Not downloaded yet';
+      status.textContent = 'Not loaded yet';
       return;
     }
-    status.textContent = 'Downloaded · cached in this browser';
+    status.textContent = 'Loaded · cached in this browser';
   }
 }
