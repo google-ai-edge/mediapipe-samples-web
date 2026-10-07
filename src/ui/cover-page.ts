@@ -42,6 +42,13 @@ export function setupCoverPage(container: HTMLElement) {
                   <p>Make decisions based on logic rules.</p>
                 </div>
               </a>
+              <a href="#/decision/dino_game" class="cover-card">
+                <span class="material-icons card-icon">sports_esports</span>
+                <div class="card-content">
+                  <h3>Decision Maker - Dino Game</h3>
+                  <p>Watch the Decision Maker play a runner game.</p>
+                </div>
+              </a>
             </div>
           </div>
 
