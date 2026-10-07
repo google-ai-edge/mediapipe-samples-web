@@ -259,8 +259,86 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
     ],
   },
   {
+    key: 'refund_eligibility',
+    label:
+      'Refund & Return Eligibility: Defect Verified [Binary] + Resolution [Categorical] + Condition [Ordinal 1..5]',
+    labelPrefix: 'Refund Audit',
+    context:
+      'You are an e-commerce returns policy auditor. Refunds are only approved when the customer documents a specific, verifiable physical defect, transit damage, or wrong item shipped (never for buyer’s remorse or bare refund demands).',
+    input: "The item is fine, I just don't like it. Refund please.",
+    candidates: [
+      "The item is fine, I just don't like it. Refund please.",
+      'The screen was cracked when I opened the box.',
+      'You sent me size Small instead of Large and the zipper is broken.',
+      'I changed my mind, I just do not want it anymore.',
+    ],
+    questions: [
+      {
+        id: 'refund_eligible',
+        type: 'binary',
+        prompt:
+          'Does the customer describe a specific, verifiable physical defect, shipping damage, or wrong item received (rather than buyer’s remorse, a bare "refund" demand without details, or unrelated text)?',
+        threshold: 0.5,
+        options: [
+          {
+            label: 'false',
+            description:
+              'No valid defect described: the item works fine, customer just does not like it or changed their mind, customer demands a refund without explaining what defect occurred, or text is unrelated.',
+          },
+          {
+            label: 'true',
+            description:
+              'Customer describes a concrete physical defect or fulfillment error with specific details, such as a cracked screen upon unboxing, a broken zipper, a motor that sparked, or receiving size Small instead of Large.',
+          },
+        ],
+      },
+      {
+        id: 'resolution_decision',
+        type: 'categorical',
+        prompt: 'Should this return or refund request be approved, exchanged, or denied under the defect-only policy?',
+        options: [
+          {
+            label: 'approve_defect_claim',
+            description:
+              'Hardware arrived physically cracked, shattered screen when opening the box, broken zipper, or dead component',
+          },
+          {
+            label: 'exchange_wrong_item',
+            description:
+              'Warehouse shipped the wrong size Small instead of Large, wrong color, or wrong model compared to the order',
+          },
+          {
+            label: 'deny_refund_request',
+            description:
+              'The item is fine, I just do not like it, refund please, changed my mind, bare refund demand without defect details, or unrelated text',
+          },
+        ],
+      },
+      {
+        id: 'defect_severity',
+        type: 'ordinal',
+        prompt:
+          'Rate the physical defect severity from 1 (no defect / buyer’s remorse / unsubstantiated claim) to 5 (destroyed or non-functional on arrival).',
+        options: [
+          {
+            label: '1',
+            description:
+              'No defect: item is fine, buyer changed their mind, vague refund demand without details, or unrelated text',
+          },
+          { label: '2', description: 'Minor cosmetic scuff on outer shipping box with product intact' },
+          { label: '3', description: 'Wrong size or model shipped, or minor accessory issue requiring exchange' },
+          { label: '4', description: 'Broken component such as a jammed zipper, torn seam, or missing hardware part' },
+          {
+            label: '5',
+            description: 'Severe damage: cracked screen on unboxing, shattered glass, or dead hardware on arrival',
+          },
+        ],
+      },
+    ],
+  },
+  {
     key: 'email_spam',
-    label: 'Email Spam & Inbox Routing: Spam [Binary] + Folder [Categorical] + Priority [Ordinal 1..5]',
+    label: 'Email Spam & Inbox Routing: Spam [Binary] + Folder [Categorical] + Annoyance [Ordinal 1..4]',
     labelPrefix: 'Email Triage',
     context:
       'You are an enterprise email security gateway and smart inbox router inspecting an incoming email to detect concrete unsolicited bulk marketing or prize scams and route it to the right folder.',
@@ -318,19 +396,19 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
         ],
       },
       {
-        id: 'priority',
+        id: 'annoyance_score',
         type: 'ordinal',
         prompt:
-          'Rate the recipient attention priority of this email from 1 (ignore / junk / unrelated) to 5 (timely work collaboration).',
+          'Rate how spammy, intrusive, or deceptive this email is from 1 (clean work/personal email) to 4 (blatant scam or junk spam).',
         options: [
-          { label: '1', description: 'Junk spam, deceptive prize scam, bulk promotion, or unrelated low-signal text' },
-          { label: '2', description: 'Low-priority promotional discount or marketing newsletter' },
-          { label: '3', description: 'Automated billing invoice, receipt, or routine account notification' },
-          { label: '4', description: 'Important internal team update, OKR review slides, or project deliverable' },
           {
-            label: '5',
-            description: 'Time-sensitive executive or engineering action item requiring immediate preparation',
+            label: '1',
+            description:
+              'Clean and expected personal, team, or automated transactional communication, or unrelated text',
           },
+          { label: '2', description: 'Mild opt-in commercial update or routine promotional newsletter' },
+          { label: '3', description: 'Aggressive unsolicited retail marketing, flash sale hype, or bulk advertising' },
+          { label: '4', description: 'Blatant fraudulent scam, fake cash prize lure, or malicious junk spam' },
         ],
       },
     ],
@@ -364,7 +442,7 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
           {
             label: 'true',
             description:
-              'Malicious phishing or social engineering lure attempting to steal SSO login credentials via a spoofed URL (e.g. micros0ft-sso-verify.net) or coerce urgent gift card / wire payments.',
+              'Malicious phishing or social engineering lure attempting to steal SSO login credentials via a spoofed URL (e.g. micros0ft-sso-verify.net) or coerce gift card / wire payments.',
           },
         ],
       },
@@ -381,7 +459,7 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
           {
             label: 'bec_impersonation',
             description:
-              'Business Email Compromise impersonating an executive in a meeting demanding urgent gift cards or wire transfers',
+              'Business Email Compromise impersonating an executive in a meeting demanding gift cards or wire transfers',
           },
           {
             label: 'malware_delivery',
@@ -406,7 +484,7 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
           { label: '3', description: 'Medium risk: ambiguous external request requiring sender verification' },
           {
             label: '4',
-            description: 'High risk: executive impersonation demanding urgent gift cards or wire transfers',
+            description: 'High risk: executive impersonation demanding gift cards or wire transfers',
           },
           {
             label: '5',
@@ -585,17 +663,37 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
   },
   {
     key: 'model_routing',
-    label: 'Model Routing: Intent Domain [Categorical] + Compute Tier [Categorical]',
-    labelPrefix: 'Router',
+    label: 'Model Routing: Needs Cloud Frontier [Binary] + Domain [Categorical] + Complexity [Ordinal 1..5]',
+    labelPrefix: 'Model Router',
     context:
       'You are an intelligent hybrid inference router deciding whether a user prompt can be handled by a fast on-device nano model or requires a high-capacity cloud frontier reasoning model.',
-    input: 'Set a timer for 12 minutes and remind me to take the garlic bread out of the oven.',
-    candidates: [
-      'Set a timer for 12 minutes and remind me to take the garlic bread out of the oven.',
+    input:
       'Design a lock-free concurrent ring buffer in Rust with formal memory-ordering proofs for Acquire/Release semantics across ARM64 weak memory models.',
+    candidates: [
+      'Design a lock-free concurrent ring buffer in Rust with formal memory-ordering proofs for Acquire/Release semantics across ARM64 weak memory models.',
+      'Set a timer for 12 minutes and remind me to take the garlic bread out of the oven.',
       'What is the capital of Japan and what currency do they use?',
     ],
     questions: [
+      {
+        id: 'needs_cloud_frontier',
+        type: 'binary',
+        prompt:
+          'Does this request require deep multi-step systems architecture, formal proofs, or complex code synthesis on a cloud frontier model (rather than a simple timer or basic fact lookup)?',
+        threshold: 0.5,
+        options: [
+          {
+            label: 'false',
+            description:
+              'Simple local device command (setting a timer, alarm, or reminder), basic factual trivia lookup (capital of Japan), or short conversational query.',
+          },
+          {
+            label: 'true',
+            description:
+              'Complex systems engineering task such as designing a lock-free concurrent ring buffer in Rust with formal ARM64 Acquire/Release memory-ordering proofs.',
+          },
+        ],
+      },
       {
         id: 'intent_domain',
         type: 'categorical',
@@ -614,22 +712,28 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
             label: 'factual_knowledge',
             description: 'Answering direct encyclopedic, geographic, scientific, or historical fact lookup questions',
           },
+          {
+            label: 'unactionable_or_other',
+            description: 'Vague fragment, bare keyword, or unactionable input lacking a clear request',
+          },
         ],
       },
       {
-        id: 'compute_tier',
-        type: 'categorical',
-        prompt: 'Which compute tier is best suited to execute this request based on its complexity?',
+        id: 'reasoning_complexity',
+        type: 'ordinal',
+        prompt:
+          'Rate the reasoning and compute complexity required from 1 (trivial local action) to 5 (frontier formal verification & systems design).',
         options: [
           {
-            label: 'on_device_nano',
-            description:
-              'Fast local on-device model for low-latency device commands, timers, reminders, or simple factual lookups',
+            label: '1',
+            description: 'Trivial: setting a local timer, alarm, reminder, or unsubstantiated short input',
           },
+          { label: '2', description: 'Simple: single-hop factual lookup such as a country capital or currency' },
+          { label: '3', description: 'Moderate: summarizing a short paragraph or drafting a routine email' },
+          { label: '4', description: 'High: debugging a multi-function module or explaining distributed consensus' },
           {
-            label: 'cloud_frontier',
-            description:
-              'High-capacity cloud frontier model for complex programming, lock-free Rust concurrency proofs, or deep reasoning',
+            label: '5',
+            description: 'Frontier: lock-free Rust concurrency implementation with formal ARM64 memory-ordering proofs',
           },
         ],
       },
@@ -637,8 +741,7 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
   },
   {
     key: 'draft_moderation',
-    label:
-      'Moderation & Draft Guardrails: Secret Leak [Binary] + Constructive Tone [Binary] + Frustration [Ordinal 1..5]',
+    label: 'Workplace Draft Guardrails: Secret Leak [Binary] + Action [Categorical] + Hostility [Ordinal 1..5]',
     labelPrefix: 'Draft Check',
     context:
       'You are a pre-send workplace chat guardian reviewing a draft message before it is posted to a team channel to prevent accidental plaintext credential leaks and toxic communication.',
@@ -670,21 +773,24 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
         ],
       },
       {
-        id: 'tone_constructive',
-        type: 'binary',
-        prompt:
-          'Is the interpersonal tone of this message polite, collaborative, and constructive for a professional engineering workplace?',
-        threshold: 0.5,
+        id: 'moderation_action',
+        type: 'categorical',
+        prompt: 'What pre-send guardrail action should be taken on this draft message?',
         options: [
           {
-            label: 'false',
+            label: 'allow_send',
             description:
-              'Hostile, insulting ("Fix your garbage code"), panicked ("driving me crazy"), or unconstructive message.',
+              'Polite, constructive workplace collaboration (such as thanking a teammate and updating unit tests) with no leaked secrets',
           },
           {
-            label: 'true',
+            label: 'block_secret_leak',
             description:
-              'Polite, appreciative, collaborative workplace message thanking a teammate for catching an edge case and updating unit tests.',
+              'Draft exposes a plaintext API key or credential token (such as sk_live_... or AKIA...) that must be redacted before sending',
+          },
+          {
+            label: 'warn_hostile_tone',
+            description:
+              'Draft contains personal insults or demeaning language ("Fix your garbage code") that violates workplace conduct',
           },
         ],
       },
@@ -699,7 +805,7 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
           { label: '3', description: 'Mildly stressed or impatient under a tight deployment deadline' },
           {
             label: '4',
-            description: 'High stress and exasperation ("driving me crazy", urgent demand to deploy immediately)',
+            description: 'High stress and exasperation ("driving me crazy", frantic demand to deploy)',
           },
           {
             label: '5',
@@ -711,7 +817,7 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
   },
   {
     key: 'multilingual',
-    label: 'Multilingual Support Triage: Urgent [Binary] + Dept [Categorical] + Sentiment [Ordinal 1..5]',
+    label: 'Multilingual Support Triage: Urgent [Binary] + Dept [Categorical] + Distress [Ordinal 1..5]',
     labelPrefix: 'Multilingual',
     context:
       'You are a global multilingual support router evaluating customer tickets across Japanese, Spanish, French, and German using a single English schema.',
@@ -758,6 +864,10 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
           {
             label: 'product_feedback',
             description: 'Positive feedback on the UI and feature request to add monthly chart PDF exports',
+          },
+          {
+            label: 'unactionable_or_other',
+            description: 'Vague fragment, bare keyword without context, or unrelated off-topic message',
           },
         ],
       },
@@ -829,6 +939,10 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
             label: 'iam_security_federation',
             description:
               'SAML 2.0 X.509 certificate rollover mismatch causing HTTP 401 SSO login failures across EMEA Okta/Entra tenants',
+          },
+          {
+            label: 'unactionable_or_other',
+            description: 'Unrelated text, bare keyword, or document lacking actionable enterprise routing details',
           },
         ],
       },
@@ -925,6 +1039,10 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
             label: 'feature_enhancement',
             description: 'Customer or internal request for a new UI export button with no defect present',
           },
+          {
+            label: 'unactionable_or_other',
+            description: 'Vague claim without technical details or unrelated off-topic input',
+          },
         ],
       },
       {
@@ -962,9 +1080,9 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
   },
   {
     key: 'custom',
-    label: 'Custom Schema (Build Your Own Polymorphic Questions)',
-    labelPrefix: 'Custom Schema',
-    context: 'Define your own domain context and combine Binary, Categorical, and Ordinal questions below.',
+    label: 'Hardware Warranty & Custom Schema: Defect [Binary] + Action [Categorical] + Severity [Ordinal 1..5]',
+    labelPrefix: 'Hardware Warranty',
+    context: 'Hardware warranty and return router evaluating whether a customer report describes a covered defect.',
     input:
       'The battery on my new wireless headphones drains from 100% to 0% in 15 minutes and the left earcup crackles.',
     candidates: [
@@ -1004,6 +1122,19 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
           },
         ],
       },
+      {
+        id: 'hardware_severity',
+        type: 'ordinal',
+        prompt:
+          'Rate the hardware failure severity from 1 (no failure / cosmetic preference) to 5 (unusable hardware).',
+        options: [
+          { label: '1', description: 'No defect: product functions normally, color preference change only' },
+          { label: '2', description: 'Minor cosmetic blemish that does not affect audio or battery performance' },
+          { label: '3', description: 'Intermittent Bluetooth pairing delay with a working wired fallback' },
+          { label: '4', description: 'Noticeable audio distortion in one earcup during playback' },
+          { label: '5', description: 'Severe hardware failure: battery dies in 15 minutes and audio crackles' },
+        ],
+      },
     ],
   },
 ];
@@ -1019,245 +1150,84 @@ function buildPolymorphicDraftFromPreset(key: string): PolyDraft {
 }
 
 // ---------------------------------------------------------------------------
-// Single-Question Samples (Boolean, Choice, Score)
+// Single-Question Samples (Boolean, Choice, Score) — derived from full preset suite
 // ---------------------------------------------------------------------------
 
 interface SingleSample {
+  presetKey: string;
   name: string;
   draft: Draft;
   candidates: string[];
 }
 
-const SAMPLES: Record<QuestionKind, SingleSample[]> = {
-  boolean: [
-    {
-      name: 'Refund eligibility',
-      draft: {
-        ...EMPTY,
-        input: "The item is fine, I just don't like it. Refund please.",
-        condition:
-          'Does the customer describe a specific, verifiable physical defect, shipping damage, or wrong item received (rather than buyer’s remorse, a bare "refund" demand without details, or unrelated text)?',
-        trueDescription:
-          'Customer describes a concrete physical defect or fulfillment error with specific details, such as a cracked screen upon unboxing, a broken zipper, a motor that sparked, or receiving size Small instead of Large.',
-        falseDescription:
-          'No valid defect described: the item works fine, customer just does not like it or changed their mind, customer demands a refund without explaining what defect occurred, or text is unrelated.',
-        context:
-          'E-commerce returns policy auditor: refunds are only approved when the customer documents a specific physical defect, transit damage, or wrong item shipped.',
-      },
-      candidates: [
-        "The item is fine, I just don't like it. Refund please.",
-        'The screen was cracked when I opened the box.',
-        'You sent me size Small instead of Large and the zipper is broken.',
-        'I changed my mind, I just do not want it anymore.',
-      ],
-    },
-    {
-      name: 'Verified outage',
-      draft: {
-        ...EMPTY,
-        input: 'Urgent: our production database pipeline crashes with a fatal segfault and customers cannot sign in!',
-        condition:
-          'Does this message describe a specific, verifiable production system outage, fatal crash, or authentication failure with concrete technical symptoms (rather than a vague "urgent" demand without details, a billing/feature request, or unrelated text)?',
-        trueDescription:
-          'Concrete technical report detailing a live production database crash, fatal segfault, HTTP 500/503 outage, or widespread SAML/SSO login failure blocking users.',
-        falseDescription:
-          'Routine billing inquiry, duplicate invoice refund request, feature request, vague message that just says "urgent" or "help" without technical symptoms, or unrelated text.',
-        context:
-          'Production SRE incident pager: only page on-call engineers when a report contains concrete technical symptoms of an active system outage.',
-      },
-      candidates: [
-        'Urgent: our production database pipeline crashes with a fatal segfault and customers cannot sign in!',
-        'We were charged twice on invoice #4821 this month, can you refund the duplicate?',
-        'It would be nice if the analytics dashboard had a dark mode toggle.',
-      ],
-    },
-    {
-      name: 'Spam detection',
-      draft: {
-        ...EMPTY,
-        input:
-          'CONGRATULATIONS! You have been selected to claim a $5,000 Cash Prize! Click here immediately to wire your processing fee.',
-        condition:
-          'Does this email contain a concrete unsolicited commercial promotion, bulk discount marketing pitch, or deceptive financial prize scam (rather than a legitimate work/billing email or unrelated text)?',
-        trueDescription:
-          'Unsolicited commercial spam, CONGRATULATIONS $5,000 cash prize wire scam, or FLASH SALE 80% off luxury watches marketing.',
-        falseDescription:
-          'Direct personal or work email from teammates, engineering OKR slides, automated AWS cloud billing invoice receipt, or non-promotional text.',
-        context:
-          'Enterprise email security gateway inspecting incoming messages for unsolicited bulk marketing and advance-fee prize scams.',
-      },
-      candidates: [
-        'CONGRATULATIONS! You have been selected to claim a $5,000 Cash Prize! Click here immediately to wire your processing fee.',
-        'Hi team, attached are the Q3 engineering OKR slides for tomorrow morning review.',
-        'FLASH SALE: 80% off luxury watches today only! Unsubscribe at bottom.',
-      ],
-    },
-    {
-      name: 'Secret leak check',
-      draft: {
-        ...EMPTY,
-        input:
-          'Here is the staging Stripe key: sk_live_51H8f2K99xYz... please deploy this immediately, this broken build is driving me crazy!',
-        condition:
-          'Does this draft message expose a concrete plaintext API key, secret token, or private credential value (such as sk_live_..., AKIA..., or a bearer token)?',
-        trueDescription:
-          'Message exposes a concrete plaintext secret credential value, such as a Stripe key sk_live_..., AWS key AKIA..., GitHub token ghp_..., or hardcoded password.',
-        falseDescription:
-          'Normal code review comment, discussion of authentication without any actual key value, angry complaint, or unrelated text.',
-        context:
-          'Data Loss Prevention (DLP) pre-send scanner preventing accidental credential leaks in team chat channels.',
-      },
-      candidates: [
-        'Here is the staging Stripe key: sk_live_51H8f2K99xYz... please deploy this immediately, this broken build is driving me crazy!',
-        'Thanks for catching that edge case in the review! I updated the unit test and re-uploaded.',
-        'Please rotate the staging Stripe key in Secret Manager before Friday’s release.',
-      ],
-    },
-  ],
-  choice: [
-    {
-      name: 'Support ticket',
-      draft: {
-        ...EMPTY,
-        input: 'My package never arrived even though tracking says delivered.',
-        items: [
-          {
-            label: 'shipping',
-            description: 'Delivery problems, lost packages, carrier tracking discrepancies, or damaged transit boxes',
-          },
-          {
-            label: 'billing',
-            description: 'Payment issues, duplicate invoice charges, subscription pricing, or billing receipts',
-          },
-          {
-            label: 'technical',
-            description: 'App crashes, segfaults, SAML/SSO login errors, API 500 bugs, or broken software features',
-          },
-          {
-            label: 'unactionable_or_other',
-            description: 'Vague message lacking concrete details, bare keywords, casual greeting, or unrelated text',
-          },
-        ],
-        instructions: 'Which support department should handle this ticket?',
-      },
-      candidates: [
-        'My package never arrived even though tracking says delivered.',
-        'We were charged twice on invoice #4821 this month, can you refund the duplicate?',
-        'The mobile app crashes with a null pointer exception whenever I tap Settings.',
-      ],
-    },
-    {
-      name: 'Refund decision',
-      draft: {
-        ...EMPTY,
-        input: "The item is fine, I just don't like it. Refund please.",
-        items: [
-          {
-            label: 'approve',
-            description:
-              'Customer provides concrete details of a specific item that arrived cracked, broken, defective, or wrong size/model shipped',
-          },
-          {
-            label: 'deny',
-            description:
-              'Item works fine, customer changed their mind, customer demands a refund without explaining a specific defect, or text is unrelated',
-          },
-        ],
-        instructions: 'Should this refund request be approved or denied under a strict defect-only policy?',
-      },
-      candidates: [
-        "The item is fine, I just don't like it. Refund please.",
-        'The screen was cracked when I opened the box.',
-        'You sent me size Small instead of Large and the zipper is broken.',
-      ],
-    },
-    {
-      name: 'Inbox folder',
-      draft: {
-        ...EMPTY,
-        input: 'Your AWS invoice for August ($142.18) is now available in the billing console.',
-        items: [
-          {
-            label: 'primary',
-            description: 'Direct personal or work communication between colleagues, teammates, or clients',
-          },
-          {
-            label: 'promotions',
-            description: 'Commercial marketing newsletters, flash sales, discount offers, or promotional campaigns',
-          },
-          {
-            label: 'transactional',
-            description:
-              'Automated account receipts, cloud billing invoices, shipping confirmations, or account alerts',
-          },
-          {
-            label: 'spam_quarantine',
-            description: 'Deceptive cash prize scams, advance-fee wire fraud, lottery lures, or abusive junk mail',
-          },
-        ],
-        instructions:
-          'Which inbox destination folder should this email be delivered to based on its sender intent and content?',
-        context:
-          'Enterprise email security gateway and smart inbox router inspecting an incoming email to route it to the right folder.',
-      },
-      candidates: [
-        'Your AWS invoice for August ($142.18) is now available in the billing console.',
-        'Hi team, attached are the Q3 engineering OKR slides for tomorrow morning review.',
-        'FLASH SALE: 80% off luxury watches today only! Unsubscribe at bottom.',
-        'CONGRATULATIONS! You have been selected to claim a $5,000 Cash Prize! Click here immediately to wire your processing fee.',
-      ],
-    },
-  ],
-  score: [
-    {
-      name: 'Customer satisfaction',
-      draft: {
-        ...EMPTY,
-        input: 'The support agent was friendly and fixed my issue fast.',
-        items: [
-          { label: 'Very dissatisfied', description: 'angry, problem not solved, terrible service' },
-          { label: 'Dissatisfied', description: 'slow or unhelpful support, problem partly solved' },
-          {
-            label: 'Neutral',
-            description: 'okay, average, nothing special, or unrelated/unsubstantiated statement',
-          },
-          { label: 'Satisfied', description: 'helpful support, problem solved' },
-          { label: 'Very satisfied', description: 'excellent, fast, friendly support, delighted' },
-        ],
-        instructions: 'Rate how satisfied the customer is with the support experience.',
-      },
-      candidates: [
-        'The support agent was friendly and fixed my issue fast.',
-        'I waited on hold for two hours and my account is still locked. Terrible service!',
-        'The issue was eventually resolved after three follow-up emails, nothing special.',
-      ],
-    },
-    {
-      name: 'Annoyance score',
-      draft: {
-        ...EMPTY,
-        input: 'FLASH SALE: 80% off luxury watches today only! Unsubscribe at bottom.',
-        items: [
-          {
-            label: '1',
-            description:
-              'Clean and expected personal, team, or automated transactional communication, or unrelated text',
-          },
-          { label: '2', description: 'Mild opt-in commercial update or routine promotional newsletter' },
-          { label: '3', description: 'Aggressive unsolicited retail marketing, flash sale hype, or bulk advertising' },
-          { label: '4', description: 'Blatant fraudulent scam, fake cash prize lure, or malicious junk spam' },
-        ],
-        instructions:
-          'Rate how spammy, intrusive, or deceptive this email is from 1 (clean work/personal email) to 4 (blatant scam or junk spam).',
-      },
-      candidates: [
-        'FLASH SALE: 80% off luxury watches today only! Unsubscribe at bottom.',
-        'Hi team, attached are the Q3 engineering OKR slides for tomorrow morning review.',
-        'CONGRATULATIONS! You have been selected to claim a $5,000 Cash Prize! Click here immediately to wire your processing fee.',
-      ],
-    },
-  ],
-};
+function buildSamplesFromPresets(): Record<QuestionKind, SingleSample[]> {
+  const booleanSamples: SingleSample[] = [];
+  const choiceSamples: SingleSample[] = [];
+  const scoreSamples: SingleSample[] = [];
+
+  for (const preset of POLYMORPHIC_PRESETS) {
+    const shortName = preset.labelPrefix;
+    const binQ = preset.questions.find((q) => q.type === 'binary');
+    if (binQ) {
+      const trueOpt = binQ.options.find((o) => o.label.toLowerCase() === 'true')?.description ?? DEFAULT_TRUE;
+      const falseOpt = binQ.options.find((o) => o.label.toLowerCase() === 'false')?.description ?? DEFAULT_FALSE;
+      booleanSamples.push({
+        presetKey: preset.key,
+        name: shortName,
+        draft: {
+          ...EMPTY,
+          input: preset.input,
+          condition: binQ.prompt,
+          trueDescription: trueOpt,
+          falseDescription: falseOpt,
+          threshold: typeof binQ.threshold === 'number' ? binQ.threshold : 0.5,
+          context: preset.context,
+        },
+        candidates: [...preset.candidates],
+      });
+    }
+
+    const catQ = preset.questions.find((q) => q.type === 'categorical');
+    if (catQ) {
+      choiceSamples.push({
+        presetKey: preset.key,
+        name: shortName,
+        draft: {
+          ...EMPTY,
+          input: preset.input,
+          items: structuredClone(catQ.options),
+          instructions: catQ.prompt,
+          context: preset.context,
+        },
+        candidates: [...preset.candidates],
+      });
+    }
+
+    const ordQ = preset.questions.find((q) => q.type === 'ordinal');
+    if (ordQ) {
+      scoreSamples.push({
+        presetKey: preset.key,
+        name: shortName,
+        draft: {
+          ...EMPTY,
+          input: preset.input,
+          items: structuredClone(ordQ.options),
+          instructions: ordQ.prompt,
+          context: preset.context,
+        },
+        candidates: [...preset.candidates],
+      });
+    }
+  }
+
+  return {
+    boolean: booleanSamples,
+    choice: choiceSamples,
+    score: scoreSamples,
+  };
+}
+
+const SAMPLES: Record<QuestionKind, SingleSample[]> = buildSamplesFromPresets();
 
 interface Bar {
   label: string;
@@ -1273,7 +1243,7 @@ interface Outcome {
 
 const KIND_HELP: Record<QuestionKind | 'polymorphic' | 'json', string> = {
   polymorphic:
-    'Polymorphic Schema: evaluate multiple heterogeneous questions (Binary, Categorical, and Ordinal) simultaneously on the same query with a shared domain context.',
+    'Combined (Polymorphic Schema): evaluate multiple heterogeneous questions (Binary, Categorical, and Ordinal) simultaneously on the same query with a shared domain context.',
   boolean: 'Boolean: is the condition true for the input text? The model answers Yes or No, with a probability.',
   choice: 'Choice: which option fits the input text best? The model picks one option and scores all of them.',
   score: 'Score: where does the input text fall on a scale? The model picks a level from your rubric.',
@@ -1380,7 +1350,7 @@ export class DecisionTextPlayground {
     this.kindToggle = new ViewToggle(
       'dt-kind-toggle',
       [
-        { label: 'Polymorphic', value: 'polymorphic', icon: 'account_tree' },
+        { label: 'Combined', value: 'polymorphic', icon: 'checklist' },
         { label: 'Boolean', value: 'boolean', icon: 'rule' },
         { label: 'Choice', value: 'choice', icon: 'list' },
         { label: 'Score', value: 'score', icon: 'star_half' },
@@ -1416,13 +1386,8 @@ export class DecisionTextPlayground {
       presetSelect.appendChild(opt);
     }
     presetSelect.addEventListener('change', () => {
-      const key = presetSelect.value;
-      this.polyDraft = buildPolymorphicDraftFromPreset(key);
-      this.showDraft();
-      this.clearResult();
-      if (this.ready && !this.busy) {
-        this.run();
-      }
+      const idx = POLYMORPHIC_PRESETS.findIndex((p) => p.key === presetSelect.value);
+      this.selectPresetByIndex(idx >= 0 ? idx : 0);
     });
 
     this.el['dt-toggle-schema'].addEventListener('click', () => {
@@ -1456,17 +1421,12 @@ export class DecisionTextPlayground {
       this.renderItems();
     });
     this.el['dt-reset'].addEventListener('click', () => {
-      if (this.view === 'polymorphic') {
-        const key = this.polyDraft.presetKey || 'ticket_triage';
-        this.polyDraft = buildPolymorphicDraftFromPreset(key);
-        this.showDraft();
-        this.clearResult();
-        if (this.ready && !this.busy) {
-          this.run();
-        }
-      } else {
-        this.loadSample(this.sampleIndex[this.kind]);
-      }
+      const activeKey =
+        this.view === 'polymorphic'
+          ? this.polyDraft.presetKey || 'ticket_triage'
+          : (SAMPLES[this.kind][this.sampleIndex[this.kind]]?.presetKey ?? 'ticket_triage');
+      const idx = POLYMORPHIC_PRESETS.findIndex((p) => p.key === activeKey);
+      this.selectPresetByIndex(idx >= 0 ? idx : 0);
     });
     this.el['dt-threshold'].addEventListener('input', (e) => {
       this.el['dt-threshold-value'].textContent = parseFloat((e.target as HTMLInputElement).value).toFixed(2);
@@ -1489,6 +1449,22 @@ export class DecisionTextPlayground {
   // ---------------------------------------------------------------------------
   // Editor
   // ---------------------------------------------------------------------------
+
+  private selectPresetByIndex(idx: number) {
+    const preset = POLYMORPHIC_PRESETS[idx] ?? POLYMORPHIC_PRESETS[0];
+    this.polyDraft = buildPolymorphicDraftFromPreset(preset.key);
+    for (const k of ['boolean', 'choice', 'score'] as QuestionKind[]) {
+      const sampleIdx = SAMPLES[k].findIndex((s) => s.presetKey === preset.key);
+      const resolvedIdx = sampleIdx >= 0 ? sampleIdx : 0;
+      this.sampleIndex[k] = resolvedIdx;
+      this.drafts[k] = structuredClone(SAMPLES[k][resolvedIdx].draft);
+    }
+    this.showDraft();
+    this.clearResult();
+    if (this.ready && !this.busy) {
+      this.run();
+    }
+  }
 
   private updateSchemaEditorVisibility() {
     this.el['dt-poly-editor'].style.display = this.schemaEditorOpen ? '' : 'none';
@@ -1522,13 +1498,20 @@ export class DecisionTextPlayground {
     this.updateTokenBadge(inputText);
 
     this.el['dt-polymorphic-fields'].style.display = isPoly ? '' : 'none';
+    this.el['dt-toggle-schema'].style.display = isPoly ? '' : 'none';
     this.el['dt-boolean-fields'].style.display = isBoolean ? '' : 'none';
     this.el['dt-list-fields'].style.display = isList ? '' : 'none';
     this.el['dt-single-context-group'].style.display = isPoly ? 'none' : '';
 
+    const activePresetKey = isPoly
+      ? this.polyDraft.presetKey || 'ticket_triage'
+      : (SAMPLES[this.kind][this.sampleIndex[this.kind]]?.presetKey ?? 'ticket_triage');
+    const presetSelect = this.el['dt-preset-select'] as HTMLSelectElement;
+    if (presetSelect) {
+      presetSelect.value = activePresetKey;
+    }
+
     if (isPoly) {
-      const presetSelect = this.el['dt-preset-select'] as HTMLSelectElement;
-      presetSelect.value = this.polyDraft.presetKey || 'ticket_triage';
       (this.el['dt-poly-context'] as HTMLInputElement).value = this.polyDraft.context;
       this.updateSchemaEditorVisibility();
       this.renderPolymorphicQuestions();
@@ -1770,31 +1753,26 @@ export class DecisionTextPlayground {
     }
   }
 
-  /** Sample chips (only shown for single-question tabs with multiple samples). */
+  /** Preset sample chips shown across Combined, Boolean, Choice, and Score tabs. */
   private renderSamples() {
     const box = this.el['dt-samples'];
     box.innerHTML = '';
-    if (this.view !== 'form') return;
-    const samples = SAMPLES[this.kind];
-    if (samples.length < 2) return;
-    samples.forEach((sample, i) => {
+    if (this.view === 'json') return;
+
+    const activePresetKey =
+      this.view === 'polymorphic'
+        ? this.polyDraft.presetKey || 'ticket_triage'
+        : (SAMPLES[this.kind][this.sampleIndex[this.kind]]?.presetKey ?? 'ticket_triage');
+
+    POLYMORPHIC_PRESETS.forEach((preset, i) => {
       const chip = document.createElement('button');
-      chip.className = `dt-sample ${i === this.sampleIndex[this.kind] ? 'active' : ''}`;
-      chip.textContent = sample.name;
-      chip.addEventListener('click', () => this.loadSample(i));
+      chip.type = 'button';
+      chip.className = `dt-sample ${preset.key === activePresetKey ? 'active' : ''}`;
+      chip.textContent = preset.labelPrefix;
+      chip.title = preset.label;
+      chip.addEventListener('click', () => this.selectPresetByIndex(i));
       box.appendChild(chip);
     });
-  }
-
-  private loadSample(i: number) {
-    if (this.view !== 'form') return;
-    this.sampleIndex[this.kind] = i;
-    this.drafts[this.kind] = structuredClone(SAMPLES[this.kind][i].draft);
-    this.showDraft();
-    this.clearResult();
-    if (this.ready && !this.busy) {
-      this.run();
-    }
   }
 
   private renderItems() {

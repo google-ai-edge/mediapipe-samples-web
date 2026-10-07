@@ -35,7 +35,7 @@ const NEGATIVE_GUARD_ANCHORS: Record<string, string> = {
 };
 
 const FALLBACK_LABEL_REGEX =
-  /^(deny|reject|false|no|none|benign|legitimate|safe|normal|unactionable|unactionable_or_other|needs_clarification|general|other|irrelevant|unrelated)$/i;
+  /^(deny|reject|false|no|none|benign|legitimate|safe|normal|primary|allow|backlog|standard_exchange|on_device|unactionable|needs_clarification|insufficient_info|general|other|irrelevant|unrelated)/i;
 
 /**
  * Detects empty strings, whitespace, punctuation-only strings (e.g. ";;", "..."),

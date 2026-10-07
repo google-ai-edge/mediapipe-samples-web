@@ -3,9 +3,9 @@
   <p id="dt-kind-help" class="dt-kind-help"></p>
 
   <div id="dt-form-card" class="dt-card">
-    <div id="dt-polymorphic-fields">
-      <label class="dt-section-label" for="dt-preset-select">Select Decision Scenario:</label>
-      <div class="dt-scenario-row">
+    <div id="dt-preset-bar">
+      <label class="dt-section-label" for="dt-preset-select">Select Preset Use-Case:</label>
+      <div class="dt-scenario-row" style="margin-bottom: 10px">
         <select id="dt-preset-select" class="dt-field"></select>
         <button
           type="button"
@@ -17,7 +17,10 @@
           <span id="dt-toggle-schema-label">Hide Prompts &amp; Options</span>
         </button>
       </div>
+      <div id="dt-samples" class="dt-samples" style="margin-bottom: 14px"></div>
+    </div>
 
+    <div id="dt-polymorphic-fields">
       <div id="dt-poly-editor" class="dt-poly-editor">
         <label class="dt-section-label" for="dt-poly-context">
           Schema Domain Context (Prepended to All Question Prompts):
@@ -30,7 +33,7 @@
         />
 
         <label class="dt-section-label" style="margin-top: 14px">
-          Polymorphic Questions in Schema (Evaluated Together):
+          Questions in Combined Schema (Evaluated Together):
         </label>
         <div id="dt-poly-questions"></div>
         <button type="button" id="dt-add-poly-question" class="dt-btn-sm" style="margin-top: 6px">
@@ -49,7 +52,6 @@
         Input Query / Document <span class="dt-hint">what the model reads</span>
       </label>
       <div class="dt-input-header-right">
-        <div id="dt-samples" class="dt-samples"></div>
         <span id="dt-token-badge" class="dt-token-badge">~0 query tokens</span>
       </div>
     </div>
@@ -140,11 +142,7 @@
           <span class="material-icons">auto_fix_high</span>Insert example
         </button>
         <button id="dt-json-clear" class="dt-link-btn">Clear</button>
-        <button
-          id="dt-json-to-form"
-          class="dt-link-btn"
-          title="Open a schema in Polymorphic, or one question in its tab"
-        >
+        <button id="dt-json-to-form" class="dt-link-btn" title="Open a schema in Combined, or one question in its tab">
           <span class="material-icons">edit_note</span>Load into form
         </button>
       </div>
