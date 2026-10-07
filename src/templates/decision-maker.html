@@ -1,55 +1,11 @@
 <div class="task-container">
   <div class="controls-panel">
-    <div class="section-title">Model Selection</div>
-    <div id="model-selector-container"></div>
+    <div id="dm-model-panel"></div>
 
     <div class="divider"></div>
 
-    <div class="dm-game-only">
-      <div class="section-title">Controls</div>
-      <div class="dm-buttons">
-        <button id="dm-play" class="dm-btn dm-btn-primary">
-          <span class="material-icons">play_arrow</span><span class="dm-btn-label">Play</span>
-        </button>
-        <button id="dm-step" class="dm-btn" title="Advance one tick (→)">
-          <span class="material-icons">skip_next</span><span>Next Step</span>
-        </button>
-        <button id="dm-reset" class="dm-btn" title="Restart (R)">
-          <span class="material-icons">replay</span><span>Reset</span>
-        </button>
-      </div>
-      <p class="dm-hint">Shortcuts: <b>Space</b> play/pause, <b>→</b> next step, <b>R</b> reset</p>
-
-      <div class="divider"></div>
-    </div>
-
     <div class="section-title">Settings</div>
-    <div class="control-group dm-game-only">
-      <div class="control-label">
-        <span>Simulation Speed</span>
-        <span id="dm-speed-value" class="value-badge">1x</span>
-      </div>
-      <input type="range" id="dm-speed" min="0.25" max="2" step="0.25" value="1" class="range-slider" />
-    </div>
-
-    <div class="control-group dm-game-only">
-      <label class="dm-checkbox">
-        <input type="checkbox" id="dm-pause-on-decision" checked />
-        <span>Pause when the model picks JUMP or DUCK</span>
-      </label>
-    </div>
-
-    <div class="control-group">
-      <div class="control-label">
-        <span>Delegate</span>
-      </div>
-      <div class="select-wrapper">
-        <select id="delegate-select">
-          <option value="GPU" selected>GPU</option>
-          <option value="CPU">CPU</option>
-        </select>
-      </div>
-    </div>
+    <div id="dm-delegate-panel"></div>
 
     <div class="divider"></div>
 
@@ -62,58 +18,10 @@
   <div class="output-panel">
     <div class="output-header">
       <h2>Decision Maker</h2>
-      <div id="view-mode-toggle"></div>
+      <a href="#/decision/dino_game" class="dm-cross-link">Play the Dino Game →</a>
     </div>
     <div class="viewport">
       <div id="dm-text-view" class="dm-view"></div>
-      <div id="dm-game-view" class="dm-view">
-        <p class="dm-help">
-          The model never sees the game. When something new comes into view, it gets a one-line text description and
-          makes a Choice: <b>jump</b>, <b>duck</b>, or <b>wait</b>. It has about 100 ms to answer before the dino must
-          move.
-        </p>
-        <canvas id="dm-canvas" class="dm-canvas"></canvas>
-
-        <div class="dm-panels">
-          <div class="dm-card dm-decision">
-            <div id="dm-action" class="dm-action">WAIT</div>
-            <div id="dm-reason" class="dm-reason">Press Play or Next Step.</div>
-            <div class="dm-probs">
-              <div class="dm-prob">
-                <span class="dm-label dm-prob-label">jump</span>
-                <div class="dm-prob-bar"><div id="dm-prob-JUMP" class="dm-prob-fill"></div></div>
-                <span id="dm-prob-value-JUMP" class="dm-prob-value">-</span>
-              </div>
-              <div class="dm-prob">
-                <span class="dm-label dm-prob-label">duck</span>
-                <div class="dm-prob-bar"><div id="dm-prob-DUCK" class="dm-prob-fill"></div></div>
-                <span id="dm-prob-value-DUCK" class="dm-prob-value">-</span>
-              </div>
-              <div class="dm-prob">
-                <span class="dm-label dm-prob-label">wait</span>
-                <div class="dm-prob-bar"><div id="dm-prob-WAIT" class="dm-prob-fill"></div></div>
-                <span id="dm-prob-value-WAIT" class="dm-prob-value">-</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="dm-stats">
-            <div class="dm-stat"><span class="dm-label">Tick</span><span id="dm-obs-tick">0</span></div>
-            <div class="dm-stat"><span class="dm-label">Speed</span><span id="dm-obs-speed">-</span></div>
-            <div class="dm-stat"><span class="dm-label">Cleared</span><span id="dm-obs-cleared">0</span></div>
-            <div class="dm-stat"><span class="dm-label">Model calls</span><span id="dm-obs-calls">0</span></div>
-          </div>
-
-          <div class="dm-card">
-            <div class="dm-label">Model input</div>
-            <div id="dm-prompt" class="dm-prompt">(model not called yet)</div>
-            <div class="dm-question">
-              <span class="dm-label">Choice</span> <span id="dm-question-text"></span>
-              <ul id="dm-options" class="dm-options"></ul>
-            </div>
-          </div>
-        </div>
-      </div>
     </div>
   </div>
 
@@ -124,201 +32,15 @@
       flex-direction: column;
       align-items: center;
     }
-    .dm-buttons {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      margin-bottom: 8px;
-    }
-    .dm-btn {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 6px;
-      padding: 8px 12px;
-      border-radius: var(--radius-sm);
-      border: 1px solid var(--border-color);
-      background: var(--surface);
-      color: var(--text-main);
+    .dm-cross-link {
+      color: var(--primary);
       font-size: 0.9rem;
       font-weight: 500;
-      cursor: pointer;
-      transition: background 0.2s;
+      text-decoration: none;
+      white-space: nowrap;
     }
-    .dm-btn .material-icons {
-      font-size: 20px;
-    }
-    .dm-btn:hover:not(:disabled) {
-      background: #f1f3f4;
-    }
-    .dm-btn:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-    .dm-btn-primary {
-      background: var(--primary);
-      color: #fff;
-      border-color: var(--primary);
-    }
-    .dm-btn-primary:hover:not(:disabled) {
-      background: var(--primary-hover);
-    }
-    .dm-hint {
-      font-size: 0.75rem;
-      color: var(--text-secondary);
-      margin: 0 0 20px;
-    }
-    .dm-checkbox {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 0.9rem;
-      cursor: pointer;
-      margin-bottom: 8px;
-    }
-    .dm-help {
-      width: 100%;
-      max-width: var(--dm-width);
-      margin: 0 0 12px;
-      padding: 0 2px;
-      font-size: 0.85rem;
-      line-height: 1.4;
-      color: var(--text-secondary);
-    }
-    .dm-canvas {
-      width: 100%;
-      max-width: var(--dm-width);
-      aspect-ratio: var(--dm-aspect);
-      border: 1px solid var(--border-color);
-      border-radius: var(--radius-sm);
-      background: #fff;
-    }
-    .dm-panels {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      width: 100%;
-      max-width: var(--dm-width);
-      margin-top: 12px;
-    }
-    .dm-card {
-      border: 1px solid var(--border-color);
-      border-radius: var(--radius-sm);
-      padding: 12px 16px;
-    }
-    .dm-label {
-      font-size: 0.7rem;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      font-weight: 600;
-      color: var(--text-secondary);
-    }
-    .dm-decision {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      flex-wrap: wrap;
-    }
-    .dm-action {
-      min-width: 72px;
-      text-align: center;
-      padding: 6px 16px;
-      border-radius: 16px;
-      font-weight: 700;
-      font-family: 'Roboto Mono', monospace;
-      background: #f1f3f4;
-      color: var(--text-secondary);
-    }
-    .dm-action.jump,
-    .dm-action.duck {
-      background: var(--primary);
-      color: #fff;
-    }
-    .dm-action.crash {
-      background: #d93025;
-      color: #fff;
-    }
-    .dm-reason {
-      flex: 1;
-      min-width: 180px;
-      font-size: 0.9rem;
-      color: var(--text-main);
-    }
-    .dm-probs {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      width: 220px;
-    }
-    .dm-prob {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    .dm-prob-label {
-      width: 36px;
-    }
-    .dm-prob-bar {
-      flex: 1;
-      height: 8px;
-      background: #f1f3f4;
-      border-radius: 4px;
-      overflow: hidden;
-    }
-    .dm-prob-fill {
-      height: 100%;
-      width: 0;
-      background: var(--primary);
-      transition: width 0.15s;
-    }
-    .dm-prob-value {
-      font-family: 'Roboto Mono', monospace;
-      font-size: 0.8rem;
-      width: 36px;
-      text-align: right;
-    }
-    .dm-stats {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 12px;
-    }
-    .dm-stat {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      padding: 10px 16px;
-      border: 1px solid var(--border-color);
-      border-radius: var(--radius-sm);
-    }
-    .dm-stat span:last-child {
-      font-family: 'Roboto Mono', monospace;
-      font-size: 0.95rem;
-      color: var(--text-main);
-    }
-    @media (max-width: 600px) {
-      .dm-stats {
-        grid-template-columns: repeat(2, 1fr);
-      }
-    }
-    .dm-question {
-      margin-top: 8px;
-      font-size: 0.85rem;
-      color: var(--text-main);
-    }
-    .dm-options {
-      margin: 4px 0 0;
-      padding-left: 20px;
-      color: var(--text-secondary);
-    }
-    .dm-prompt {
-      font-family: 'Roboto Mono', monospace;
-      font-size: 0.8rem;
-      line-height: 1.5;
-      background: #f8f9fa;
-      padding: 8px;
-      border-radius: 6px;
-      color: var(--text-main);
-      margin-top: 6px;
+    .dm-cross-link:hover {
+      text-decoration: underline;
     }
   </style>
 </div>

@@ -258,6 +258,18 @@ export const TASK_BANNER_LINKS: Record<string, TaskBannerLinks> = {
     stackblitzUrl:
       'https://stackblitz.com/github/google-ai-edge/mediapipe-samples-web?file=src%2Ftasks%2Fdecision-maker.ts',
   },
+  '/decision/dino_game': {
+    label: 'Decision Maker - Dino Game',
+    docsUrl: MEDIAPIPE_DOCS_OVERVIEW_URL,
+    sampleCodeUrl: 'https://github.com/google-ai-edge/mediapipe-samples-web/blob/main/src/tasks/dino-game.ts',
+    samples: {
+      web: 'https://github.com/google-ai-edge/mediapipe-samples-web/blob/main/src/tasks/dino-game.ts',
+      android: 'https://github.com/google-ai-edge/mediapipe-samples/tree/main/examples/decision/android',
+      ios: MEDIAPIPE_DOCS_OVERVIEW_URL,
+      python: MEDIAPIPE_DOCS_OVERVIEW_URL,
+    },
+    stackblitzUrl: 'https://stackblitz.com/github/google-ai-edge/mediapipe-samples-web?file=src%2Ftasks%2Fdino-game.ts',
+  },
   '/retrieval/universal_embedder': {
     label: 'Universal Embedder',
     docsUrl: 'https://developers.google.com/edge/mediapipe/solutions/retrieval/universal_embedder/web_js',
