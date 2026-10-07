@@ -85,9 +85,17 @@ export function mountDecisionModelPanel(modelContainer: HTMLElement, delegateCon
     const rt = decisionRuntime;
     delegateSelect.value = rt.delegate;
     selector.setBusy(rt.loading);
-    if (rt.loading) selector.setStatus(`Loading ${rt.loadingLabel}...`);
-    else if (rt.failed) selector.setStatus(`Failed to load ${rt.loadingLabel}`);
-    else if (rt.loadedLabel) selector.setLoaded(rt.loadedValue);
+    if (rt.loading) {
+      selector.setStatus(`Loading ${rt.loadingLabel}...`);
+    } else if (rt.failed) {
+      selector.hideProgress();
+      selector.setStatus(`Failed to load ${rt.loadingLabel}`);
+    } else if (rt.loadedLabel) {
+      // The load finished: replace the pinned "Loading..." line and progress bar.
+      selector.hideProgress();
+      selector.setLoaded(rt.loadedValue);
+      selector.setStatus(`✓ Active: ${rt.loadedLabel}`);
+    }
   };
 
   const unsubscribe = decisionRuntime.subscribe((event) => {
