@@ -38,6 +38,7 @@ export abstract class BaseTask {
   protected modelSelector!: ModelSelector;
   protected currentDelegate: 'CPU' | 'GPU' = 'GPU';
   protected inferenceTimer = new InferenceTimer();
+  protected initQueue: string[] = [];
 
   protected isWorkerReady = false;
 
@@ -84,7 +85,7 @@ export abstract class BaseTask {
         break;
 
       case 'INIT_DONE':
-        this.handleInitDone();
+        this.handleInitDone(event.data);
         break;
 
       case 'MODEL_CACHED':
@@ -105,6 +106,9 @@ export abstract class BaseTask {
       case 'ERROR':
       case 'DETECT_ERROR':
       case 'CLASSIFY_ERROR':
+        if (this.initQueue.length > 0) {
+          this.initQueue.shift();
+        }
         console.error('Worker error:', event.data.error);
         this.modelSelector?.hideProgress();
         this.modelSelector?.setBusy(false);
@@ -124,10 +128,23 @@ export abstract class BaseTask {
     }
   }
 
-  protected handleInitDone() {
+  protected handleInitDone(data?: any) {
+    let loadedModel = data?.modelName;
+    if (loadedModel === undefined) {
+      loadedModel = this.initQueue.length > 0 ? this.initQueue[0] : this.currentModel;
+    }
+    if (this.initQueue.length > 0) {
+      this.initQueue.shift();
+    }
+
+    if (loadedModel !== this.currentModel) {
+      // Ignore INIT_DONE for a previous model if the user already switched to a new one
+      return;
+    }
+
     this.modelSelector?.hideProgress();
     this.modelSelector?.setBusy(false);
-    this.modelSelector?.setLoaded(this.currentModel === 'custom' ? null : this.currentModel);
+    this.modelSelector?.setLoaded(loadedModel === 'custom' ? null : loadedModel);
     document.querySelector('.viewport')?.classList.remove('loading-model');
     this.isWorkerReady = true;
     if (this.hadDelegateFallback) {
@@ -207,8 +224,10 @@ export abstract class BaseTask {
 
     // The worker downloads `modelAssetPath` through the shared model cache, or
     // streams `modelFile` (an uploaded File) directly.
+    this.initQueue.push(this.currentModel);
     this.worker?.postMessage({
       type: 'INIT',
+      modelName: this.currentModel,
       modelAssetPath: modelPath,
       modelFile,
       delegate: this.currentDelegate,

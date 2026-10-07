@@ -15,7 +15,7 @@
  */
 
 import { ViewToggle } from './view-toggle';
-import { formatMegabytes, isModelCached, removeCachedModel, clearModelCache } from './model-cache';
+import { formatMegabytes, isModelCached, removeCachedModel } from './model-cache';
 
 export interface ModelOption {
   label: string;
@@ -484,7 +484,7 @@ export class ModelSelector {
     }
 
     const state = this.stateOf(this.modelSelect.value);
-    this.badgeContainer.hidden = !state;
+    this.badgeContainer.style.display = state ? 'flex' : 'none';
     this.updateLoadButton();
     if (!state) return;
 

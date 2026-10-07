@@ -53,14 +53,14 @@ export abstract class BaseWorker<T> {
 
     try {
       if (type === 'INIT') {
-        const { modelAssetPath, delegate, baseUrl, ...rest } = event.data;
+        const { modelAssetPath, delegate, baseUrl, modelName, ...rest } = event.data;
         this.basePath = baseUrl || '/';
-        this.currentOptions = { modelAssetPath, delegate, ...rest };
+        this.currentOptions = { modelAssetPath, delegate, modelName, ...rest };
 
         await this.initializeBase(event.data);
 
         const payload = this.getInitPayload();
-        self.postMessage({ type: 'INIT_DONE', ...payload });
+        self.postMessage({ type: 'INIT_DONE', modelName, ...payload });
       } else if (type === 'SET_OPTIONS') {
         const { type: _type, ...optionsToUpdate } = event.data;
         Object.assign(this.currentOptions, optionsToUpdate);

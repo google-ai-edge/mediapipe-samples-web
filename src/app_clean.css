@@ -13,7 +13,7 @@
   --text-secondary: #5f6368;
   --border-color: #e0e0e0;
   --sidebar-width: 280px;
-  --controls-width: 340px;
+  --controls-width: 330px;
   --radius-sm: 8px;
   --radius-md: 12px;
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.12);
@@ -516,7 +516,8 @@ select:focus {
     cursor: pointer;
   }
 
-  .model-select > .model-select-button .model-option-actions {
+  .model-select > .model-select-button .model-option-actions,
+  .model-select > .model-select-button selectedcontent .model-option-actions {
     display: none;
   }
 
@@ -570,6 +571,8 @@ select:focus {
   .model-badge-pill {
     display: inline-flex;
     align-items: center;
+    justify-content: center;
+    width: 54px;
     flex-shrink: 0;
     padding: 1px 7px;
     border-radius: 999px;
