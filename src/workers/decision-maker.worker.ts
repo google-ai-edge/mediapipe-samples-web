@@ -145,13 +145,20 @@ class DecisionMakerWorker extends BaseWorker<DecisionMaker> {
   private async evaluateChoiceSmart(
     text: string,
     question: {
-      criteria: Record<string, string>;
+      criteria?: Record<string, string>;
+      /** Alternative to `criteria`, as accepted by ChoiceQuestion (used e.g. by the Dino game). */
+      options?: Array<{ label: string; description?: string }>;
       instructions?: string;
       context?: string;
     }
   ): Promise<{ selectedKey: string; probabilities: Record<string, number>; lowSignal?: boolean }> {
     const dm = this.taskInstance!;
-    const keys = Object.keys(question.criteria ?? {});
+    // Normalize `options: [{label, description}]` into `criteria: {label: description}`.
+    const criteria: Record<string, string> = {
+      ...Object.fromEntries((question.options ?? []).map((o) => [o.label, o.description ?? ''])),
+      ...(question.criteria ?? {}),
+    };
+    const keys = Object.keys(criteria);
     if (keys.length === 0) {
       return { selectedKey: '', probabilities: {} };
     }
@@ -166,10 +173,14 @@ class DecisionMakerWorker extends BaseWorker<DecisionMaker> {
     if (this.isEmbeddingGemma) {
       return dm.evaluateChoice(text, {
         instructions: '',
-        criteria: question.criteria,
+        criteria,
       });
     }
-    return dm.evaluateChoice(text, question as any);
+    return dm.evaluateChoice(text, {
+      instructions: question.instructions,
+      context: question.context,
+      criteria,
+    } as any);
   }
 
   private async evaluateScoreSmart(
