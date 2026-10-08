@@ -81,10 +81,10 @@ body {
 }
 
 .sidebar-header {
-  height: var(--header-height);
+  min-height: var(--header-height);
   display: flex;
   align-items: center;
-  padding: 0 24px;
+  padding: 16px 24px;
   border-bottom: 1px solid var(--border-color);
 }
 
