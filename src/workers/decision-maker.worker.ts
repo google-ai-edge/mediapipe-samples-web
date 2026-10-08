@@ -196,9 +196,11 @@ class DecisionMakerWorker extends BaseWorker<DecisionMaker> {
       };
     }
 
+    const cleanRubric = question.rubric.map((entry) => entry.replace(/^\d+\s*:\s*/, ''));
+
     if (this.isEmbeddingGemma) {
       const criteria: Record<string, string> = {};
-      question.rubric.forEach((entry, i) => {
+      cleanRubric.forEach((entry, i) => {
         const sep = entry.indexOf(': ');
         criteria[`__lvl_${i}__`] = sep > 0 ? entry.slice(sep + 2) : entry;
       });
@@ -207,7 +209,7 @@ class DecisionMakerWorker extends BaseWorker<DecisionMaker> {
         criteria,
       });
       const rawProbs = choiceRes.probabilities ?? {};
-      const probs = question.rubric.map((_, i) => rawProbs[`__lvl_${i}__`] ?? 0);
+      const probs = cleanRubric.map((_, i) => rawProbs[`__lvl_${i}__`] ?? 0);
       let best = 0;
       for (let i = 1; i < probs.length; i++) {
         if (probs[i] > probs[best]) best = i;
@@ -220,7 +222,10 @@ class DecisionMakerWorker extends BaseWorker<DecisionMaker> {
       };
     }
 
-    const scoreRes = await dm.evaluateScore(text, question as any);
+    const scoreRes = await dm.evaluateScore(text, {
+      ...question,
+      rubric: cleanRubric,
+    } as any);
     let best = 0;
     for (let i = 1; i < scoreRes.probabilities.length; i++) {
       if (scoreRes.probabilities[i] > scoreRes.probabilities[best]) best = i;

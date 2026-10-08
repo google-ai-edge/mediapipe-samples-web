@@ -191,7 +191,7 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
           {
             label: 'true',
             description:
-              'Confirmed production system outage with specific technical symptoms: database pipeline crash, fatal segfault, HTTP 503 failure, or widespread SAML/SSO authentication error blocking customer logins.',
+              'Confirmed production system outage with specific technical symptoms: database pipeline crash, fatal segfault, Spanner HTTP 503 checkout cascade, or widespread SAML/SSO authentication error blocking customer logins.',
           },
         ],
       },
@@ -204,12 +204,12 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
           {
             label: 'bug',
             description:
-              'Software defect, production database crash, fatal segfault, API error, data pipeline failure, or broken application functionality',
+              'Software defect, production database pipeline crash, fatal segfault, Spanner commit latency HTTP 503 checkout failure, or broken application functionality',
           },
           {
             label: 'billing',
             description:
-              'Invoice discrepancy, duplicate charge on monthly statement, refund request for overcharge, payment failure, or subscription pricing',
+              'Invoice discrepancy, charged twice on monthly statement, refund request for duplicate charge, payment failure, or subscription pricing',
           },
           {
             label: 'feature_request',
@@ -219,7 +219,7 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
           {
             label: 'account_access',
             description:
-              'Single Sign-On (SSO), SAML assertion error for employees, password reset, MFA lockout, or login authentication failure',
+              'Single Sign-On (SSO), SAML assertion error for European employees, password reset, MFA lockout, or login authentication failure',
           },
           {
             label: 'unactionable_or_other',
@@ -237,7 +237,7 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
           {
             label: '1',
             description:
-              'Minimal impact: dark mode UI suggestion, casual greeting like hello, vague message saying urgent or help me right now asap without technical details, random characters, or general text',
+              'Minimal impact: analytics dashboard dark mode toggle UI suggestion, casual greeting like hello, bare word urgent or help me right now asap without technical details, random characters, or general text',
           },
           {
             label: '2',
@@ -247,16 +247,17 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
           {
             label: '3',
             description:
-              'Moderate impact: billing invoice discrepancy, duplicate charge on invoice, or single-user account question',
+              'Moderate impact: billing invoice discrepancy, charged twice on monthly invoice #4821, or single-user account question',
           },
           {
             label: '4',
-            description: 'High impact: regional Single Sign-On (SSO) SAML assertion failure affecting employee logins',
+            description:
+              'High impact: regional Single Sign-On (SSO) SAML assertion failure affecting European employee logins',
           },
           {
             label: '5',
             description:
-              'Critical impact: production database pipeline crash with fatal segfault or complete system-wide outage blocking customers',
+              'Critical impact: production database pipeline crash with fatal segfault or multi-region Spanner HTTP 503 checkout outage',
           },
         ],
       },
@@ -287,7 +288,7 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
           {
             label: 'false',
             description:
-              'No valid defect: the item is fine, customer just does not like it or changed their mind, customer says refund please or I want a refund right now without explaining a physical defect, random characters, or general text.',
+              'No valid defect: the item is fine, customer just does not like it or changed their mind, customer says refund please or I want a refund right now without explaining a physical defect, casual greeting, random characters, or general text.',
           },
           {
             label: 'true',
@@ -304,17 +305,17 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
           {
             label: 'approve_defect_claim',
             description:
-              'Hardware arrived physically cracked, shattered screen when opening the box, broken zipper, or dead component',
+              'Hardware arrived physically cracked, shattered screen when opening the box, broken hardware component, or dead device on arrival',
           },
           {
             label: 'exchange_wrong_item',
             description:
-              'Warehouse shipped the wrong size Small instead of Large, wrong color, or wrong model compared to the order',
+              'Warehouse shipped the wrong size Small instead of Large, wrong color, or wrong model with broken zipper',
           },
           {
             label: 'deny_refund_request',
             description:
-              'The item is fine, I just do not like it, refund please, I want a refund right now, changed my mind, bare demand without defect details, unintelligible gibberish, random keyboard characters, casual greeting, or unrelated text',
+              'The item is fine, I just do not like it, refund please, I want a refund right now, changed my mind, bare demand without defect details, casual greeting like hello, random characters, or unrelated text',
           },
         ],
       },
@@ -327,15 +328,21 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
           {
             label: '1',
             description:
-              'No defect: the item is fine, buyer changed their mind or does not like it, says refund please or I want a refund right now without details, random characters, or general text',
+              'No defect: the item is fine, buyer changed their mind or does not like it, says refund please or I want a refund right now without details, casual greeting like hello, random characters, or general text',
           },
-          { label: '2', description: 'Minor cosmetic scuff on outer shipping box with product intact' },
-          { label: '3', description: 'Wrong size Small instead of Large shipped, requiring size exchange' },
-          { label: '4', description: 'Broken component such as a jammed zipper, torn seam, or missing hardware part' },
+          {
+            label: '2',
+            description: 'Minor cosmetic scuff on outer shipping box while the product inside works normally',
+          },
+          {
+            label: '3',
+            description: 'Wrong size Small instead of Large shipped with broken zipper requiring item exchange',
+          },
+          { label: '4', description: 'Damaged mechanical part or missing hardware accessory preventing normal use' },
           {
             label: '5',
             description:
-              'Severe damage: cracked screen when opening the box, shattered glass, or dead hardware on arrival',
+              'Severe arrival damage: screen was cracked when opening the box, shattered glass, or dead unit',
           },
         ],
       },
@@ -371,7 +378,7 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
           {
             label: 'true',
             description:
-              'Spam, unsolicited commercial promotion, CONGRATULATIONS $5,000 cash prize wire scam, FLASH SALE 80% off luxury watches, free money lure, unintelligible gibberish, random characters, or unknown junk message.',
+              'Spam, unsolicited commercial promotion, CONGRATULATIONS $5,000 cash prize wire scam, FLASH SALE 80% off luxury watches, free money lure, bare greeting like hello, random characters, or unknown junk message.',
           },
         ],
       },
@@ -384,22 +391,22 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
           {
             label: 'primary',
             description:
-              'Coherent work communication from teammates about Q3 engineering OKR slides, project reviews, or meeting agendas',
+              'Coherent workplace email from teammates with Q3 engineering OKR slides attached for tomorrow morning review or project meeting agendas',
           },
           {
             label: 'promotions',
             description:
-              'Commercial marketing newsletters, FLASH SALE 80% off luxury watches, retail discount offers, or unsubscribe campaigns',
+              'Commercial marketing newsletters, FLASH SALE 80% off luxury watches today only, retail discount offers, or unsubscribe campaigns',
           },
           {
             label: 'transactional',
             description:
-              'Official automated AWS cloud billing invoice for August ($142.18), account statement, or order receipt',
+              'Official automated AWS cloud billing invoice for August ($142.18) available in the billing console, account statement, or order receipt',
           },
           {
             label: 'spam_quarantine',
             description:
-              'CONGRATULATIONS $5,000 cash prize wire scam, free money lure, unintelligible gibberish, random keyboard characters, or suspicious junk mail',
+              'CONGRATULATIONS $5,000 cash prize wire fee scam, free money click now lure, bare greeting like hello without context, unintelligible gibberish, random keyboard characters, or suspicious junk mail',
           },
         ],
       },
@@ -412,16 +419,18 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
           {
             label: '1',
             description:
-              'Verified work email from teammates with Q3 engineering OKR slides or official AWS cloud billing invoice',
+              'Verified colleague email with Q3 engineering OKR slides attached or official AWS cloud billing invoice ($142.18)',
           },
-          { label: '2', description: 'Routine opt-in company newsletter or scheduled product update' },
+          { label: '2', description: 'Scheduled internal company bulletin or expected calendar notification' },
           {
             label: '3',
-            description: 'Unsolicited retail marketing, FLASH SALE 80% off luxury watches, or bulk advertising',
+            description:
+              'Unsolicited retail marketing promo: FLASH SALE 80% off luxury watches today only with unsubscribe link',
           },
           {
             label: '4',
-            description: 'Deceptive $5,000 cash prize wire scam, free money lure, random gibberish, or junk spam',
+            description:
+              'Quarantined junk or scam: CONGRATULATIONS $5,000 cash prize wire scam, free money click now, bare hello, or random gibberish',
           },
         ],
       },
@@ -451,12 +460,12 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
           {
             label: 'false',
             description:
-              'Normal workplace collaboration with a known teammate sharing design mockups, routine project notes, casual greeting, vague text, random characters, or benign message without deceptive links or payment lures.',
+              'Safe communication or unsubstantiated fragment: teammate Alex sharing Q4 design mockups in Google Drive, casual greeting like hello, bare words like urgent password or please click my link with no URL, or random characters asdfghjkl.',
           },
           {
             label: 'true',
             description:
-              'Confirmed phishing or social engineering attack attempting to steal SSO login credentials via a spoofed URL (e.g. micros0ft-sso-verify.net) or coerce urgent gift card / wire payments.',
+              'Confirmed phishing or BEC scam: Microsoft 365 expiration warning linking to spoofed domain http://micros0ft-sso-verify.net/login, or executive in a board meeting demanding 5 Apple gift card redemption codes.',
           },
         ],
       },
@@ -466,24 +475,24 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
         prompt: 'What specific attack vector or classification best describes this message?',
         options: [
           {
-            label: 'credential_harvesting',
+            label: 'spoofed_domain_phish',
             description:
-              'Deceptive link to a lookalike login portal (e.g. micros0ft-sso-verify.net) claiming password expiration or account suspension',
+              'Microsoft 365 2-hour expiration alert directing user to sign in at lookalike domain http://micros0ft-sso-verify.net/login',
           },
           {
             label: 'bec_impersonation',
             description:
-              'Business Email Compromise impersonating an executive in a meeting demanding gift cards or wire transfers',
+              'Executive in a board meeting asking to purchase 5 Apple gift cards for a client right now and reply with the redemption codes',
           },
           {
             label: 'malware_delivery',
             description:
-              'Suspicious macro-enabled attachment, encrypted ZIP archive, or unsolicited executable download',
+              'Suspicious macro-enabled .xlsm invoice attachment, encrypted .zip archive, or trojan .exe installer',
           },
           {
             label: 'benign',
             description:
-              'Safe workplace communication from a colleague, casual greeting, random characters, or benign text with no malicious indicators',
+              'urgent password, please click my link, hello, asdfghjkl: bare phrase with no spoofed URL, or colleague Alex sharing Q4 design mockups in shared Google Drive folder',
           },
         ],
       },
@@ -496,17 +505,22 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
           {
             label: '1',
             description:
-              'Safe: routine internal collaboration, casual greeting, random characters, or benign text with no suspicious links',
+              'Safe: colleague Alex uploading Q4 design mockups to shared Google Drive folder, casual greeting like hello, bare words like urgent password or please click my link with no URL, or random characters asdfghjkl',
           },
-          { label: '2', description: 'Low risk: unsolicited external marketing email from a verifiable sender' },
-          { label: '3', description: 'Medium risk: ambiguous external request requiring sender verification' },
+          { label: '2', description: 'Low risk: routine external newsletter from a verified corporate domain' },
+          {
+            label: '3',
+            description: 'Moderate risk: unexpected external calendar invite or unverified vendor inquiry',
+          },
           {
             label: '4',
-            description: 'High risk: executive impersonation demanding gift cards or wire transfers',
+            description:
+              'High risk: executive board meeting impersonation demanding 5 Apple gift card redemption codes',
           },
           {
             label: '5',
-            description: 'Critical risk: active credential harvesting attack with a spoofed lookalike SSO login domain',
+            description:
+              'Critical risk: Microsoft 365 2-hour expiry lure linking to spoofed login portal http://micros0ft-sso-verify.net/login',
           },
         ],
       },
@@ -530,18 +544,18 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
         id: 'is_unsafe_attack',
         type: 'binary',
         prompt:
-          'Does this prompt contain a concrete adversarial jailbreak override, system-prompt exfiltration attempt, or exploit payload request?',
+          'Does this input contain a multi-sentence adversarial DAN jailbreak, CVE exploit script demand, or developer secret dump command (rather than an educational SQL question or bare words like ignore, hack, or system prompt)?',
         threshold: 0.6,
         options: [
           {
             label: 'false',
             description:
-              'Benign educational software engineering question (such as how parameterized queries prevent SQL injection), normal coding help, casual greeting, random characters, or harmless text.',
+              'ignore, hack, system prompt, hello, asdfghjkl: bare isolated words without an attack command, or safe educational question on how parameterized SQL queries prevent SQL injection vulnerabilities in Node.js.',
           },
           {
             label: 'true',
             description:
-              'Adversarial prompt injection ("Ignore all previous safety instructions", "DAN"), request to dump /etc/shadow or exploit a CVE, or command to leak verbatim system prompts and private API keys.',
+              'Multi-sentence adversarial attack: DAN (Do Anything Now) persona demanding a working Python script for CVE-2024-3094 to dump /etc/shadow, or imperative command to print verbatim developer configuration and private API keys.',
           },
         ],
       },
@@ -553,22 +567,17 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
           {
             label: 'benign',
             description:
-              'Legitimate educational programming question, defensive security best practices, casual greeting, random characters, or normal benign user query',
+              'ignore, hack, system prompt, hello, asdfghjkl: bare isolated words without an attack command, or safe educational question on how parameterized SQL queries prevent SQL injection vulnerabilities in Node.js',
           },
           {
-            label: 'jailbreak_override',
+            label: 'cve_2024_shadow_script',
             description:
-              'Adversarial persona adoption (e.g. DAN) or instruction to ignore all previous safety rules and guardrails',
+              'DAN (Do Anything Now) persona demanding a working Python script for CVE-2024-3094 to dump /etc/shadow password hashes',
           },
           {
-            label: 'cyber_exploit',
+            label: 'config_key_exfiltration',
             description:
-              'Request for functional exploit payloads, weaponized malware code, or unauthorized credential dumping (/etc/shadow)',
-          },
-          {
-            label: 'prompt_exfiltration',
-            description:
-              'Attempt to extract hidden system instructions, developer prompts, or private environment API keys',
+              'Imperative command to print verbatim hidden developer configuration instructions and dump private environment API keys',
           },
         ],
       },
@@ -581,21 +590,25 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
           {
             label: '1',
             description:
-              'Safe: constructive educational or defensive coding question, casual greeting, or random characters with zero adversarial intent',
+              'Safe: educational question on how parameterized SQL queries prevent SQL injection vulnerabilities in Node.js, bare words like ignore, hack, or system prompt alone, casual greeting like hello, or random characters asdfghjkl',
           },
           {
             label: '2',
-            description: 'Low: edgy or ambiguous phrasing that remains safe to answer with standard caveats',
+            description: 'Low: benign software architecture discussion with no adversarial instructions',
           },
           {
             label: '3',
-            description: 'Moderate: probing for hidden system instructions or internal configuration details',
+            description: 'Moderate: ambiguous curiosity about AI model training boundaries',
           },
-          { label: '4', description: 'High: explicit prompt injection attempting to bypass system safety policies' },
+          {
+            label: '4',
+            description:
+              'High: imperative command to print verbatim hidden developer configuration and private environment API keys',
+          },
           {
             label: '5',
             description:
-              'Critical: combined jailbreak override and request for weaponized CVE exploit code or password file dumping',
+              'Critical: DAN jailbreak combined with request for working Python exploit code for CVE-2024-3094 to dump /etc/shadow',
           },
         ],
       },
@@ -619,18 +632,18 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
         id: 'contains_direct_answer',
         type: 'binary',
         prompt:
-          'Does this passage explicitly state the exact numerical values for Envoy v1.30 gRPC keepalive_timeout and max_concurrent_streams?',
+          'Does this passage state the exact numerical defaults (1024 and 20 seconds) rather than repeating a bare query like "Envoy gRPC keepalive timeout" or general overview text?',
         threshold: 0.6,
         options: [
           {
             label: 'false',
             description:
-              'Passage discusses general Envoy xDS APIs without numerical keepalive/stream defaults, discusses an unrelated topic like baking sourdough bread, or is vague/random text.',
+              'Envoy gRPC keepalive timeout, 1024, hello, asdfghjkl: bare search query or number without a full sentence stating both defaults, general Envoy xDS API overview (LDS, RDS, CDS, EDS), or off-topic sourdough bread recipe at 78°F.',
           },
           {
             label: 'true',
             description:
-              'Passage directly states the exact Envoy v1.30 numerical defaults (`max_concurrent_streams` = 1024 and `keepalive_timeout` = 20 seconds).',
+              'Full sentence stating both numerical defaults: In Envoy Proxy v1.30, HTTP/2 upstream cluster configuration sets max_concurrent_streams to 1024 by default and defaults to 20 seconds in http2_protocol_options.',
           },
         ],
       },
@@ -642,17 +655,17 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
           {
             label: 'exact_factual_answer',
             description:
-              'Contains the exact configuration parameters (`max_concurrent_streams`, `keepalive_timeout`) and their numerical default values',
+              'In Envoy Proxy v1.30, HTTP/2 upstream cluster configuration sets max_concurrent_streams to 1024 by default and defaults to 20 seconds in http2_protocol_options',
           },
           {
             label: 'partial_domain_context',
             description:
-              'Discusses the same software system (Envoy Proxy xDS APIs) but omits the requested timeout and stream limit numbers',
+              'Envoy Proxy supports dynamic configuration discovery via the xDS API suite (LDS, RDS, CDS, EDS) or mentions Envoy gRPC keepalive timeout without numerical defaults',
           },
           {
             label: 'irrelevant_off_topic',
             description:
-              'Completely unrelated subject matter (such as cooking recipes, sourdough bread, random characters, or general chat)',
+              'Unrelated topic or bare fragment: baking sourdough bread fermenting levain for 5 hours at 78°F, bare number 1024, casual greeting like hello, or random characters asdfghjkl',
           },
         ],
       },
@@ -665,20 +678,21 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
           {
             label: '1',
             description:
-              'Irrelevant: off-topic passage, random characters, or general text with zero connection to Envoy or gRPC networking',
+              'Irrelevant: baking sourdough bread fermenting levain for 5 hours at 78°F, bare number 1024, casual greeting like hello, or random characters asdfghjkl',
           },
           {
             label: '2',
-            description: 'Tangential: mentions Envoy Proxy generally but does not cover gRPC or HTTP/2 limits',
+            description:
+              'Tangential: Envoy Proxy dynamic configuration discovery via xDS API suite (LDS, RDS, CDS, EDS) or bare query Envoy gRPC keepalive timeout without numerical answers',
           },
           {
             label: '3',
-            description: 'Partial match: covers HTTP/2 or gRPC settings but misses one of the specific default values',
+            description: 'Partial match: discusses HTTP/2 upstream cluster options but omits one of the default values',
           },
           {
             label: '4',
             description:
-              'Exact match: provides both the 1024 max_concurrent_streams and 20s keepalive_timeout defaults',
+              'Exact match: Envoy v1.30 sets max_concurrent_streams to 1024 by default and defaults to 20 seconds in http2_protocol_options',
           },
         ],
       },
@@ -708,12 +722,12 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
           {
             label: 'false',
             description:
-              'Simple local device command (setting a timer, alarm, or reminder), basic factual trivia lookup (capital of Japan), casual greeting, random characters, or short conversational query.',
+              'Handled locally on device: setting a 12-minute oven timer for garlic bread, asking the capital and currency of Japan, bare single words like Rust or complex without a design specification, casual greeting like hello, or random characters asdfghjkl.',
           },
           {
             label: 'true',
             description:
-              'Complex systems engineering task such as designing a lock-free concurrent ring buffer in Rust with formal ARM64 Acquire/Release memory-ordering proofs.',
+              'Requires frontier reasoning: designing a lock-free concurrent ring buffer with formal memory-ordering proofs for Acquire/Release semantics across ARM64 weak memory models.',
           },
         ],
       },
@@ -724,21 +738,23 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
         options: [
           {
             label: 'device_assistant',
-            description: 'Setting timers, alarms, reminders, calendar entries, or simple local device actions',
+            description:
+              'Setting a 12-minute timer, alarm, reminder to take garlic bread out of the oven, or local device control',
           },
           {
-            label: 'complex_coding_reasoning',
+            label: 'frontier_systems_design',
             description:
-              'Advanced systems programming, lock-free concurrency in Rust, formal verification, or multi-step architectural design',
+              'Designing a lock-free concurrent ring buffer with formal memory-ordering proofs for Acquire/Release semantics across ARM64 weak memory models',
           },
           {
             label: 'factual_knowledge',
-            description: 'Answering direct encyclopedic, geographic, scientific, or historical fact lookup questions',
+            description:
+              'Asking what is the capital of Japan and what currency they use, or direct encyclopedic trivia lookup',
           },
           {
             label: 'unactionable_or_other',
             description:
-              'Vague fragment, bare keyword, casual greeting, random characters, or unactionable input lacking a clear request',
+              'Bare single word or fragment such as Rust, complex, hello, or asdfghjkl without a concrete question or task specification',
           },
         ],
       },
@@ -751,14 +767,18 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
           {
             label: '1',
             description:
-              'Trivial: setting a local timer, alarm, reminder, casual greeting, random characters, or short input',
+              'Trivial: setting a 12-minute garlic bread timer, bare single words like Rust or complex without a task specification, casual greeting like hello, or random characters asdfghjkl',
           },
-          { label: '2', description: 'Simple: single-hop factual lookup such as a country capital or currency' },
-          { label: '3', description: 'Moderate: summarizing a short paragraph or drafting a routine email' },
-          { label: '4', description: 'High: debugging a multi-function module or explaining distributed consensus' },
+          {
+            label: '2',
+            description: 'Simple: single-hop factual lookup asking the capital of Japan and what currency they use',
+          },
+          { label: '3', description: 'Moderate: summarizing a paragraph or drafting a short routine email' },
+          { label: '4', description: 'High: multi-file code refactoring or distributed systems debugging' },
           {
             label: '5',
-            description: 'Frontier: lock-free Rust concurrency implementation with formal ARM64 memory-ordering proofs',
+            description:
+              'Frontier: designing a lock-free concurrent ring buffer with formal Acquire/Release memory-ordering proofs across ARM64 weak memory models',
           },
         ],
       },
@@ -782,18 +802,18 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
         id: 'contains_secret',
         type: 'binary',
         prompt:
-          'Does this draft message contain an exposed plaintext API key, secret token, or credential value (such as sk_live_..., AKIA..., or a bearer token)?',
+          'Does this draft expose a literal credential string starting with sk_live_ (rather than normal workplace feedback, angry complaints, or bare words like "secret key" without a token value)?',
         threshold: 0.6,
         options: [
           {
             label: 'false',
             description:
-              'Normal code review comment, unit test update, angry complaint about broken commits, casual greeting, random characters, or text with no plaintext API key value.',
+              'secret key, I hate this, hello, asdfghjkl: bare words without a literal sk_live_ token value, constructive message thanking a teammate for catching an edge case in review, or angry message saying fix your garbage code.',
           },
           {
             label: 'true',
             description:
-              'Leaked secret credential value, plaintext Stripe key sk_live_..., AWS_SECRET_ACCESS_KEY, Bearer token, or hardcoded password.',
+              'Message shares a live staging Stripe API token starting with sk_live_ while asking to deploy immediately because the broken build is driving them crazy.',
           },
         ],
       },
@@ -805,17 +825,17 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
           {
             label: 'allow_send',
             description:
-              'Polite, constructive workplace collaboration (such as thanking a teammate and updating unit tests), casual greeting, or benign text with no leaked secrets',
+              'Constructive workplace message thanking a teammate for catching an edge case and updating unit tests, bare words like secret key without a literal token, casual greeting like hello, or random characters asdfghjkl',
           },
           {
-            label: 'block_secret_leak',
+            label: 'redact_exposed_token',
             description:
-              'Draft exposes a plaintext API key or credential token (such as sk_live_... or AKIA...) that must be redacted before sending',
+              'Draft shares a live staging Stripe API token starting with sk_live_ while asking to deploy immediately',
           },
           {
             label: 'warn_hostile_tone',
             description:
-              'Draft contains personal insults or demeaning language ("Fix your garbage code") that violates workplace conduct',
+              'Draft attacks a coworker with demeaning insults ("Fix your garbage code right now", "I hate this") violating conduct policy',
           },
         ],
       },
@@ -825,16 +845,22 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
         prompt:
           'Rate the sender frustration and hostility level in this draft from 1 (calm & appreciative) to 5 (hostile personal attack).',
         options: [
-          { label: '1', description: 'Calm, friendly, appreciative collaboration, casual greeting, or neutral text' },
-          { label: '2', description: 'Neutral and matter-of-fact status update with no emotional tension' },
-          { label: '3', description: 'Mildly stressed or impatient under a tight deployment deadline' },
+          {
+            label: '1',
+            description:
+              'Calm and appreciative: thanking a teammate for catching an edge case in review and updating the unit test, bare words like secret key, casual greeting like hello, or random characters asdfghjkl',
+          },
+          { label: '2', description: 'Matter-of-fact technical update with neutral workplace tone' },
+          { label: '3', description: 'Mildly impatient under a release deadline without personal attacks' },
           {
             label: '4',
-            description: 'High stress and exasperation ("driving me crazy", frantic demand to deploy)',
+            description:
+              'High stress and exasperation: frantic plea to deploy staging Stripe key because broken build is driving me crazy',
           },
           {
             label: '5',
-            description: 'Hostile, demeaning, or aggressive attack ("Fix your garbage code right now")',
+            description:
+              'Hostile personal attack: blaming coworker ("fourth time your commit broke the release branch, fix your garbage code right now", "I hate this")',
           },
         ],
       },
@@ -858,18 +884,18 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
         id: 'is_urgent',
         type: 'binary',
         prompt:
-          'Does this ticket report a concrete critical production outage or payment API 500 failure blocking customer orders right now?',
+          'Does this ticket report a verified production payment API 500 server outage blocking all customer orders (rather than a Spanish billing question, French UI feedback, or an isolated word like 緊急 or reembolso)?',
         threshold: 0.6,
         options: [
           {
             label: 'false',
             description:
-              'Polite billing refund question (factura/reembolsar), positive feature suggestion (export PDF), casual greeting, random characters, or routine message.',
+              '緊急, reembolso, こんにちは, hello, asdfghjkl: isolated single word or greeting with no outage details, Spanish duplicate invoice #9021 question (me cobraron dos veces la suscripción mensual), or French UI praise and PDF chart export idea (Bonjour).',
           },
           {
             label: 'true',
             description:
-              'Critical production payment API outage (本番環境の決済APIが500エラーで完全に停止) blocking all customer orders.',
+              'Confirmed production payment API 500 server failure halting all customer orders (本番環境の決済APIが500エラーで完全に停止しており、すべての顧客が注文を完了できません).',
           },
         ],
       },
@@ -880,20 +906,23 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
         options: [
           {
             label: 'engineering_incident',
-            description: 'Production API 500 outage, server crash, or checkout failure blocking customer orders',
+            description:
+              'Production payment API 500 error completely halting all customer orders (本番環境の決済APIが500エラーで完全に停止しており、すべての顧客が注文を完了できません)',
           },
           {
             label: 'billing_support',
-            description: 'Duplicate monthly subscription charge on an invoice and request for a refund',
+            description:
+              'Full Spanish sentence reporting being charged twice for the monthly subscription on invoice #9021 (Hola equipo, me cobraron dos veces la suscripción mensual en la factura #9021)',
           },
           {
             label: 'product_feedback',
-            description: 'Positive feedback on the UI and feature request to add monthly chart PDF exports',
+            description:
+              'French compliment on the new interface and suggestion to add PDF export for monthly charts (Bonjour, j’adore la nouvelle interface, ajouter un export PDF)',
           },
           {
             label: 'unactionable_or_other',
             description:
-              'Vague fragment, bare keyword without context, casual greeting, random characters, or unrelated off-topic message',
+              'reembolso, 緊急, こんにちは, hola, bonjour, hello, asdfghjkl: isolated single word or greeting with no invoice number (#9021) and no technical error details',
           },
         ],
       },
@@ -906,12 +935,20 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
           {
             label: '1',
             description:
-              'Delighted customer praising the new UI, casual greeting, random characters, or nice-to-have feature suggestion',
+              'Delighted or baseline: French praise for the new UI and PDF export suggestion, isolated single word (緊急, reembolso, こんにちは, hello), or random characters asdfghjkl',
           },
-          { label: '2', description: 'Calm and polite customer asking a routine billing or account question' },
-          { label: '3', description: 'Moderately concerned customer requesting a refund for a duplicate charge' },
-          { label: '4', description: 'Frustrated customer experiencing a workflow disruption' },
-          { label: '5', description: 'Critical crisis: total production payment outage halting all customer business' },
+          { label: '2', description: 'Calm routine account question with no financial error' },
+          {
+            label: '3',
+            description:
+              'Polite billing concern: full Spanish message about duplicate monthly subscription charge on invoice #9021',
+          },
+          { label: '4', description: 'Frustrated customer facing a partial feature slowdown' },
+          {
+            label: '5',
+            description:
+              'Critical crisis: Japanese report that production payment API is down with 500 errors blocking all customer orders (本番環境の決済APIが500エラーで完全に停止)',
+          },
         ],
       },
     ],
@@ -930,18 +967,18 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
         id: 'is_live_or_p0_incident',
         type: 'binary',
         prompt:
-          'Does this document describe a high-severity production outage or regional authentication lockout (rather than a billing audit or UX dark mode proposal)?',
+          'Does this document describe a high-severity production outage or regional authentication lockout (rather than a billing audit, UX dark mode proposal, or bare words like "P0 outage" or "urgent")?',
         threshold: 0.6,
         options: [
           {
             label: 'false',
             description:
-              'Quarterly invoice billing reconciliation memo, dark mode UI theme architecture RFC with 99.99% platform uptime, or short/unrelated text.',
+              'P0 outage, urgent, hello, asdfghjkl: bare words without a full multi-section report, Enterprise Renewal & Billing Audit Memo (#ENT-88412 Acme Global Logistics, 99.994% uptime, duplicate ACH debit credit request), or Dark Mode Theme RFC-2026-114.',
           },
           {
             label: 'true',
             description:
-              'P0 global checkout outage postmortem (HTTP 503 cascade from Spanner DDL lock) or active EMEA SAML 2.0 SSO certificate lockout.',
+              'Detailed multi-section incident report of a live outage: INC-2026-0929 Spanner migration lock causing 47-minute HTTP 503 checkout failure across 410,000 users, or SEC-2026-4402 EMEA SAML 2.0 X.509 certificate rollover SSO lockout.',
           },
         ],
       },
@@ -953,27 +990,27 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
           {
             label: 'sre_database_reliability',
             description:
-              'Spanner database schema migration lock, connection pool exhaustion, and HTTP 503 checkout outage postmortem',
+              'Postmortem INC-2026-0929: Spanner ledger_idempotency_keys unindexed migration lock causing connection pool exhaustion and HTTP 503 checkout failure',
           },
           {
             label: 'finance_revenue_ops',
             description:
-              'Quarterly invoice reconciliation, duplicate ACH debit wire credit, UAT seat true-up, and VAT exemption audit',
+              'Billing Audit Memo #ENT-88412 (Acme Global Logistics): Invoice #INV-2026-09-4821 duplicate $45,000 ACH debit settlement, 85 UAT sandbox seats, and Ireland VAT exemption',
           },
           {
             label: 'product_design_systems',
             description:
-              'Dark mode color palette RFC, WCAG contrast tokens, and customizable telemetry dashboard layout persistence',
+              'Architecture Proposal RFC-2026-114: customizable OLED dark mode theme tokens, WCAG 2.1 AA contrast palette, and saved dashboard layouts',
           },
           {
             label: 'iam_security_federation',
             description:
-              'SAML 2.0 X.509 certificate rollover mismatch causing HTTP 401 SSO login failures across EMEA Okta/Entra tenants',
+              'Security Brief SEC-2026-4402: federated SAML 2.0 X.509 certificate thumbprint mismatch causing HTTP 401 SSO login failures for 14,200 EMEA employees',
           },
           {
             label: 'unactionable_or_other',
             description:
-              'Unrelated text, bare keyword, random characters, or document lacking actionable enterprise routing details',
+              'P0 outage, urgent, hello, asdfghjkl: short fragment or bare keywords without a multi-section engineering report',
           },
         ],
       },
@@ -985,25 +1022,27 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
         options: [
           {
             label: '1',
-            description: 'Roadmap RFC: UI dark mode theme, dashboard layout enhancement, or unsubstantiated short text',
+            description:
+              'Minimal urgency: Dark Mode Theme RFC-2026-114 roadmap proposal, bare words like P0 outage or urgent without a full document, casual greeting like hello, or random characters asdfghjkl',
           },
           {
             label: '2',
-            description: 'Routine administrative documentation with no financial or technical discrepancy',
+            description: 'Low urgency: routine internal documentation update with no financial or operational impact',
           },
           {
             label: '3',
-            description: 'Accounting adjustment: duplicate ACH invoice credit and seat billing reconciliation memo',
+            description:
+              'Moderate urgency: Enterprise Billing Audit Memo #ENT-88412 requesting $45,000 duplicate ACH debit credit with 99.994% platform uptime',
           },
           {
             label: '4',
             description:
-              'Regional security lockout: EMEA federated SAML 2.0 SSO login failure requiring hotfix rollout',
+              'High urgency: Security Brief SEC-2026-4402 active EMEA SAML 2.0 X.509 certificate rollover SSO login lockout across 28 tenants',
           },
           {
             label: '5',
             description:
-              'P0 global outage: 100% checkout failure across North America and Europe blocking $3.8M in payments',
+              'Critical postmortem: INC-2026-0929 multi-region Spanner DDL lock causing 47-minute HTTP 503 checkout cascade blocking $3.8M in payment volume',
           },
         ],
       },
@@ -1026,34 +1065,38 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
       {
         id: 'customer_outage',
         type: 'binary',
-        prompt: 'Are live customer requests currently failing with HTTP errors or service unavailability?',
+        prompt:
+          'Are live customer checkout requests failing with HTTP 503 after deploying payment-service v4.12.0 (rather than an analytics cron issue, feature request, or bare words like outage, data loss, or rollback)?',
         threshold: 0.6,
         options: [
           {
             label: 'false',
             description:
-              'Service uptime is unaffected, live user traffic is healthy, CSV feature request, or vague/unrelated text.',
+              'outage, data loss, rollback, hello, asdfghjkl: bare words without details, analytics replica cron issue with service uptime unaffected, or CSV export button feature request.',
           },
           {
             label: 'true',
-            description: 'Live customer checkout requests are actively failing with HTTP 503 errors.',
+            description:
+              'After deploying payment-service v4.12.0, all EU checkout requests are actively failing with HTTP 503 due to a nil pointer dereference in the Stripe webhook handler.',
           },
         ],
       },
       {
         id: 'data_loss_detected',
         type: 'binary',
-        prompt: 'Were any database records or audit telemetry tables deleted, corrupted, or permanently lost?',
+        prompt:
+          'Did a SQL DELETE query permanently erase 48 hours of user_sessions telemetry on the analytics replica (rather than an HTTP 503 checkout error, feature request, or bare words like outage, data loss, or rollback)?',
         threshold: 0.6,
         options: [
           {
             label: 'false',
             description:
-              'No database records were corrupted or deleted; all stored data remains intact, or text is unrelated.',
+              'outage, data loss, rollback, hello, asdfghjkl: bare words without a SQL query, payment-service v4.12.0 HTTP 503 failure where no database records were corrupted, or Q4 CSV export velocity chart feature request.',
           },
           {
             label: 'true',
-            description: 'Database records or telemetry tables were accidentally deleted (`DELETE FROM`) or corrupted.',
+            description:
+              'A misconfigured cron job executed DELETE FROM user_sessions without a WHERE clause on the analytics replica, permanently erasing 48 hours of audit telemetry.',
           },
         ],
       },
@@ -1064,19 +1107,23 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
         options: [
           {
             label: 'bad_code_release',
-            description: 'Application code regression (nil pointer dereference) introduced in a new service deployment',
+            description:
+              'Deploying payment-service v4.12.0 caused EU checkout HTTP 503 errors due to a nil pointer dereference in the Stripe webhook handler',
           },
           {
-            label: 'destructive_db_query',
-            description: 'Accidental unguarded SQL DELETE or destructive database maintenance script',
+            label: 'sql_cron_deletion',
+            description:
+              'Misconfigured cron job executed DELETE FROM user_sessions without a WHERE clause on the analytics replica, erasing 48 hours of telemetry',
           },
           {
             label: 'feature_enhancement',
-            description: 'Customer or internal request for a new UI export button with no defect present',
+            description:
+              'Request to add a CSV export button to the monthly team velocity chart in Q4 while everything is working great',
           },
           {
             label: 'unactionable_or_other',
-            description: 'Vague claim without technical details, random characters, or unrelated off-topic input',
+            description:
+              'data loss, rollback, outage, hello, asdfghjkl: bare isolated words or fragments without a specific service version (v4.12.0) or SQL query (DELETE FROM user_sessions)',
           },
         ],
       },
@@ -1086,16 +1133,18 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
         prompt: 'What is the primary remediation action required?',
         options: [
           {
-            label: 'rollback_deployment',
-            description: 'Immediately roll back the service deployment to the previous healthy release version',
+            label: 'revert_service_release',
+            description:
+              'Revert payment-service v4.12.0 to v4.11.9 to stop EU checkout HTTP 503 Stripe webhook nil pointer errors',
           },
           {
-            label: 'restore_db_snapshot',
-            description: 'Restore the affected database table from the latest clean backup snapshot',
+            label: 'recover_table_backup',
+            description: 'Recover the erased user_sessions audit telemetry table from the 02:00 UTC database snapshot',
           },
           {
-            label: 'backlog_prioritize',
-            description: 'Add the enhancement request to the product backlog or take no emergency action',
+            label: 'backlog_or_no_action',
+            description:
+              'data loss, rollback, outage, hello, asdfghjkl: take no emergency action for bare keywords or casual greetings, or add the Q4 CSV export chart button to the product backlog',
           },
         ],
       },
@@ -1104,11 +1153,23 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
         type: 'ordinal',
         prompt: 'Rate the overall incident severity from 1 (feature request) to 5 (live customer checkout outage).',
         options: [
-          { label: '1', description: 'No incident: routine feature request, UI enhancement, or vague/unrelated text' },
-          { label: '2', description: 'Minor internal warning with no data loss or user impact' },
-          { label: '3', description: 'Internal replica data loss requiring snapshot recovery without live downtime' },
-          { label: '4', description: 'Partial feature degradation with an active automated fallback' },
-          { label: '5', description: 'Critical live regional checkout outage (HTTP 503) requiring immediate rollback' },
+          {
+            label: '1',
+            description:
+              'No incident: Q4 CSV export velocity chart feature request, bare keywords (outage, data loss, rollback) without details, casual greeting like hello, or random characters asdfghjkl',
+          },
+          { label: '2', description: 'Minor non-production warning with zero data loss and zero customer impact' },
+          {
+            label: '3',
+            description:
+              'Moderate: analytics replica DELETE FROM user_sessions erased 48 hours of audit telemetry requiring 02:00 UTC snapshot recovery while uptime is unaffected',
+          },
+          { label: '4', description: 'High: partial regional latency degradation with automatic retry recovery' },
+          {
+            label: '5',
+            description:
+              'Critical: payment-service v4.12.0 nil pointer dereference causing all EU checkout requests to fail with HTTP 503',
+          },
         ],
       },
     ],
@@ -1123,24 +1184,25 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
     candidates: [
       'The battery on my new wireless headphones drains from 100% to 0% in 15 minutes and the left earcup crackles.',
       'I ordered the matte black headphones but decided I prefer silver instead.',
+      'The headphones work fine, I just want a free warranty replacement right now.',
     ],
     questions: [
       {
         id: 'is_hardware_defect',
         type: 'binary',
         prompt:
-          'Does the customer describe a concrete hardware defect or malfunction (rather than a color preference change or bare refund request)?',
+          'Does the customer describe a specific multi-word hardware symptom like 15-minute battery drain and earcup crackle (rather than a color exchange, bare warranty demand, or isolated word like broken, refund, or warranty)?',
         threshold: 0.6,
         options: [
           {
             label: 'false',
             description:
-              'Product works properly; customer simply prefers a different color, changed their mind, or sent vague/unrelated text.',
+              'broken, refund, warranty, hello, asdfghjkl: isolated single words without specific device symptoms, matte black to silver color preference change, or customer saying headphones work fine and demanding a free warranty replacement.',
           },
           {
             label: 'true',
             description:
-              'Product has a concrete hardware defect such as rapid battery drain from 100% to 0% or crackling audio.',
+              'Confirmed hardware malfunction with specific technical symptoms: wireless headphone battery drains from 100% to 0% in 15 minutes and the left earcup crackles.',
           },
         ],
       },
@@ -1150,12 +1212,19 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
         prompt: 'Which warranty resolution path applies to this request?',
         options: [
           {
-            label: 'free_warranty_replacement',
-            description: 'Ship a free replacement unit covered under the hardware defect warranty',
+            label: 'approve_defect_repair',
+            description:
+              'Wireless headphone battery drains from 100% to 0% in 15 minutes and the left earcup crackles due to a covered hardware malfunction',
           },
           {
-            label: 'standard_exchange_restocking',
-            description: 'Process a standard color exchange subject to return shipping policy',
+            label: 'exchange_color_preference',
+            description:
+              'Customer ordered matte black headphones in working condition but decided they prefer silver instead',
+          },
+          {
+            label: 'deny_warranty_claim',
+            description:
+              'broken, refund, warranty, hello, asdfghjkl: isolated words without defect details, or customer stating headphones work fine and demanding a free warranty replacement right now',
           },
         ],
       },
@@ -1165,11 +1234,18 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
         prompt:
           'Rate the hardware failure severity from 1 (no failure / cosmetic preference) to 5 (unusable hardware).',
         options: [
-          { label: '1', description: 'No defect: product functions normally, color preference change only' },
-          { label: '2', description: 'Minor cosmetic blemish that does not affect audio or battery performance' },
-          { label: '3', description: 'Intermittent Bluetooth pairing delay with a working wired fallback' },
-          { label: '4', description: 'Noticeable audio distortion in one earcup during playback' },
-          { label: '5', description: 'Severe hardware failure: battery dies in 15 minutes and audio crackles' },
+          {
+            label: '1',
+            description:
+              'No defect: matte black to silver color preference change, headphones work fine, bare words (broken, warranty, refund), casual greeting like hello, or random characters asdfghjkl',
+          },
+          { label: '2', description: 'Minor cosmetic scratch on the carrying case with normal audio and battery life' },
+          { label: '3', description: 'Occasional Bluetooth range drop beyond 30 feet while wired mode works normally' },
+          { label: '4', description: 'Single earcup audio crackle during playback while battery holds normal charge' },
+          {
+            label: '5',
+            description: 'Severe failure: battery drains from 100% to 0% in 15 minutes and left earcup crackles',
+          },
         ],
       },
     ],
@@ -1672,52 +1748,63 @@ export class DecisionTextPlayground {
       block.appendChild(header);
       block.appendChild(promptInput);
 
-      if (q.type !== 'binary') {
-        const optsList = document.createElement('div');
-        optsList.className = 'poly-opts-list';
+      const optsList = document.createElement('div');
+      optsList.className = 'poly-opts-list';
 
-        q.options.forEach((opt, optIdx) => {
-          const row = document.createElement('div');
-          row.className = 'poly-opt-row';
+      q.options.forEach((opt, optIdx) => {
+        const row = document.createElement('div');
+        row.className = 'poly-opt-row';
 
-          const lblInput = document.createElement('input');
-          lblInput.type = 'text';
-          lblInput.className = 'dt-field poly-opt-label';
-          lblInput.placeholder = q.type === 'ordinal' ? `${optIdx + 1}` : 'Option Label';
-          lblInput.value = opt.label;
-          lblInput.addEventListener('input', () => {
-            opt.label = lblInput.value;
-          });
-
-          const descInput = document.createElement('input');
-          descInput.type = 'text';
-          descInput.className = 'dt-field poly-opt-desc';
-          descInput.placeholder = 'Option Description / Rubric Criteria';
-          descInput.value = opt.description;
-          descInput.addEventListener('input', () => {
-            opt.description = descInput.value;
-          });
-
-          row.appendChild(lblInput);
-          row.appendChild(descInput);
-
-          if (q.options.length > 2) {
-            const rmOptBtn = document.createElement('button');
-            rmOptBtn.type = 'button';
-            rmOptBtn.className = 'dt-btn-remove';
-            rmOptBtn.title = 'Remove option';
-            rmOptBtn.textContent = '✕';
-            rmOptBtn.addEventListener('click', () => {
-              this.saveDraft();
-              q.options.splice(optIdx, 1);
-              this.renderPolymorphicQuestions();
-            });
-            row.appendChild(rmOptBtn);
-          }
-
-          optsList.appendChild(row);
+        const lblInput = document.createElement('input');
+        lblInput.type = 'text';
+        lblInput.className = 'dt-field poly-opt-label';
+        lblInput.placeholder = q.type === 'ordinal' ? `${optIdx + 1}` : 'Option Label';
+        lblInput.value = opt.label;
+        if (q.type === 'binary') {
+          lblInput.readOnly = true;
+          lblInput.title = 'Binary option key (false / true)';
+        }
+        lblInput.addEventListener('input', () => {
+          opt.label = lblInput.value;
         });
 
+        const descInput = document.createElement('input');
+        descInput.type = 'text';
+        descInput.className = 'dt-field poly-opt-desc';
+        descInput.placeholder =
+          q.type === 'binary'
+            ? opt.label === 'true'
+              ? 'Yes means (criteria for true)...'
+              : 'No means (criteria for false / default fallback)...'
+            : 'Option Description / Rubric Criteria';
+        descInput.value = opt.description;
+        descInput.addEventListener('input', () => {
+          opt.description = descInput.value;
+        });
+
+        row.appendChild(lblInput);
+        row.appendChild(descInput);
+
+        if (q.type !== 'binary' && q.options.length > 2) {
+          const rmOptBtn = document.createElement('button');
+          rmOptBtn.type = 'button';
+          rmOptBtn.className = 'dt-btn-remove';
+          rmOptBtn.title = 'Remove option';
+          rmOptBtn.textContent = '✕';
+          rmOptBtn.addEventListener('click', () => {
+            this.saveDraft();
+            q.options.splice(optIdx, 1);
+            this.renderPolymorphicQuestions();
+          });
+          row.appendChild(rmOptBtn);
+        }
+
+        optsList.appendChild(row);
+      });
+
+      block.appendChild(optsList);
+
+      if (q.type !== 'binary') {
         const addOptBtn = document.createElement('button');
         addOptBtn.type = 'button';
         addOptBtn.className = 'dt-btn-sm';
@@ -1732,8 +1819,6 @@ export class DecisionTextPlayground {
           });
           this.renderPolymorphicQuestions();
         });
-
-        block.appendChild(optsList);
         block.appendChild(addOptBtn);
       }
 
