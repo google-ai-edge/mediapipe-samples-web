@@ -17,20 +17,24 @@
 /**
  * Text playground for the Decision Maker demo.
  *
- * Supports:
- * - Polymorphic Schema: evaluate multiple heterogeneous questions (Binary,
- *   Categorical, and Ordinal) simultaneously on the same input query with a
- *   shared domain context, preset scenarios, and candidate test queries.
- * - Single-question forms: Boolean (`evaluateBoolean`), Choice (`evaluateChoice`),
- *   and Score (`evaluateScore`).
- * - JSON tab: inspect, edit, or paste a `ClassifierSchema` or single-question
- *   JSON payload directly.
+ * The page is three stacked boxes:
+ * 1. Input: the scenario preset, the text to evaluate, and example inputs.
+ * 2. Decision: the result, re-evaluated automatically (debounced) after every
+ *    edit. While no result is available it shows why (model initializing,
+ *    model not loaded, validation error).
+ * 3. Configuration (collapsed by default): the question schema, in one of
+ *    - Multi-Question: several heterogeneous questions (Binary, Categorical,
+ *      Ordinal) evaluated together with a shared domain context;
+ *    - Boolean / Choice / Score: a single question form
+ *      (`evaluateBoolean` / `evaluateChoice` / `evaluateScore`);
+ *    - JSON: the `ClassifierSchema` or single question as raw JSON. The input
+ *      text always comes from box 1.
  */
 
 import textTemplate from '../templates/decision-maker-text.html?raw';
 import { type DecisionKind } from '../components/decision-runtime';
 import { ViewToggle } from '../components/view-toggle';
-import { type Draft, type Item, parseDecisionRequest, type QuestionKind, toRequestJson } from './decision-maker-json';
+import { type Draft, type Item, parseDecisionRequest, type QuestionKind } from './decision-maker-json';
 
 type Evaluator = (kind: DecisionKind, text: string, question: object) => Promise<any>;
 
@@ -1360,7 +1364,7 @@ const KIND_HELP: Record<QuestionKind | 'polymorphic' | 'json', string> = {
   boolean: 'Boolean: is the condition true for the input text? The model answers Yes or No, with a probability.',
   choice: 'Choice: which option fits the input text best? The model picks one option and scores all of them.',
   score: 'Score: where does the input text fall on a scale? The model picks a level from your rubric.',
-  json: 'JSON: paste or edit a Decision API request directly. A ClassifierSchema with multiple questions is evaluated in one call.',
+  json: 'JSON: edit the schema or question as a raw Decision API request. The text to evaluate still comes from the Input box.',
 };
 
 const SCHEMA_TYPE_ALIASES: Record<string, PolyQuestionType> = {
@@ -1432,10 +1436,28 @@ function fromSchema(input: string, schema: any): PolyDraft {
   };
 }
 
+/** What the playground needs to know about the shared model runtime. */
+export interface ModelState {
+  ready: boolean;
+  loading: boolean;
+  /** Display name of the model being loaded / loaded. */
+  label: string;
+  /** Last load error, if any. */
+  error?: string;
+}
+
+const KIND_LABEL: Record<QuestionKind, string> = { boolean: 'Boolean', choice: 'Choice', score: 'Score' };
+
+/** Debounce for auto-evaluation after typing (ms). */
+const AUTO_RUN_DELAY = 650;
+const AUTO_RUN_DELAY_JSON = 900;
+
 export class DecisionTextPlayground {
   private view: 'polymorphic' | 'form' | 'json' = 'polymorphic';
   private kind: QuestionKind = 'boolean';
-  private schemaEditorOpen = true;
+  private configOpen = false;
+  /** The text being evaluated. Shared by every mode: box 1 is the single source of truth. */
+  private input = '';
   private polyDraft: PolyDraft = buildPolymorphicDraftFromPreset('ticket_triage');
   private sampleIndex: Record<QuestionKind, number> = { boolean: 0, choice: 0, score: 0 };
   private drafts: Record<QuestionKind, Draft> = {
@@ -1443,8 +1465,14 @@ export class DecisionTextPlayground {
     choice: structuredClone(SAMPLES.choice[0].draft),
     score: structuredClone(SAMPLES.score[0].draft),
   };
-  private ready = false;
+  private model: ModelState = { ready: false, loading: false, label: '' };
   private busy = false;
+  /** Set when an edit arrives mid-evaluation; the run is repeated once the current one finishes. */
+  private rerunQueued = false;
+  private runTimer: number | undefined;
+  private hasResult = false;
+  private lastError = '';
+  private lastInferenceMs: number | undefined;
   private el: Record<string, HTMLElement> = {};
   private kindToggle!: ViewToggle;
 
@@ -1459,6 +1487,7 @@ export class DecisionTextPlayground {
     this.root.querySelectorAll<HTMLElement>('[id]').forEach((node) => (this.el[node.id] = node));
     (this.el['dt-true-desc'] as HTMLTextAreaElement).placeholder = DEFAULT_TRUE;
     (this.el['dt-false-desc'] as HTMLTextAreaElement).placeholder = DEFAULT_FALSE;
+    this.input = this.polyDraft.input;
 
     this.kindToggle = new ViewToggle(
       'dt-kind-toggle',
@@ -1471,31 +1500,34 @@ export class DecisionTextPlayground {
       ],
       'polymorphic',
       (value) => {
-        if (this.view === 'polymorphic' || this.view === 'form') {
-          this.saveDraft();
-        }
+        this.saveDraft();
         if (value === 'polymorphic') {
           this.view = 'polymorphic';
         } else if (value === 'json') {
           this.view = 'json';
+          // An empty JSON tab starts from whatever the form currently holds.
+          if (!(this.el['dt-json-text'] as HTMLTextAreaElement).value.trim()) this.fillJsonFromForm();
+          // The JSON tab is all editor, so make sure it is visible.
+          this.setConfigOpen(true);
         } else {
           this.view = 'form';
           this.kind = value as QuestionKind;
         }
         this.showDraft();
         this.clearResult();
-        if (this.view !== 'json' && this.ready && !this.busy) {
-          this.run();
-        }
+        this.requestRun(0);
       },
       'tabs'
     );
 
+    // --- Box 1: input -------------------------------------------------------
     const presetSelect = this.el['dt-preset-select'] as HTMLSelectElement;
     for (const p of POLYMORPHIC_PRESETS) {
       const opt = document.createElement('option');
       opt.value = p.key;
-      opt.textContent = p.label;
+      // "Support Ticket Triage: Verified Outage [Binary] + ..." -> "Support Ticket Triage"
+      opt.textContent = p.label.split(':')[0];
+      opt.title = p.label;
       presetSelect.appendChild(opt);
     }
     presetSelect.addEventListener('change', () => {
@@ -1503,9 +1535,32 @@ export class DecisionTextPlayground {
       this.selectPresetByIndex(idx >= 0 ? idx : 0);
     });
 
-    this.el['dt-toggle-schema'].addEventListener('click', () => {
-      this.schemaEditorOpen = !this.schemaEditorOpen;
-      this.updateSchemaEditorVisibility();
+    this.el['dt-input'].addEventListener('input', () => {
+      this.input = (this.el['dt-input'] as HTMLTextAreaElement).value;
+      this.updateTokenBadge(this.input);
+      this.renderCandidates();
+      this.requestRun();
+    });
+
+    // --- Box 2: decision ----------------------------------------------------
+    this.el['dt-evaluate'].addEventListener('click', () => {
+      window.clearTimeout(this.runTimer);
+      void this.runNow();
+    });
+
+    // --- Box 3: configuration -----------------------------------------------
+    this.el['dt-config-toggle'].addEventListener('click', () => this.setConfigOpen(!this.configOpen));
+
+    // Any edit inside the configuration re-evaluates (debounced). Dynamically
+    // created question/option fields are covered too since this is delegated.
+    const configBody = this.el['dt-config-body'];
+    configBody.addEventListener('input', (e) => {
+      const target = e.target as HTMLElement;
+      if (target.id === 'dt-json-text') this.requestRun(AUTO_RUN_DELAY_JSON);
+      else this.requestRun();
+    });
+    configBody.addEventListener('change', (e) => {
+      if ((e.target as HTMLElement).tagName === 'SELECT') this.requestRun(0);
     });
 
     this.el['dt-add-poly-question'].addEventListener('click', () => {
@@ -1521,24 +1576,17 @@ export class DecisionTextPlayground {
         ],
       });
       this.renderPolymorphicQuestions();
+      this.updateConfigSummary();
+      this.requestRun(0);
     });
 
-    this.el['dt-input'].addEventListener('input', () => {
-      this.updateTokenBadge((this.el['dt-input'] as HTMLTextAreaElement).value);
-    });
-
-    this.el['dt-evaluate'].addEventListener('click', () => this.run());
     this.el['dt-add-item'].addEventListener('click', () => {
       this.saveDraft();
       this.drafts[this.kind].items.push({ label: '', description: '' });
       this.renderItems();
     });
     this.el['dt-reset'].addEventListener('click', () => {
-      const activeKey =
-        this.view === 'polymorphic'
-          ? this.polyDraft.presetKey || 'ticket_triage'
-          : (SAMPLES[this.kind][this.sampleIndex[this.kind]]?.presetKey ?? 'ticket_triage');
-      const idx = POLYMORPHIC_PRESETS.findIndex((p) => p.key === activeKey);
+      const idx = POLYMORPHIC_PRESETS.findIndex((p) => p.key === this.activePresetKey());
       this.selectPresetByIndex(idx >= 0 ? idx : 0);
     });
     this.el['dt-threshold'].addEventListener('input', (e) => {
@@ -1550,18 +1598,50 @@ export class DecisionTextPlayground {
     this.clearResult();
   }
 
-  setReady(ready: boolean) {
-    const wasReady = this.ready;
-    this.ready = ready;
+  /** Mirrors the shared runtime so the Decision box can show "initializing" / "load a model" / results. */
+  setModelState(state: ModelState) {
+    const wasReady = this.model.ready;
+    const wasLoading = this.model.loading;
+    this.model = { ...state };
+    if (state.loading && !wasLoading) this.clearResult();
     this.updateButton();
-    if (ready && !wasReady && !this.busy && this.el['dt-headline']?.classList.contains('dt-muted')) {
-      this.run();
+    this.refreshResultPane();
+    if (state.ready && !wasReady) this.requestRun(0);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Auto-evaluation
+  // ---------------------------------------------------------------------------
+
+  /** Evaluates after a short pause; repeated edits collapse into one run. */
+  private requestRun(delay = AUTO_RUN_DELAY) {
+    window.clearTimeout(this.runTimer);
+    if (!this.model.ready) return;
+    this.runTimer = window.setTimeout(() => void this.runNow(), delay);
+  }
+
+  private async runNow(): Promise<void> {
+    if (!this.model.ready) return;
+    if (this.busy) {
+      this.rerunQueued = true;
+      return;
+    }
+    await (this.view === 'json' ? this.runJson() : this.run());
+    if (this.rerunQueued) {
+      this.rerunQueued = false;
+      void this.runNow();
     }
   }
 
   // ---------------------------------------------------------------------------
   // Editor
   // ---------------------------------------------------------------------------
+
+  private activePresetKey(): string {
+    return this.view === 'polymorphic'
+      ? this.polyDraft.presetKey || 'ticket_triage'
+      : (SAMPLES[this.kind][this.sampleIndex[this.kind]]?.presetKey ?? 'ticket_triage');
+  }
 
   private selectPresetByIndex(idx: number) {
     const preset = POLYMORPHIC_PRESETS[idx] ?? POLYMORPHIC_PRESETS[0];
@@ -1572,24 +1652,35 @@ export class DecisionTextPlayground {
       this.sampleIndex[k] = resolvedIdx;
       this.drafts[k] = structuredClone(SAMPLES[k][resolvedIdx].draft);
     }
+    this.input = preset.input;
+    if (this.view === 'json') this.fillJsonFromForm();
     this.showDraft();
     this.clearResult();
-    if (this.ready && !this.busy) {
-      this.run();
-    }
+    this.requestRun(0);
   }
 
-  private updateSchemaEditorVisibility() {
-    this.el['dt-poly-editor'].style.display = this.schemaEditorOpen ? '' : 'none';
-    this.el['dt-toggle-schema'].classList.toggle('active', this.schemaEditorOpen);
-    this.el['dt-toggle-schema-label'].textContent = this.schemaEditorOpen
-      ? 'Hide Prompts & Options'
-      : 'Prompts & Options';
+  private setConfigOpen(open: boolean) {
+    this.configOpen = open;
+    this.el['dt-config-body'].style.display = open ? '' : 'none';
+    this.el['dt-config-card'].classList.toggle('open', open);
+    this.el['dt-config-toggle'].setAttribute('aria-expanded', String(open));
+  }
+
+  private updateConfigSummary() {
+    let summary: string;
+    if (this.view === 'polymorphic') {
+      const n = this.polyDraft.questions.length;
+      summary = `${n} question${n === 1 ? '' : 's'}`;
+    } else if (this.view === 'form') {
+      summary = `${KIND_LABEL[this.kind]} question`;
+    } else {
+      summary = 'Raw JSON request';
+    }
+    this.el['dt-config-summary'].textContent = summary;
   }
 
   private updateTokenBadge(text: string) {
-    const tok = estimateTokens(text);
-    this.el['dt-token-badge'].textContent = `~${tok} query tokens`;
+    this.el['dt-token-badge'].textContent = `~${estimateTokens(text)} tokens`;
   }
 
   private showDraft() {
@@ -1598,35 +1689,34 @@ export class DecisionTextPlayground {
     const isBoolean = this.view === 'form' && this.kind === 'boolean';
     const isList = this.view === 'form' && (this.kind === 'choice' || this.kind === 'score');
 
+    (this.el['dt-input'] as HTMLTextAreaElement).value = this.input;
+    this.updateTokenBadge(this.input);
+
+    // The preset select lives in box 1; show a "Custom" entry when a pasted schema is active.
+    const presetSelect = this.el['dt-preset-select'] as HTMLSelectElement;
+    const activeKey = this.activePresetKey();
+    let customOpt = presetSelect.querySelector<HTMLOptionElement>('option[value="custom"]');
+    if (activeKey === 'custom' && !customOpt) {
+      customOpt = document.createElement('option');
+      customOpt.value = 'custom';
+      customOpt.textContent = 'Custom (from JSON)';
+      presetSelect.appendChild(customOpt);
+    } else if (activeKey !== 'custom' && customOpt) {
+      customOpt.remove();
+    }
+    presetSelect.value = activeKey;
+
     this.el['dt-form-card'].style.display = isJson ? 'none' : '';
     this.el['dt-json-card'].style.display = isJson ? '' : 'none';
+    this.el['dt-polymorphic-fields'].style.display = isPoly ? '' : 'none';
+    this.el['dt-boolean-fields'].style.display = isBoolean ? '' : 'none';
+    this.el['dt-list-fields'].style.display = isList ? '' : 'none';
+    this.el['dt-single-context-group'].style.display = this.view === 'form' ? '' : 'none';
 
     if (isJson) {
       this.el['dt-kind-help'].textContent = KIND_HELP.json;
-      return;
-    }
-
-    const inputText = isPoly ? this.polyDraft.input : this.drafts[this.kind].input;
-    (this.el['dt-input'] as HTMLTextAreaElement).value = inputText;
-    this.updateTokenBadge(inputText);
-
-    this.el['dt-polymorphic-fields'].style.display = isPoly ? '' : 'none';
-    this.el['dt-toggle-schema'].style.display = isPoly ? '' : 'none';
-    this.el['dt-boolean-fields'].style.display = isBoolean ? '' : 'none';
-    this.el['dt-list-fields'].style.display = isList ? '' : 'none';
-    this.el['dt-single-context-group'].style.display = isPoly ? 'none' : '';
-
-    const activePresetKey = isPoly
-      ? this.polyDraft.presetKey || 'ticket_triage'
-      : (SAMPLES[this.kind][this.sampleIndex[this.kind]]?.presetKey ?? 'ticket_triage');
-    const presetSelect = this.el['dt-preset-select'] as HTMLSelectElement;
-    if (presetSelect) {
-      presetSelect.value = activePresetKey;
-    }
-
-    if (isPoly) {
+    } else if (isPoly) {
       (this.el['dt-poly-context'] as HTMLInputElement).value = this.polyDraft.context;
-      this.updateSchemaEditorVisibility();
       this.renderPolymorphicQuestions();
       this.el['dt-kind-help'].textContent = KIND_HELP.polymorphic;
     } else {
@@ -1648,7 +1738,7 @@ export class DecisionTextPlayground {
       this.el['dt-kind-help'].textContent = KIND_HELP[this.kind];
     }
 
-    this.renderSamples();
+    this.updateConfigSummary();
     this.renderCandidates();
   }
 
@@ -1732,6 +1822,8 @@ export class DecisionTextPlayground {
           this.saveDraft();
           questions.splice(qIdx, 1);
           this.renderPolymorphicQuestions();
+          this.updateConfigSummary();
+          this.requestRun(0);
         });
         header.appendChild(rmBtn);
       }
@@ -1795,6 +1887,7 @@ export class DecisionTextPlayground {
             this.saveDraft();
             q.options.splice(optIdx, 1);
             this.renderPolymorphicQuestions();
+            this.requestRun(0);
           });
           row.appendChild(rmOptBtn);
         }
@@ -1818,6 +1911,7 @@ export class DecisionTextPlayground {
             description: 'Criteria description',
           });
           this.renderPolymorphicQuestions();
+          this.requestRun(0);
         });
         block.appendChild(addOptBtn);
       }
@@ -1826,26 +1920,19 @@ export class DecisionTextPlayground {
     });
   }
 
-  /** Renders Quick Test Candidate Queries without token badges on individual chips. */
+  /** Example inputs for the active preset, shown as chips under the input box. */
   private renderCandidates() {
     const box = this.el['dt-candidates'];
     box.innerHTML = '';
 
-    let candidates: string[] = [];
-    if (this.view === 'polymorphic') {
-      const presetKey = this.polyDraft.presetKey || 'ticket_triage';
-      const preset = POLYMORPHIC_PRESETS.find((p) => p.key === presetKey) ?? POLYMORPHIC_PRESETS[0];
-      candidates = preset.candidates;
-    } else if (this.view === 'form') {
-      const idx = this.sampleIndex[this.kind];
-      candidates = SAMPLES[this.kind][idx]?.candidates ?? [];
-    }
+    const preset = POLYMORPHIC_PRESETS.find((p) => p.key === this.activePresetKey());
+    const candidates = preset?.candidates ?? [];
+    this.el['dt-candidates-group'].style.display = candidates.length ? '' : 'none';
 
-    const currentInput = (this.el['dt-input'] as HTMLTextAreaElement).value;
     for (const candidate of candidates) {
       const chip = document.createElement('button');
       chip.type = 'button';
-      chip.className = `dt-chip ${candidate === currentInput ? 'active' : ''}`;
+      chip.className = `dt-chip ${candidate === this.input ? 'active' : ''}`;
       if (candidate.length > 140) {
         const lines = candidate
           .split('\n')
@@ -1859,42 +1946,14 @@ export class DecisionTextPlayground {
         chip.textContent = candidate;
       }
       chip.addEventListener('click', () => {
+        this.input = candidate;
         (this.el['dt-input'] as HTMLTextAreaElement).value = candidate;
-        if (this.view === 'polymorphic') {
-          this.polyDraft.input = candidate;
-        } else {
-          this.drafts[this.kind].input = candidate;
-        }
         this.updateTokenBadge(candidate);
         this.renderCandidates();
-        if (this.ready && !this.busy) {
-          this.run();
-        }
+        this.requestRun(0);
       });
       box.appendChild(chip);
     }
-  }
-
-  /** Preset sample chips shown across Combined, Boolean, Choice, and Score tabs. */
-  private renderSamples() {
-    const box = this.el['dt-samples'];
-    box.innerHTML = '';
-    if (this.view === 'json') return;
-
-    const activePresetKey =
-      this.view === 'polymorphic'
-        ? this.polyDraft.presetKey || 'ticket_triage'
-        : (SAMPLES[this.kind][this.sampleIndex[this.kind]]?.presetKey ?? 'ticket_triage');
-
-    POLYMORPHIC_PRESETS.forEach((preset, i) => {
-      const chip = document.createElement('button');
-      chip.type = 'button';
-      chip.className = `dt-sample ${preset.key === activePresetKey ? 'active' : ''}`;
-      chip.textContent = preset.labelPrefix;
-      chip.title = preset.label;
-      chip.addEventListener('click', () => this.selectPresetByIndex(i));
-      box.appendChild(chip);
-    });
   }
 
   private renderItems() {
@@ -1914,20 +1973,20 @@ export class DecisionTextPlayground {
         this.saveDraft();
         this.drafts[this.kind].items.splice(i, 1);
         this.renderItems();
+        this.requestRun(0);
       });
       list.appendChild(row);
     });
   }
 
   private saveDraft() {
+    this.input = (this.el['dt-input'] as HTMLTextAreaElement).value;
     if (this.view === 'polymorphic') {
-      this.polyDraft.input = (this.el['dt-input'] as HTMLTextAreaElement).value;
       this.polyDraft.context = (this.el['dt-poly-context'] as HTMLInputElement).value;
       return;
     }
     if (this.view !== 'form') return;
     const d = this.drafts[this.kind];
-    d.input = (this.el['dt-input'] as HTMLTextAreaElement).value;
     d.context = (this.el['dt-context'] as HTMLInputElement).value;
     if (this.kind === 'boolean') {
       d.condition = (this.el['dt-condition'] as HTMLTextAreaElement).value;
@@ -1945,7 +2004,7 @@ export class DecisionTextPlayground {
   }
 
   private updateButton() {
-    const disabled = !this.ready || this.busy;
+    const disabled = !this.model.ready || this.busy;
     (this.el['dt-evaluate'] as HTMLButtonElement).disabled = disabled;
     (this.el['dt-json-evaluate'] as HTMLButtonElement).disabled = disabled;
   }
@@ -1954,110 +2013,145 @@ export class DecisionTextPlayground {
   // JSON Tab
   // ---------------------------------------------------------------------------
 
+  /** The JSON tab holds the question(s) only; the input text always comes from box 1. */
+  private fillJsonFromForm() {
+    const textarea = this.el['dt-json-text'] as HTMLTextAreaElement;
+    this.el['dt-json-error'].textContent = '';
+    try {
+      if (this.view === 'form') {
+        const d = this.drafts[this.kind];
+        textarea.value = JSON.stringify(
+          { type: this.kind, question: this.buildQuestion(this.kind, d).question },
+          null,
+          2
+        );
+      } else {
+        textarea.value = JSON.stringify(toSchema(this.polyDraft), null, 2);
+      }
+    } catch (e: any) {
+      this.el['dt-json-error'].textContent = e?.message ?? String(e);
+    }
+    textarea.scrollTop = 0;
+  }
+
+  /**
+   * Parses the JSON tab. If the request carries its own `input` / `text`, that
+   * text is moved into box 1 and stripped from the JSON so there is one source
+   * of truth for the input.
+   */
+  private parseJsonTab(): {
+    schema?: { context?: string; questions: any[] };
+    single?: { kind: QuestionKind; draft: Draft };
+  } {
+    const textarea = this.el['dt-json-text'] as HTMLTextAreaElement;
+    const obj = JSON.parse(textarea.value);
+    if (!obj || typeof obj !== 'object' || Array.isArray(obj)) throw new Error('Expected a JSON object.');
+
+    const pasted = obj.input ?? obj.text;
+    if (typeof pasted === 'string' && pasted.trim()) {
+      this.input = pasted;
+      (this.el['dt-input'] as HTMLTextAreaElement).value = pasted;
+      this.updateTokenBadge(pasted);
+      this.renderCandidates();
+      delete obj.input;
+      delete obj.text;
+      textarea.value = JSON.stringify(obj, null, 2);
+      this.onStatus('Moved the request text into the Input box.');
+    }
+
+    const rawSchema = obj?.questions ? obj : obj?.schema?.questions ? obj.schema : undefined;
+    if (rawSchema) {
+      const parsed = fromSchema(this.input, rawSchema);
+      return { schema: toSchema(parsed) };
+    }
+    const { kind, draft } = parseDecisionRequest(JSON.stringify(obj), EMPTY);
+    return { single: { kind, draft } };
+  }
+
   private initJsonTab() {
     const textarea = this.el['dt-json-text'] as HTMLTextAreaElement;
     const error = this.el['dt-json-error'];
-    const setText = (text: string) => {
-      textarea.value = text;
-      error.textContent = '';
-      this.clearResult();
-    };
 
     this.el['dt-open-json'].addEventListener('click', () => {
       this.saveDraft();
-      if (this.view === 'polymorphic') {
-        const schema = toSchema(this.polyDraft);
-        setText(JSON.stringify({ input: this.polyDraft.input.trim(), ...schema }, null, 2));
-      } else {
-        const d = this.drafts[this.kind];
-        setText(toRequestJson(this.kind, d.input.trim(), this.buildQuestion(this.kind, d).question));
-      }
+      // Build from the form view that is still active; the tab switch below keeps a non-empty editor.
+      this.fillJsonFromForm();
       this.kindToggle.setActive('json');
-      textarea.scrollTop = 0;
     });
 
     this.el['dt-json-example'].addEventListener('click', () => {
-      const schema = toSchema(this.polyDraft);
-      setText(JSON.stringify({ input: this.polyDraft.input.trim(), ...schema }, null, 2));
+      error.textContent = '';
+      textarea.value = JSON.stringify(toSchema(buildPolymorphicDraftFromPreset(this.activePresetKey())), null, 2);
+      this.requestRun(0);
     });
 
     this.el['dt-json-clear'].addEventListener('click', () => {
-      setText('');
+      textarea.value = '';
+      error.textContent = '';
+      this.clearResult();
       textarea.focus();
     });
 
     this.el['dt-json-to-form'].addEventListener('click', () => {
       try {
         const obj = JSON.parse(textarea.value);
+        const pasted = obj?.input ?? obj?.text;
+        if (typeof pasted === 'string' && pasted.trim()) this.input = pasted;
         const schema = obj?.questions ? obj : obj?.schema?.questions ? obj.schema : undefined;
         if (schema) {
-          this.polyDraft = fromSchema(String(obj.input ?? obj.text ?? ''), schema);
+          this.polyDraft = fromSchema(this.input, schema);
           this.kindToggle.setActive('polymorphic');
           return;
         }
         const { kind, draft, note } = parseDecisionRequest(textarea.value, EMPTY);
+        draft.input = this.input;
         this.drafts[kind] = draft;
         this.kindToggle.setActive(kind);
-        if (note) this.onStatus(note);
+        if (note && !note.startsWith('No "text"')) this.onStatus(note);
       } catch (e: any) {
         error.textContent = e instanceof SyntaxError ? `Invalid JSON: ${e.message}` : (e?.message ?? String(e));
       }
     });
 
-    this.el['dt-json-evaluate'].addEventListener('click', () => this.runJson());
+    this.el['dt-json-evaluate'].addEventListener('click', () => {
+      window.clearTimeout(this.runTimer);
+      void this.runNow();
+    });
   }
 
-  private async runJson(): Promise<void> {
+  private async runJson(): Promise<boolean> {
     const error = this.el['dt-json-error'];
     error.textContent = '';
-    const json = (this.el['dt-json-text'] as HTMLTextAreaElement).value;
-    if (!json.trim()) {
-      error.textContent = 'Paste a request, or click "Insert example".';
-      return;
+    if (!(this.el['dt-json-text'] as HTMLTextAreaElement).value.trim()) {
+      return this.fail('Paste a request, or click "Insert example".');
     }
 
-    let polySchema: { input: string; schema: { context?: string; questions: any[] } } | undefined;
-    let singleTask: { kind: QuestionKind; draft: Draft; question: object } | undefined;
-
+    let parsed: ReturnType<DecisionTextPlayground['parseJsonTab']>;
     try {
-      const obj = JSON.parse(json);
-      const rawSchema = obj?.questions ? obj : obj?.schema?.questions ? obj.schema : undefined;
-      if (rawSchema) {
-        const input = String(obj.input ?? obj.text ?? '');
-        const parsed = fromSchema(input, rawSchema);
-        polySchema = { input: parsed.input, schema: toSchema(parsed) };
-      } else {
-        const { kind, draft } = parseDecisionRequest(json, EMPTY);
-        const { question, error: invalid } = this.buildQuestion(kind, draft);
-        if (invalid) throw new Error(invalid);
-        singleTask = { kind, draft, question };
-      }
+      parsed = this.parseJsonTab();
     } catch (e: any) {
-      error.textContent = e instanceof SyntaxError ? `Invalid JSON: ${e.message}` : (e?.message ?? String(e));
-      return;
+      const message = e instanceof SyntaxError ? `Invalid JSON: ${e.message}` : (e?.message ?? String(e));
+      error.textContent = message;
+      return this.fail(message);
     }
 
-    this.busy = true;
-    this.updateButton();
-    this.onStatus('Evaluating...');
-    try {
-      if (polySchema) {
-        const msg = await this.evaluate('schema', polySchema.input, polySchema.schema);
-        if (msg.type !== 'DECIDE_RESULT') throw new Error(msg.error);
-        this.showPolymorphicResult(msg.result ?? {}, polySchema.schema.questions as PolyQuestionDraft[]);
-        this.onStatus('Done', msg.inferenceTime);
-      } else if (singleTask) {
-        const msg = await this.evaluate(singleTask.kind, singleTask.draft.input, singleTask.question);
-        if (msg.type !== 'DECIDE_RESULT') throw new Error(msg.error);
-        this.showSingleResult(this.format(singleTask.kind, msg.result, singleTask.draft));
-        this.onStatus('Done', msg.inferenceTime);
-      }
-    } catch (e: any) {
-      this.onStatus(`Error: ${e?.message ?? e}`);
-    } finally {
-      this.busy = false;
-      this.updateButton();
+    if (parsed.schema) {
+      const schema = parsed.schema;
+      return this.execute(
+        () => this.evaluate('schema', this.input, schema),
+        (result) => this.showPolymorphicResult(result ?? {}, schema.questions as PolyQuestionDraft[])
+      );
     }
+    const { kind, draft } = parsed.single!;
+    const { question, error: invalid } = this.buildQuestion(kind, draft);
+    if (invalid) {
+      error.textContent = invalid;
+      return this.fail(invalid);
+    }
+    return this.execute(
+      () => this.evaluate(kind, this.input, question),
+      (result) => this.showSingleResult(this.format(kind, result, draft))
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -2095,57 +2189,60 @@ export class DecisionTextPlayground {
 
   private async run(): Promise<boolean> {
     this.saveDraft();
+    if (!this.input.trim()) return this.fail('Enter some text to evaluate.');
 
     if (this.view === 'polymorphic') {
       let schema: { context?: string; questions: object[] };
       try {
         schema = toSchema(this.polyDraft);
       } catch (e: any) {
-        this.onStatus(e?.message ?? String(e));
-        return false;
+        return this.fail(e?.message ?? String(e));
       }
-
-      this.busy = true;
-      this.updateButton();
-      this.onStatus('Evaluating polymorphic schema...');
-      try {
-        const msg = await this.evaluate('schema', this.polyDraft.input, schema);
-        if (msg.type !== 'DECIDE_RESULT') throw new Error(msg.error);
-        this.showPolymorphicResult(msg.result ?? {}, this.polyDraft.questions);
-        this.onStatus('Done', msg.inferenceTime);
-        return true;
-      } catch (e: any) {
-        this.onStatus(`Error: ${e?.message ?? e}`);
-        return false;
-      } finally {
-        this.busy = false;
-        this.updateButton();
-      }
+      return this.execute(
+        () => this.evaluate('schema', this.input, schema),
+        (result) => this.showPolymorphicResult(result ?? {}, this.polyDraft.questions)
+      );
     }
 
     const d = this.drafts[this.kind];
     const { question, error } = this.buildQuestion(this.kind, d);
-    if (error) {
-      this.onStatus(error);
-      return false;
-    }
+    if (error) return this.fail(error);
+    return this.execute(
+      () => this.evaluate(this.kind, this.input, question),
+      (result) => this.showSingleResult(this.format(this.kind, result, d))
+    );
+  }
 
+  /** Runs one evaluation, keeping the Decision box and the status line in sync. */
+  private async execute(call: () => Promise<any>, show: (result: any) => void): Promise<boolean> {
     this.busy = true;
     this.updateButton();
+    this.refreshResultPane();
     this.onStatus('Evaluating...');
     try {
-      const msg = await this.evaluate(this.kind, d.input, question);
+      const msg = await call();
       if (msg.type !== 'DECIDE_RESULT') throw new Error(msg.error);
-      this.showSingleResult(this.format(this.kind, msg.result, d));
+      this.lastInferenceMs = msg.inferenceTime;
+      show(msg.result);
       this.onStatus('Done', msg.inferenceTime);
       return true;
     } catch (e: any) {
-      this.onStatus(`Error: ${e?.message ?? e}`);
+      this.fail(`Error: ${e?.message ?? e}`);
       return false;
     } finally {
       this.busy = false;
       this.updateButton();
+      this.refreshResultPane();
     }
+  }
+
+  /** Shows a validation or runtime problem in the Decision box instead of a stale result. */
+  private fail(message: string): false {
+    this.onStatus(message);
+    this.hasResult = false;
+    this.lastError = message;
+    this.refreshResultPane();
+    return false;
   }
 
   private format(kind: QuestionKind, r: any, d: Draft): Outcome {
@@ -2187,6 +2284,67 @@ export class DecisionTextPlayground {
     };
   }
 
+  // ---------------------------------------------------------------------------
+  // Decision box
+  // ---------------------------------------------------------------------------
+
+  /** Switches the Decision box between the result and the pending pane (initializing / load / error). */
+  private refreshResultPane() {
+    const pending = this.el['dt-result-pending'];
+    const body = this.el['dt-result-body'];
+    const meta = this.el['dt-result-meta'];
+
+    body.style.display = this.hasResult ? '' : 'none';
+    pending.style.display = this.hasResult ? 'none' : '';
+    body.classList.toggle('dt-dim', this.busy);
+    meta.classList.toggle('busy', this.busy);
+    meta.textContent = this.busy
+      ? 'Evaluating…'
+      : this.hasResult && this.lastInferenceMs !== undefined
+        ? `${Math.round(this.lastInferenceMs)} ms`
+        : '';
+    if (this.hasResult) return;
+
+    let spin = false;
+    let icon = '';
+    let title = '';
+    let sub = '';
+    let isError = false;
+    if (this.busy) {
+      spin = true;
+      title = 'Evaluating…';
+      sub = 'Running the decision model on your input.';
+    } else if (this.model.loading) {
+      spin = true;
+      title = 'Initializing task…';
+      sub = `Loading ${this.model.label || 'the model'}. The first run downloads it; the decision appears here automatically.`;
+    } else if (!this.model.ready) {
+      isError = !!this.model.error;
+      icon = isError ? 'error_outline' : 'memory';
+      title = isError ? 'The model could not be loaded' : 'Load a model to begin';
+      sub = isError
+        ? this.model.error!
+        : 'Pick a model in the panel and press Initialize Task. Your input is evaluated as soon as it is ready.';
+    } else if (this.lastError) {
+      isError = true;
+      icon = 'error_outline';
+      title = 'Could not evaluate';
+      sub = this.lastError;
+    } else {
+      icon = 'hourglass_empty';
+      title = 'Waiting for input';
+      sub = 'Type above or pick an example; the decision appears here.';
+    }
+
+    pending.classList.toggle('error', isError);
+    this.el['dt-pending-spinner'].style.display = spin ? '' : 'none';
+    const iconEl = this.el['dt-pending-icon'];
+    iconEl.style.display = icon ? '' : 'none';
+    iconEl.textContent = icon;
+    this.el['dt-pending-title'].textContent = title;
+    this.el['dt-pending-sub'].textContent = sub;
+  }
+
   private showSingleResult(o: Outcome) {
     this.el['dt-poly-results'].style.display = 'none';
     this.el['dt-poly-results'].innerHTML = '';
@@ -2209,6 +2367,9 @@ export class DecisionTextPlayground {
       row.querySelector('.dt-bar-label')!.textContent = bar.label;
       bars.appendChild(row);
     }
+    this.hasResult = true;
+    this.lastError = '';
+    this.refreshResultPane();
   }
 
   private showPolymorphicResult(decisions: Record<string, any>, questions: PolyQuestionDraft[]) {
@@ -2219,13 +2380,12 @@ export class DecisionTextPlayground {
     polyGrid.style.display = 'grid';
     polyGrid.innerHTML = '';
 
-    const presetKey = this.polyDraft.presetKey || 'ticket_triage';
-    const preset = POLYMORPHIC_PRESETS.find((p) => p.key === presetKey);
-    const prefix = preset?.labelPrefix ?? 'Polymorphic Schema';
+    const preset = POLYMORPHIC_PRESETS.find((p) => p.key === this.activePresetKey());
+    const prefix = preset?.labelPrefix ?? 'Schema';
 
     const h = this.el['dt-headline'];
     h.classList.remove('dt-muted');
-    h.textContent = `${prefix} (${questions.length} Decision${questions.length === 1 ? '' : 's'})`;
+    h.textContent = prefix;
 
     const summaryParts: string[] = [];
 
@@ -2312,6 +2472,9 @@ export class DecisionTextPlayground {
     }
 
     this.el['dt-subtitle'].textContent = summaryParts.join(' · ');
+    this.hasResult = true;
+    this.lastError = '';
+    this.refreshResultPane();
   }
 
   private clearResult() {
@@ -2322,5 +2485,9 @@ export class DecisionTextPlayground {
     this.el['dt-bars'].innerHTML = '';
     this.el['dt-poly-results'].innerHTML = '';
     this.el['dt-poly-results'].style.display = 'none';
+    this.hasResult = false;
+    this.lastError = '';
+    this.lastInferenceMs = undefined;
+    this.refreshResultPane();
   }
 }

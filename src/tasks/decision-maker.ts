@@ -36,6 +36,8 @@ class DecisionMakerTask {
   private textPlayground!: DecisionTextPlayground;
   private disposers: (() => void)[] = [];
   private el: Record<string, HTMLElement> = {};
+  /** Last runtime load error, surfaced in the Decision box while no model is ready. */
+  private lastLoadError: string | undefined;
 
   constructor(private container: HTMLElement) {}
 
@@ -58,18 +60,34 @@ class DecisionMakerTask {
     this.disposers.push(mountDecisionModelPanel(this.el['dm-model-panel'], this.el['dm-delegate-panel']));
     this.disposers.push(
       decisionRuntime.subscribe((event) => {
-        if (event.type === 'loading') this.inferenceTimer.resetRollingWindow();
-        else if (event.type === 'status') this.setStatus(event.text);
-        else if (event.type === 'error') this.setStatus(`Error: ${event.error}`);
-        else if (event.type === 'state') this.textPlayground.setReady(decisionRuntime.ready);
+        if (event.type === 'loading') {
+          this.inferenceTimer.resetRollingWindow();
+          this.lastLoadError = undefined;
+        } else if (event.type === 'status') {
+          this.setStatus(event.text);
+        } else if (event.type === 'error') {
+          this.lastLoadError = event.error;
+          this.setStatus(`Error: ${event.error}`);
+        }
+        this.syncModelState();
       })
     );
 
     this.inferenceTimer.mount();
-    this.textPlayground.setReady(decisionRuntime.ready);
+    this.syncModelState();
     if (decisionRuntime.ready) this.setStatus('Model ready');
     else if (decisionRuntime.loading) this.setStatus(`Loading ${decisionRuntime.loadingLabel}...`);
     else this.setStatus('Load a model to begin');
+  }
+
+  /** Mirrors the shared runtime into the playground's Decision box. */
+  private syncModelState() {
+    this.textPlayground.setModelState({
+      ready: decisionRuntime.ready,
+      loading: decisionRuntime.loading,
+      label: decisionRuntime.loading ? decisionRuntime.loadingLabel : (decisionRuntime.loadedLabel ?? ''),
+      error: decisionRuntime.failed ? this.lastLoadError : undefined,
+    });
   }
 
   cleanup() {
