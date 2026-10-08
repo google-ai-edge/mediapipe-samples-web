@@ -23,15 +23,15 @@
     "mediapipe-od-ts": "link:"
   },
   "devDependencies": {
-    "@playwright/test": "^1.63.0",
-    "@types/node": "^26.6.3",
+    "@playwright/test": "^1.64.0",
+    "@types/node": "^26.6.4",
     "esbuild": "^0.28.2",
     "eslint-plugin-html": "^8.2.1",
     "husky": "^9.1.7",
     "lint-staged": "^17.6.0",
     "prettier": "^3.9.9",
     "typescript": "^7.0.2",
-    "vite": "^8.3.1"
+    "vite": "^8.3.3"
   },
   "lint-staged": {
     "src/**/*.{ts,html,css}": "prettier --write"
