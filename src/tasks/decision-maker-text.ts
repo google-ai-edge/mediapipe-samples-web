@@ -180,18 +180,18 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
         id: 'is_urgent',
         type: 'binary',
         prompt:
-          'Does this ticket describe a concrete, verifiable production outage, fatal crash, or widespread login failure blocking customers (rather than a routine inquiry, a bare "urgent" demand without technical details, or unrelated text)?',
-        threshold: 0.5,
+          'Does this ticket describe a concrete, verifiable production outage, fatal crash, or widespread login failure blocking customers?',
+        threshold: 0.6,
         options: [
           {
             label: 'false',
             description:
-              'Non-urgent inquiry, routine billing question, duplicate invoice refund, nice-to-have feature request such as a dark mode UI toggle, or a vague urgent plea without concrete technical outage details.',
+              'No outage: routine billing question, duplicate invoice request, dark mode feature suggestion, casual greeting like hello, vague plea saying urgent or help me right now asap without technical details, random characters, or general text.',
           },
           {
             label: 'true',
             description:
-              'Concrete technical report of an active production outage, fatal database crash, segfault, HTTP 503 failure, or widespread SAML/SSO login error blocking users.',
+              'Confirmed production system outage with specific technical symptoms: database pipeline crash, fatal segfault, HTTP 503 failure, or widespread SAML/SSO authentication error blocking customer logins.',
           },
         ],
       },
@@ -204,27 +204,27 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
           {
             label: 'bug',
             description:
-              'Software defect, production crash, segfault, API error, data pipeline failure, or broken functionality',
+              'Software defect, production database crash, fatal segfault, API error, data pipeline failure, or broken application functionality',
           },
           {
             label: 'billing',
             description:
-              'Invoice discrepancy, duplicate charge, refund request, payment failure, or subscription pricing',
+              'Invoice discrepancy, duplicate charge on monthly statement, refund request for overcharge, payment failure, or subscription pricing',
           },
           {
             label: 'feature_request',
             description:
-              'Non-urgent customer suggestion or request to add a new feature, UI dark mode toggle, or workflow enhancement',
+              'Product enhancement idea or suggestion to add a new UI capability such as an analytics dashboard dark mode toggle',
           },
           {
             label: 'account_access',
             description:
-              'Single Sign-On (SSO), SAML assertion failure, password reset, MFA lockout, or user login permissions',
+              'Single Sign-On (SSO), SAML assertion error for employees, password reset, MFA lockout, or login authentication failure',
           },
           {
             label: 'unactionable_or_other',
             description:
-              'Vague message lacking concrete issue details (e.g. just saying urgent or help), casual greeting, or unrelated off-topic text',
+              'Vague demand saying urgent or please help me right now asap without describing any specific issue, casual greeting like hello, random characters, or off-topic text',
           },
         ],
       },
@@ -237,22 +237,26 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
           {
             label: '1',
             description:
-              'Minimal impact: cosmetic suggestion, dark mode request, vague message without concrete details, or unrelated text',
+              'Minimal impact: dark mode UI suggestion, casual greeting like hello, vague message saying urgent or help me right now asap without technical details, random characters, or general text',
           },
-          { label: '2', description: 'Low impact: minor inconvenience or general question with an easy workaround' },
+          {
+            label: '2',
+            description:
+              'Low impact: minor usability inconvenience or general product question with an easy workaround',
+          },
           {
             label: '3',
             description:
-              'Moderate impact: billing discrepancy, duplicate invoice charge, or non-critical workflow issue',
+              'Moderate impact: billing invoice discrepancy, duplicate charge on invoice, or single-user account question',
           },
           {
             label: '4',
-            description: 'High impact: major functionality or regional SSO authentication failure affecting a team',
+            description: 'High impact: regional Single Sign-On (SSO) SAML assertion failure affecting employee logins',
           },
           {
             label: '5',
             description:
-              'Critical impact: verified complete production database outage, fatal segfault crash, or system-wide login failure',
+              'Critical impact: production database pipeline crash with fatal segfault or complete system-wide outage blocking customers',
           },
         ],
       },
@@ -277,18 +281,18 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
         id: 'refund_eligible',
         type: 'binary',
         prompt:
-          'Does the customer describe a specific, verifiable physical defect, shipping damage, or wrong item received (rather than buyer’s remorse, a bare "refund" demand without details, or unrelated text)?',
-        threshold: 0.5,
+          'Does the customer describe a specific, verifiable physical defect, shipping damage, or wrong item received (rather than buyer’s remorse or a bare refund demand)?',
+        threshold: 0.6,
         options: [
           {
             label: 'false',
             description:
-              'No valid defect described: the item works fine, customer just does not like it or changed their mind, customer demands a refund without explaining what defect occurred, or text is unrelated.',
+              'No valid defect: the item is fine, customer just does not like it or changed their mind, customer says refund please or I want a refund right now without explaining a physical defect, random characters, or general text.',
           },
           {
             label: 'true',
             description:
-              'Customer describes a concrete physical defect or fulfillment error with specific details, such as a cracked screen upon unboxing, a broken zipper, a motor that sparked, or receiving size Small instead of Large.',
+              'Verified physical defect or fulfillment error with specific details: cracked screen when opening the box, shattered glass, broken zipper, dead hardware component, or wrong size Small shipped instead of Large.',
           },
         ],
       },
@@ -310,7 +314,7 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
           {
             label: 'deny_refund_request',
             description:
-              'The item is fine, I just do not like it, refund please, changed my mind, bare refund demand without defect details, or unrelated text',
+              'The item is fine, I just do not like it, refund please, I want a refund right now, changed my mind, bare demand without defect details, unintelligible gibberish, random keyboard characters, casual greeting, or unrelated text',
           },
         ],
       },
@@ -323,14 +327,15 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
           {
             label: '1',
             description:
-              'No defect: item is fine, buyer changed their mind, vague refund demand without details, or unrelated text',
+              'No defect: the item is fine, buyer changed their mind or does not like it, says refund please or I want a refund right now without details, random characters, or general text',
           },
           { label: '2', description: 'Minor cosmetic scuff on outer shipping box with product intact' },
-          { label: '3', description: 'Wrong size or model shipped, or minor accessory issue requiring exchange' },
+          { label: '3', description: 'Wrong size Small instead of Large shipped, requiring size exchange' },
           { label: '4', description: 'Broken component such as a jammed zipper, torn seam, or missing hardware part' },
           {
             label: '5',
-            description: 'Severe damage: cracked screen on unboxing, shattered glass, or dead hardware on arrival',
+            description:
+              'Severe damage: cracked screen when opening the box, shattered glass, or dead hardware on arrival',
           },
         ],
       },
@@ -341,7 +346,7 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
     label: 'Email Spam & Inbox Routing: Spam [Binary] + Folder [Categorical] + Annoyance [Ordinal 1..4]',
     labelPrefix: 'Email Triage',
     context:
-      'You are an enterprise email security gateway and smart inbox router inspecting an incoming email to detect concrete unsolicited bulk marketing or prize scams and route it to the right folder.',
+      'You are an enterprise email security gateway and smart inbox router inspecting an incoming email to quarantine spam, scams, and junk while routing legitimate work and billing emails.',
     input:
       'CONGRATULATIONS! You have been selected to claim a $5,000 Cash Prize! Click here immediately to wire your processing fee.',
     candidates: [
@@ -355,18 +360,18 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
         id: 'is_spam',
         type: 'binary',
         prompt:
-          'Does this email contain a concrete unsolicited commercial promotion, flash sale marketing pitch, or deceptive prize scam (rather than a normal work/billing email or unrelated text)?',
-        threshold: 0.5,
+          'Is this message spam, unsolicited commercial marketing, a prize scam, or unverified/junk text (rather than a coherent work email from a colleague or official billing invoice)?',
+        threshold: 0.4,
         options: [
           {
             label: 'false',
             description:
-              'Direct personal or work email from teammates, engineering OKR slides, automated AWS cloud billing invoice receipt, or non-promotional text.',
+              'Verified, coherent business communication from a known colleague about Q3 engineering OKR slides and team meetings, or an official automated AWS cloud billing invoice statement.',
           },
           {
             label: 'true',
             description:
-              'Unsolicited commercial spam, CONGRATULATIONS $5,000 cash prize wire scam, or FLASH SALE 80% off luxury watches marketing.',
+              'Spam, unsolicited commercial promotion, CONGRATULATIONS $5,000 cash prize wire scam, FLASH SALE 80% off luxury watches, free money lure, unintelligible gibberish, random characters, or unknown junk message.',
           },
         ],
       },
@@ -378,20 +383,23 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
         options: [
           {
             label: 'primary',
-            description: 'Direct personal or work communication between colleagues, teammates, or clients',
+            description:
+              'Coherent work communication from teammates about Q3 engineering OKR slides, project reviews, or meeting agendas',
           },
           {
             label: 'promotions',
-            description: 'Commercial marketing newsletters, flash sales, discount offers, or promotional campaigns',
+            description:
+              'Commercial marketing newsletters, FLASH SALE 80% off luxury watches, retail discount offers, or unsubscribe campaigns',
           },
           {
             label: 'transactional',
             description:
-              'Automated account receipts, cloud billing invoices, shipping confirmations, or account alerts',
+              'Official automated AWS cloud billing invoice for August ($142.18), account statement, or order receipt',
           },
           {
             label: 'spam_quarantine',
-            description: 'Deceptive cash prize scams, advance-fee wire fraud, lottery lures, or abusive junk mail',
+            description:
+              'CONGRATULATIONS $5,000 cash prize wire scam, free money lure, unintelligible gibberish, random keyboard characters, or suspicious junk mail',
           },
         ],
       },
@@ -399,16 +407,22 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
         id: 'annoyance_score',
         type: 'ordinal',
         prompt:
-          'Rate how spammy, intrusive, or deceptive this email is from 1 (clean work/personal email) to 4 (blatant scam or junk spam).',
+          'Rate how spammy, intrusive, or junk-like this message is from 1 (verified work/billing email) to 4 (scam, spam, or junk).',
         options: [
           {
             label: '1',
             description:
-              'Clean and expected personal, team, or automated transactional communication, or unrelated text',
+              'Verified work email from teammates with Q3 engineering OKR slides or official AWS cloud billing invoice',
           },
-          { label: '2', description: 'Mild opt-in commercial update or routine promotional newsletter' },
-          { label: '3', description: 'Aggressive unsolicited retail marketing, flash sale hype, or bulk advertising' },
-          { label: '4', description: 'Blatant fraudulent scam, fake cash prize lure, or malicious junk spam' },
+          { label: '2', description: 'Routine opt-in company newsletter or scheduled product update' },
+          {
+            label: '3',
+            description: 'Unsolicited retail marketing, FLASH SALE 80% off luxury watches, or bulk advertising',
+          },
+          {
+            label: '4',
+            description: 'Deceptive $5,000 cash prize wire scam, free money lure, random gibberish, or junk spam',
+          },
         ],
       },
     ],
@@ -431,18 +445,18 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
         id: 'is_phishing',
         type: 'binary',
         prompt:
-          'Does this message contain a concrete social engineering attack, lookalike login URL, or fraudulent payment/gift-card lure (rather than normal colleague communication or unrelated text)?',
-        threshold: 0.5,
+          'Does this message contain a concrete social engineering attack, lookalike login URL, or fraudulent payment/gift-card lure?',
+        threshold: 0.6,
         options: [
           {
             label: 'false',
             description:
-              'Normal workplace collaboration with a known teammate sharing design mockups, routine project notes, or benign text without deceptive links or payment lures.',
+              'Normal workplace collaboration with a known teammate sharing design mockups, routine project notes, casual greeting, vague text, random characters, or benign message without deceptive links or payment lures.',
           },
           {
             label: 'true',
             description:
-              'Malicious phishing or social engineering lure attempting to steal SSO login credentials via a spoofed URL (e.g. micros0ft-sso-verify.net) or coerce gift card / wire payments.',
+              'Confirmed phishing or social engineering attack attempting to steal SSO login credentials via a spoofed URL (e.g. micros0ft-sso-verify.net) or coerce urgent gift card / wire payments.',
           },
         ],
       },
@@ -469,7 +483,7 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
           {
             label: 'benign',
             description:
-              'Safe, legitimate workplace communication from a colleague or benign text with no malicious indicators',
+              'Safe workplace communication from a colleague, casual greeting, random characters, or benign text with no malicious indicators',
           },
         ],
       },
@@ -479,7 +493,11 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
         prompt:
           'Rate the security risk level of this message from 1 (benign/safe) to 5 (severe active credential or financial theft).',
         options: [
-          { label: '1', description: 'Safe: routine internal collaboration or benign text with no suspicious links' },
+          {
+            label: '1',
+            description:
+              'Safe: routine internal collaboration, casual greeting, random characters, or benign text with no suspicious links',
+          },
           { label: '2', description: 'Low risk: unsolicited external marketing email from a verifiable sender' },
           { label: '3', description: 'Medium risk: ambiguous external request requiring sender verification' },
           {
@@ -512,13 +530,13 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
         id: 'is_unsafe_attack',
         type: 'binary',
         prompt:
-          'Does this prompt contain a concrete adversarial jailbreak override, system-prompt exfiltration attempt, or exploit payload request (rather than an educational programming question or benign text)?',
-        threshold: 0.5,
+          'Does this prompt contain a concrete adversarial jailbreak override, system-prompt exfiltration attempt, or exploit payload request?',
+        threshold: 0.6,
         options: [
           {
             label: 'false',
             description:
-              'Benign educational software engineering question (such as how parameterized queries prevent SQL injection), normal coding help, or harmless text.',
+              'Benign educational software engineering question (such as how parameterized queries prevent SQL injection), normal coding help, casual greeting, random characters, or harmless text.',
           },
           {
             label: 'true',
@@ -535,7 +553,7 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
           {
             label: 'benign',
             description:
-              'Legitimate educational programming question, defensive security best practices, or normal benign user query',
+              'Legitimate educational programming question, defensive security best practices, casual greeting, random characters, or normal benign user query',
           },
           {
             label: 'jailbreak_override',
@@ -562,7 +580,8 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
         options: [
           {
             label: '1',
-            description: 'Safe: constructive educational or defensive coding question with zero adversarial intent',
+            description:
+              'Safe: constructive educational or defensive coding question, casual greeting, or random characters with zero adversarial intent',
           },
           {
             label: '2',
@@ -601,12 +620,12 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
         type: 'binary',
         prompt:
           'Does this passage explicitly state the exact numerical values for Envoy v1.30 gRPC keepalive_timeout and max_concurrent_streams?',
-        threshold: 0.5,
+        threshold: 0.6,
         options: [
           {
             label: 'false',
             description:
-              'Passage discusses general Envoy xDS APIs without numerical keepalive/stream defaults, or discusses an unrelated topic like baking sourdough bread.',
+              'Passage discusses general Envoy xDS APIs without numerical keepalive/stream defaults, discusses an unrelated topic like baking sourdough bread, or is vague/random text.',
           },
           {
             label: 'true',
@@ -633,7 +652,7 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
           {
             label: 'irrelevant_off_topic',
             description:
-              'Completely unrelated subject matter (such as cooking recipes, sourdough bread, or general chat)',
+              'Completely unrelated subject matter (such as cooking recipes, sourdough bread, random characters, or general chat)',
           },
         ],
       },
@@ -643,7 +662,11 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
         prompt:
           'Grade the retrieval relevance of this passage from 1 (completely irrelevant) to 4 (exact answer match).',
         options: [
-          { label: '1', description: 'Irrelevant: off-topic passage with zero connection to Envoy or gRPC networking' },
+          {
+            label: '1',
+            description:
+              'Irrelevant: off-topic passage, random characters, or general text with zero connection to Envoy or gRPC networking',
+          },
           {
             label: '2',
             description: 'Tangential: mentions Envoy Proxy generally but does not cover gRPC or HTTP/2 limits',
@@ -679,13 +702,13 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
         id: 'needs_cloud_frontier',
         type: 'binary',
         prompt:
-          'Does this request require deep multi-step systems architecture, formal proofs, or complex code synthesis on a cloud frontier model (rather than a simple timer or basic fact lookup)?',
-        threshold: 0.5,
+          'Does this request require deep multi-step systems architecture, formal proofs, or complex code synthesis on a cloud frontier model?',
+        threshold: 0.6,
         options: [
           {
             label: 'false',
             description:
-              'Simple local device command (setting a timer, alarm, or reminder), basic factual trivia lookup (capital of Japan), or short conversational query.',
+              'Simple local device command (setting a timer, alarm, or reminder), basic factual trivia lookup (capital of Japan), casual greeting, random characters, or short conversational query.',
           },
           {
             label: 'true',
@@ -714,7 +737,8 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
           },
           {
             label: 'unactionable_or_other',
-            description: 'Vague fragment, bare keyword, or unactionable input lacking a clear request',
+            description:
+              'Vague fragment, bare keyword, casual greeting, random characters, or unactionable input lacking a clear request',
           },
         ],
       },
@@ -726,7 +750,8 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
         options: [
           {
             label: '1',
-            description: 'Trivial: setting a local timer, alarm, reminder, or unsubstantiated short input',
+            description:
+              'Trivial: setting a local timer, alarm, reminder, casual greeting, random characters, or short input',
           },
           { label: '2', description: 'Simple: single-hop factual lookup such as a country capital or currency' },
           { label: '3', description: 'Moderate: summarizing a short paragraph or drafting a routine email' },
@@ -758,12 +783,12 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
         type: 'binary',
         prompt:
           'Does this draft message contain an exposed plaintext API key, secret token, or credential value (such as sk_live_..., AKIA..., or a bearer token)?',
-        threshold: 0.5,
+        threshold: 0.6,
         options: [
           {
             label: 'false',
             description:
-              'Normal code review comment, unit test update, or angry complaint about broken commits with no plaintext API key or secret token value.',
+              'Normal code review comment, unit test update, angry complaint about broken commits, casual greeting, random characters, or text with no plaintext API key value.',
           },
           {
             label: 'true',
@@ -780,7 +805,7 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
           {
             label: 'allow_send',
             description:
-              'Polite, constructive workplace collaboration (such as thanking a teammate and updating unit tests) with no leaked secrets',
+              'Polite, constructive workplace collaboration (such as thanking a teammate and updating unit tests), casual greeting, or benign text with no leaked secrets',
           },
           {
             label: 'block_secret_leak',
@@ -800,7 +825,7 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
         prompt:
           'Rate the sender frustration and hostility level in this draft from 1 (calm & appreciative) to 5 (hostile personal attack).',
         options: [
-          { label: '1', description: 'Calm, friendly, appreciative, and constructive engineering collaboration' },
+          { label: '1', description: 'Calm, friendly, appreciative collaboration, casual greeting, or neutral text' },
           { label: '2', description: 'Neutral and matter-of-fact status update with no emotional tension' },
           { label: '3', description: 'Mildly stressed or impatient under a tight deployment deadline' },
           {
@@ -834,12 +859,12 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
         type: 'binary',
         prompt:
           'Does this ticket report a concrete critical production outage or payment API 500 failure blocking customer orders right now?',
-        threshold: 0.5,
+        threshold: 0.6,
         options: [
           {
             label: 'false',
             description:
-              'Polite billing refund question (factura/reembolsar), positive feature suggestion (export PDF), or non-urgent message.',
+              'Polite billing refund question (factura/reembolsar), positive feature suggestion (export PDF), casual greeting, random characters, or routine message.',
           },
           {
             label: 'true',
@@ -867,7 +892,8 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
           },
           {
             label: 'unactionable_or_other',
-            description: 'Vague fragment, bare keyword without context, or unrelated off-topic message',
+            description:
+              'Vague fragment, bare keyword without context, casual greeting, random characters, or unrelated off-topic message',
           },
         ],
       },
@@ -877,7 +903,11 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
         prompt:
           'Rate the customer distress and urgency level from 1 (happy & praising the product) to 5 (severe outage crisis).',
         options: [
-          { label: '1', description: 'Delighted customer praising the new UI and suggesting a nice-to-have feature' },
+          {
+            label: '1',
+            description:
+              'Delighted customer praising the new UI, casual greeting, random characters, or nice-to-have feature suggestion',
+          },
           { label: '2', description: 'Calm and polite customer asking a routine billing or account question' },
           { label: '3', description: 'Moderately concerned customer requesting a refund for a duplicate charge' },
           { label: '4', description: 'Frustrated customer experiencing a workflow disruption' },
@@ -900,13 +930,13 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
         id: 'is_live_or_p0_incident',
         type: 'binary',
         prompt:
-          'Does this document describe a high-severity production outage or regional authentication lockout (rather than a non-urgent billing audit or UX dark mode proposal)?',
-        threshold: 0.5,
+          'Does this document describe a high-severity production outage or regional authentication lockout (rather than a billing audit or UX dark mode proposal)?',
+        threshold: 0.6,
         options: [
           {
             label: 'false',
             description:
-              'Quarterly invoice billing reconciliation memo or non-urgent dark mode UI theme architecture RFC with 99.99% platform uptime.',
+              'Quarterly invoice billing reconciliation memo, dark mode UI theme architecture RFC with 99.99% platform uptime, or short/unrelated text.',
           },
           {
             label: 'true',
@@ -942,7 +972,8 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
           },
           {
             label: 'unactionable_or_other',
-            description: 'Unrelated text, bare keyword, or document lacking actionable enterprise routing details',
+            description:
+              'Unrelated text, bare keyword, random characters, or document lacking actionable enterprise routing details',
           },
         ],
       },
@@ -952,7 +983,10 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
         prompt:
           'Rate the operational urgency of this document from 1 (long-term UX roadmap RFC) to 5 (P0 global revenue outage).',
         options: [
-          { label: '1', description: 'Roadmap RFC: non-urgent UI dark mode theme and dashboard layout enhancement' },
+          {
+            label: '1',
+            description: 'Roadmap RFC: UI dark mode theme, dashboard layout enhancement, or unsubstantiated short text',
+          },
           {
             label: '2',
             description: 'Routine administrative documentation with no financial or technical discrepancy',
@@ -993,12 +1027,12 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
         id: 'customer_outage',
         type: 'binary',
         prompt: 'Are live customer requests currently failing with HTTP errors or service unavailability?',
-        threshold: 0.5,
+        threshold: 0.6,
         options: [
           {
             label: 'false',
             description:
-              'Service uptime is unaffected, live user traffic is healthy, or this is a non-urgent CSV feature request.',
+              'Service uptime is unaffected, live user traffic is healthy, CSV feature request, or vague/unrelated text.',
           },
           {
             label: 'true',
@@ -1010,11 +1044,12 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
         id: 'data_loss_detected',
         type: 'binary',
         prompt: 'Were any database records or audit telemetry tables deleted, corrupted, or permanently lost?',
-        threshold: 0.5,
+        threshold: 0.6,
         options: [
           {
             label: 'false',
-            description: 'No database records were corrupted or deleted; all stored data remains intact.',
+            description:
+              'No database records were corrupted or deleted; all stored data remains intact, or text is unrelated.',
           },
           {
             label: 'true',
@@ -1041,7 +1076,7 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
           },
           {
             label: 'unactionable_or_other',
-            description: 'Vague claim without technical details or unrelated off-topic input',
+            description: 'Vague claim without technical details, random characters, or unrelated off-topic input',
           },
         ],
       },
@@ -1060,7 +1095,7 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
           },
           {
             label: 'backlog_prioritize',
-            description: 'Add the enhancement request to the product backlog for future sprint planning',
+            description: 'Add the enhancement request to the product backlog or take no emergency action',
           },
         ],
       },
@@ -1069,7 +1104,7 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
         type: 'ordinal',
         prompt: 'Rate the overall incident severity from 1 (feature request) to 5 (live customer checkout outage).',
         options: [
-          { label: '1', description: 'No incident: routine feature request or UI enhancement' },
+          { label: '1', description: 'No incident: routine feature request, UI enhancement, or vague/unrelated text' },
           { label: '2', description: 'Minor internal warning with no data loss or user impact' },
           { label: '3', description: 'Internal replica data loss requiring snapshot recovery without live downtime' },
           { label: '4', description: 'Partial feature degradation with an active automated fallback' },
@@ -1095,15 +1130,17 @@ const POLYMORPHIC_PRESETS: PolymorphicPreset[] = [
         type: 'binary',
         prompt:
           'Does the customer describe a concrete hardware defect or malfunction (rather than a color preference change or bare refund request)?',
-        threshold: 0.5,
+        threshold: 0.6,
         options: [
           {
             label: 'false',
-            description: 'Product works properly; customer simply prefers a different color or changed their mind.',
+            description:
+              'Product works properly; customer simply prefers a different color, changed their mind, or sent vague/unrelated text.',
           },
           {
             label: 'true',
-            description: 'Product has a concrete hardware defect such as rapid battery drain or crackling audio.',
+            description:
+              'Product has a concrete hardware defect such as rapid battery drain from 100% to 0% or crackling audio.',
           },
         ],
       },
@@ -2133,7 +2170,10 @@ export class DecisionTextPlayground {
       valDiv.className = 'poly-decision-value';
 
       if (q.type === 'binary') {
-        const isTrue = dec.label === 'true' || (typeof dec.probability === 'number' && dec.probability >= 0.5);
+        const thresh = typeof q.threshold === 'number' ? q.threshold : 0.5;
+        const isTrue = dec.label
+          ? dec.label === 'true'
+          : typeof dec.probability === 'number' && dec.probability >= thresh;
         const pct = ((dec.confidence ?? 0) * 100).toFixed(1);
         valDiv.textContent = `${isTrue ? 'TRUE' : 'FALSE'} (${dec.label}) — ${pct}%`;
         valDiv.style.color = isTrue ? '#137333' : '#c5221f';

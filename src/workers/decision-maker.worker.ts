@@ -21,305 +21,17 @@ const DEFAULT_TRUE_DESC = 'yes, the statement holds';
 const DEFAULT_FALSE_DESC = 'no, the statement does not hold';
 
 /**
- * Contrastive negative anchors evaluated alongside task options on bi-encoder
- * models so that bare keyword demands without context (e.g. "urgent", "refund",
- * "this is urgent help me asap", "I want a refund right now") and unrelated /
- * off-topic inputs (e.g. "hello how are you", "what is the weather", "I like pizza")
- * do not trigger false-positive decisions.
+ * Simple minimum-length check: requires at least 3 letters (or 2 CJK characters)
+ * so empty whitespace or bare punctuation (e.g. "", ";;") falls back to the
+ * question's prior rather than producing arbitrary embeddings.
  */
-const NEGATIVE_GUARD_ANCHORS: Record<string, string> = {
-  __guard_bare_claim__:
-    'Vague demand, bare keyword, or unsubstantiated claim without concrete details, such as just saying urgent, emergency, help me asap, I want a refund, give me my money back, it is broken, fix this now, yes, or true.',
-  __guard_offtopic__:
-    'Unrelated off-topic message, casual greeting, test string, trivia question, weather inquiry, food preference, or general conversation unrelated to the task.',
-};
-
-const FALLBACK_LABEL_REGEX =
-  /^(deny|reject|false|no|none|benign|legitimate|safe|normal|primary|allow|backlog|standard_exchange|on_device|unactionable|needs_clarification|insufficient_info|general|other|irrelevant|unrelated)/i;
-
-/**
- * Detects empty strings, whitespace, punctuation-only strings (e.g. ";;", "..."),
- * keyboard mash / non-lexical gibberish (e.g. "asdfghjkl", "qwerty"), and
- * context-free 1-2 word bare keywords (e.g. "urgent", "refund", "damaged",
- * "critical bug") that lack substantive context for a reliable decision.
- */
-export function isLowSignalOrGibberish(rawText: string): boolean {
+function isTooShort(rawText: string): boolean {
   const text = (rawText ?? '').trim();
-  if (!text) return true;
-
-  // Must contain at least 2 Unicode letters.
+  if (text.length < 2) return true;
+  const cjk = (text.match(/[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/gu) ?? []).length;
+  if (cjk >= 2) return false;
   const letters = (text.match(/\p{L}/gu) ?? []).length;
-  if (letters < 2) return true;
-
-  // If the text contains non-Latin script characters (e.g. CJK), require at least
-  // a short phrase (>= 5 non-space characters) rather than a bare 2-char keyword.
-  const cjkOrNonLatin = (text.match(/[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/gu) ?? [])
-    .length;
-  if (cjkOrNonLatin >= 2) {
-    return text.replace(/\s+/g, '').length < 5;
-  }
-
-  // Extract ASCII / Latin alphabetic tokens.
-  const tokens = text
-    .toLowerCase()
-    .split(/[^a-z]+/)
-    .filter((w) => w.length > 0);
-  if (tokens.length === 0) return true;
-
-  // Require at least 3 alphabetic words so bare 1-2 word trigger keywords
-  // (e.g. "urgent", "refund", "refund please", "damaged", "critical bug")
-  // without any descriptive context are rejected as insufficient context.
-  if (tokens.length < 3) return true;
-
-  // Known valid short words (2-3 letters) and common technical acronyms.
-  const knownShortWords = new Set([
-    'a',
-    'an',
-    'am',
-    'as',
-    'at',
-    'be',
-    'by',
-    'do',
-    'go',
-    'he',
-    'hi',
-    'id',
-    'if',
-    'in',
-    'is',
-    'it',
-    'me',
-    'my',
-    'no',
-    'of',
-    'ok',
-    'on',
-    'or',
-    'so',
-    'to',
-    'up',
-    'us',
-    'we',
-    'all',
-    'and',
-    'api',
-    'app',
-    'are',
-    'ask',
-    'aws',
-    'bad',
-    'ban',
-    'big',
-    'bot',
-    'box',
-    'bug',
-    'bus',
-    'but',
-    'buy',
-    'can',
-    'car',
-    'cat',
-    'ceo',
-    'cli',
-    'cpu',
-    'csv',
-    'cut',
-    'day',
-    'dev',
-    'did',
-    'dns',
-    'doc',
-    'dog',
-    'due',
-    'end',
-    'env',
-    'err',
-    'etc',
-    'eye',
-    'far',
-    'fee',
-    'few',
-    'fix',
-    'for',
-    'fun',
-    'gcp',
-    'get',
-    'git',
-    'got',
-    'gpu',
-    'gui',
-    'guy',
-    'had',
-    'has',
-    'her',
-    'him',
-    'his',
-    'hit',
-    'hot',
-    'how',
-    'iam',
-    'ice',
-    'inc',
-    'ios',
-    'ip',
-    'its',
-    'job',
-    'jwt',
-    'key',
-    'kid',
-    'kms',
-    'lan',
-    'law',
-    'let',
-    'llm',
-    'log',
-    'lot',
-    'low',
-    'mac',
-    'man',
-    'map',
-    'max',
-    'may',
-    'mem',
-    'men',
-    'met',
-    'min',
-    'mix',
-    'mfa',
-    'mod',
-    'mom',
-    'msg',
-    'net',
-    'new',
-    'nil',
-    'non',
-    'nor',
-    'not',
-    'now',
-    'oak',
-    'odd',
-    'off',
-    'oil',
-    'okr',
-    'old',
-    'one',
-    'oom',
-    'opt',
-    'org',
-    'our',
-    'out',
-    'own',
-    'pay',
-    'pdf',
-    'per',
-    'pin',
-    'pod',
-    'pop',
-    'pr',
-    'pro',
-    'put',
-    'p99',
-    'qa',
-    'ram',
-    'ran',
-    'raw',
-    'red',
-    'ref',
-    'req',
-    'res',
-    'rip',
-    'row',
-    'rpc',
-    'run',
-    'sad',
-    'saw',
-    'say',
-    'sdk',
-    'see',
-    'set',
-    'sha',
-    'she',
-    'sit',
-    'six',
-    'sku',
-    'sla',
-    'slo',
-    'sms',
-    'sql',
-    'sre',
-    'ssh',
-    'ssl',
-    'sso',
-    'sub',
-    'sum',
-    'sun',
-    'tag',
-    'tap',
-    'tax',
-    'tea',
-    'ten',
-    'the',
-    'tie',
-    'tip',
-    'tls',
-    'tmp',
-    'tok',
-    'too',
-    'top',
-    'try',
-    'two',
-    'txt',
-    'ui',
-    'uri',
-    'url',
-    'use',
-    'utc',
-    'ux',
-    'var',
-    'via',
-    'vip',
-    'vm',
-    'vpn',
-    'vpc',
-    'war',
-    'was',
-    'way',
-    'web',
-    'wet',
-    'who',
-    'why',
-    'win',
-    'won',
-    'xml',
-    'yet',
-    'you',
-    'zip',
-  ]);
-
-  // Common keyboard-row mash substrings.
-  const mashPatterns = /asdf|sdfg|dfgh|fghj|ghjk|hjkl|qwerty|werty|ertyu|zxcv|xcvb|cvbn/i;
-
-  let validWords = 0;
-  for (const w of tokens) {
-    if (/(.)\1{2,}/.test(w)) continue;
-    if (mashPatterns.test(w)) continue;
-
-    if (w.length <= 3 && knownShortWords.has(w)) {
-      validWords++;
-      continue;
-    }
-
-    if (w.length >= 4) {
-      const vowels = (w.match(/[aeiouy]/g) ?? []).length;
-      const ratio = vowels / w.length;
-      if (vowels >= 1 && ratio >= 0.15 && ratio <= 0.85 && !/[bcdfghjklmnpqrstvwxz]{5,}/.test(w)) {
-        validWords++;
-      }
-    }
-  }
-
-  return validWords === 0 || validWords / tokens.length < 0.5;
+  return letters < 3;
 }
 
 class DecisionMakerWorker extends BaseWorker<DecisionMaker> {
@@ -364,10 +76,13 @@ class DecisionMakerWorker extends BaseWorker<DecisionMaker> {
   }
 
   /**
-   * Evaluates a binary/boolean question with:
-   * 1. Low-signal / gibberish / bare-keyword protection (returns No with P(yes) = 0.00).
-   * 2. Contrastive multi-anchor evaluation on bi-encoder models (EmbeddingGemma-2)
-   *    so unsubstantiated demands and off-topic text are absorbed by negative guard anchors.
+   * Evaluates a binary/boolean question.
+   * - If the input is empty or too short (< 3 letters, e.g. ";;"), errs on the
+   *   side indicated by `threshold` (`true` when `threshold < 0.5` such as spam
+   *   detection, `false` when `threshold >= 0.5` such as urgent outage or refund).
+   * - Otherwise, evaluates directly with the model using the custom Yes/No option
+   *   descriptions so the model naturally errs toward whichever option describes
+   *   the default/fallback case.
    */
   private async evaluateBooleanSmart(
     text: string,
@@ -381,8 +96,13 @@ class DecisionMakerWorker extends BaseWorker<DecisionMaker> {
     const dm = this.taskInstance!;
     const threshold = typeof question.threshold === 'number' ? question.threshold : 0.5;
 
-    if (isLowSignalOrGibberish(text)) {
-      return { value: false, probabilityTrue: 0, lowSignal: true };
+    if (isTooShort(text)) {
+      const errOnTrue = threshold < 0.5;
+      return {
+        value: errOnTrue,
+        probabilityTrue: errOnTrue ? 1 : 0,
+        lowSignal: true,
+      };
     }
 
     const opts = question.options ?? [];
@@ -406,32 +126,22 @@ class DecisionMakerWorker extends BaseWorker<DecisionMaker> {
       const choiceRes = await dm.evaluateChoice(text, {
         instructions: this.isEmbeddingGemma ? '' : cond,
         criteria: {
-          opt_false: falseDesc,
-          opt_true: trueDesc,
-          ...(this.isEmbeddingGemma ? NEGATIVE_GUARD_ANCHORS : {}),
+          false: falseDesc,
+          true: trueDesc,
         },
         ...(!this.isEmbeddingGemma && question.context ? { context: question.context } : {}),
       });
       const rawProbs = choiceRes.probabilities ?? {};
-      const pTrue = rawProbs['opt_true'] ?? 0;
-      const guardMass = (rawProbs['__guard_bare_claim__'] ?? 0) + (rawProbs['__guard_offtopic__'] ?? 0);
-      const guardTriggered =
-        choiceRes.selectedKey === '__guard_bare_claim__' ||
-        choiceRes.selectedKey === '__guard_offtopic__' ||
-        guardMass >= 0.25;
+      const pTrue = rawProbs['true'] ?? 0;
       return {
-        value: !guardTriggered && pTrue >= threshold,
-        probabilityTrue: guardTriggered ? 0 : pTrue,
-        ...(guardTriggered ? { lowSignal: true } : {}),
+        value: pTrue >= threshold,
+        probabilityTrue: pTrue,
       };
     }
 
     return dm.evaluateBoolean(text, question as any);
   }
 
-  /**
-   * Evaluates a categorical/choice question with low-signal and guard-anchor protection.
-   */
   private async evaluateChoiceSmart(
     text: string,
     question: {
@@ -445,73 +155,23 @@ class DecisionMakerWorker extends BaseWorker<DecisionMaker> {
     if (keys.length === 0) {
       return { selectedKey: '', probabilities: {} };
     }
-    const fallbackKey = keys.find((k) => FALLBACK_LABEL_REGEX.test(k));
 
-    if (isLowSignalOrGibberish(text)) {
-      if (fallbackKey) {
-        const probs: Record<string, number> = {};
-        for (const k of keys) probs[k] = k === fallbackKey ? 1 : 0;
-        return { selectedKey: fallbackKey, probabilities: probs, lowSignal: true };
-      }
-      const uniform = 1 / keys.length;
+    if (isTooShort(text)) {
+      const fallbackKey = keys[keys.length - 1];
       const probs: Record<string, number> = {};
-      for (const k of keys) probs[k] = uniform;
-      return { selectedKey: keys[0], probabilities: probs, lowSignal: true };
+      for (const k of keys) probs[k] = k === fallbackKey ? 1 : 0;
+      return { selectedKey: fallbackKey, probabilities: probs, lowSignal: true };
     }
 
     if (this.isEmbeddingGemma) {
-      const raw = await dm.evaluateChoice(text, {
+      return dm.evaluateChoice(text, {
         instructions: '',
-        criteria: {
-          ...question.criteria,
-          ...NEGATIVE_GUARD_ANCHORS,
-        },
+        criteria: question.criteria,
       });
-      const rawProbs = raw.probabilities ?? {};
-      const guardMass = (rawProbs['__guard_bare_claim__'] ?? 0) + (rawProbs['__guard_offtopic__'] ?? 0);
-      const guardTriggered =
-        raw.selectedKey === '__guard_bare_claim__' || raw.selectedKey === '__guard_offtopic__' || guardMass >= 0.25;
-
-      if (guardTriggered && fallbackKey) {
-        const probs: Record<string, number> = {};
-        for (const k of keys) probs[k] = k === fallbackKey ? 1 : 0;
-        return {
-          selectedKey: fallbackKey,
-          probabilities: probs,
-          lowSignal: true,
-        };
-      }
-
-      const probs: Record<string, number> = {};
-      for (const k of keys) probs[k] = rawProbs[k] ?? 0;
-
-      if (fallbackKey) {
-        probs[fallbackKey] = (probs[fallbackKey] ?? 0) + guardMass;
-      } else {
-        const sum = keys.reduce((s, k) => s + probs[k], 0);
-        if (sum > 0) {
-          for (const k of keys) probs[k] = probs[k] / sum;
-        }
-      }
-
-      let bestKey = keys[0];
-      for (const k of keys) {
-        if ((probs[k] ?? 0) > (probs[bestKey] ?? 0)) bestKey = k;
-      }
-      return {
-        selectedKey: bestKey,
-        probabilities: probs,
-        ...(guardTriggered ? { lowSignal: true } : {}),
-      };
     }
-
     return dm.evaluateChoice(text, question as any);
   }
 
-  /**
-   * Evaluates an ordinal/score question with low-signal and guard-anchor protection
-   * so bare keywords ("urgent") or off-topic inputs fall back to the lowest/baseline level.
-   */
   private async evaluateScoreSmart(
     text: string,
     question: {
@@ -526,16 +186,11 @@ class DecisionMakerWorker extends BaseWorker<DecisionMaker> {
       return { selectedIndex: 0, expectedScore: 0, probabilities: [] };
     }
 
-    // Identify baseline index: if a level is explicitly labeled "Neutral" (e.g. Customer satisfaction),
-    // use that index; otherwise use index 0 (Level 1: minimal/none/clean).
-    const neutralIdx = question.rubric.findIndex((r) => /^neutral\b/i.test(r.trim()));
-    const baselineIdx = neutralIdx >= 0 ? neutralIdx : 0;
-
-    if (isLowSignalOrGibberish(text)) {
-      const probs = question.rubric.map((_, i) => (i === baselineIdx ? 1 : 0));
+    if (isTooShort(text)) {
+      const probs = question.rubric.map((_, i) => (i === 0 ? 1 : 0));
       return {
-        selectedIndex: baselineIdx,
-        expectedScore: baselineIdx,
+        selectedIndex: 0,
+        expectedScore: 0,
         probabilities: probs,
         lowSignal: true,
       };
@@ -549,33 +204,12 @@ class DecisionMakerWorker extends BaseWorker<DecisionMaker> {
       });
       const choiceRes = await dm.evaluateChoice(text, {
         instructions: '',
-        criteria: {
-          ...criteria,
-          ...NEGATIVE_GUARD_ANCHORS,
-        },
+        criteria,
       });
       const rawProbs = choiceRes.probabilities ?? {};
-      const guardMass = (rawProbs['__guard_bare_claim__'] ?? 0) + (rawProbs['__guard_offtopic__'] ?? 0);
-      const guardTriggered =
-        choiceRes.selectedKey === '__guard_bare_claim__' ||
-        choiceRes.selectedKey === '__guard_offtopic__' ||
-        guardMass >= 0.25;
-
-      if (guardTriggered) {
-        const probs = question.rubric.map((_, i) => (i === baselineIdx ? 1 : 0));
-        return {
-          selectedIndex: baselineIdx,
-          expectedScore: baselineIdx,
-          probabilities: probs,
-          lowSignal: true,
-        };
-      }
-
       const probs = question.rubric.map((_, i) => rawProbs[`__lvl_${i}__`] ?? 0);
-      probs[baselineIdx] = (probs[baselineIdx] ?? 0) + guardMass;
-
-      let best = baselineIdx;
-      for (let i = 0; i < probs.length; i++) {
+      let best = 0;
+      for (let i = 1; i < probs.length; i++) {
         if (probs[i] > probs[best]) best = i;
       }
       const expected0 = probs.reduce((sum, p, i) => sum + i * p, 0);
@@ -606,7 +240,6 @@ class DecisionMakerWorker extends BaseWorker<DecisionMaker> {
     }
 
     const startTimeMs = performance.now();
-    // 'schema' / 'polymorphic': a whole ClassifierSchema, all questions evaluated on the same input.
     const result =
       data.kind === 'schema' || data.kind === 'polymorphic'
         ? await this.evaluateSchema(data.text, data.question)
@@ -619,10 +252,6 @@ class DecisionMakerWorker extends BaseWorker<DecisionMaker> {
     self.postMessage({ type: 'DECIDE_RESULT', id: data.id, result, inferenceTime });
   }
 
-  /**
-   * Evaluates a ClassifierSchema using the smart contrastive and low-signal-guarded
-   * evaluators for each binary, categorical, and ordinal question.
-   */
   private async evaluateSchema(text: string, schema: any): Promise<Record<string, any>> {
     const context: string | undefined = schema.context || undefined;
     const result: Record<string, any> = {};
@@ -669,7 +298,7 @@ class DecisionMakerWorker extends BaseWorker<DecisionMaker> {
           id: q.id,
           label: options[best]?.label ?? String(best + 1),
           confidence: probs[best] ?? 0,
-          expectedScore: r.expectedScore, // 0-based, converted to 1..N in UI
+          expectedScore: r.expectedScore,
           lowSignal: r.lowSignal,
           probabilities: options.map((o, i) => ({ label: o.label, probability: probs[i] ?? 0 })),
         };
