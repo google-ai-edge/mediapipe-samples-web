@@ -42,6 +42,13 @@ export function setupCoverPage(container: HTMLElement) {
                   <p>Make decisions based on logic rules.</p>
                 </div>
               </a>
+              <a href="#/decision/id_photo" class="cover-card">
+                <span class="material-icons card-icon">badge</span>
+                <div class="card-content">
+                  <h3>Decision Maker - ID Photo</h3>
+                  <p>Check passport &amp; ID photos against biometric compliance rules.</p>
+                </div>
+              </a>
               <a href="#/decision/dino_game" class="cover-card">
                 <span class="material-icons card-icon">sports_esports</span>
                 <div class="card-content">

@@ -26,20 +26,29 @@
 
 import template from '../templates/decision-maker.html?raw';
 import { InferenceTimer } from '../components/inference-timer';
+import { ViewToggle } from '../components/view-toggle';
 import { decisionRuntime } from '../components/decision-runtime';
 import { mountDecisionModelPanel } from '../components/decision-model-panel';
 import { DecisionTextPlayground } from './decision-maker-text';
+import { DecisionVisionPlayground } from './decision-maker-vision';
 
 class DecisionMakerTask {
   /** Shared "Inference Time" badge + history graph, same as the other tasks. */
   private inferenceTimer = new InferenceTimer();
   private textPlayground!: DecisionTextPlayground;
+  private visionPlayground!: DecisionVisionPlayground;
+  private mode: 'text' | 'vision' = 'text';
   private disposers: (() => void)[] = [];
   private el: Record<string, HTMLElement> = {};
   /** Last runtime load error, surfaced in the Decision box while no model is ready. */
   private lastLoadError: string | undefined;
 
-  constructor(private container: HTMLElement) {}
+  constructor(
+    private container: HTMLElement,
+    initialMode: 'text' | 'vision' = 'text'
+  ) {
+    this.mode = initialMode;
+  }
 
   init() {
     this.container.innerHTML = template;
@@ -55,6 +64,31 @@ class DecisionMakerTask {
       }
     );
     this.textPlayground.init();
+
+    this.visionPlayground = new DecisionVisionPlayground(this.el['dm-vision-view'], (text, inferenceTime) => {
+      if (inferenceTime === undefined) return this.setStatus(text);
+      this.inferenceTimer.record(inferenceTime, decisionRuntime.delegate);
+      this.setStatus(`${text} in ${Math.round(inferenceTime)}ms`);
+    });
+    this.visionPlayground.init();
+
+    new ViewToggle(
+      'view-mode-toggle',
+      [
+        { label: 'Text', value: 'text', icon: 'notes' },
+        { label: 'Vision', value: 'vision', icon: 'badge' },
+        { label: 'Game', value: 'game', icon: 'sports_esports' },
+      ],
+      this.mode,
+      (value) => {
+        if (value === 'game') {
+          window.location.hash = '/decision/dino_game';
+          return;
+        }
+        this.setMode(value as 'text' | 'vision');
+      }
+    );
+    this.setMode(this.mode);
 
     // Model controls and state are shared with the Dino Game page.
     this.disposers.push(mountDecisionModelPanel(this.el['dm-model-panel'], this.el['dm-delegate-panel']));
@@ -80,6 +114,15 @@ class DecisionMakerTask {
     else this.setStatus('Load a model to begin');
   }
 
+  private setMode(mode: 'text' | 'vision') {
+    this.mode = mode;
+    if (mode !== 'vision') {
+      this.visionPlayground.stopWebcamBooth();
+    }
+    this.el['dm-text-view'].style.display = mode === 'text' ? '' : 'none';
+    this.el['dm-vision-view'].style.display = mode === 'vision' ? '' : 'none';
+  }
+
   /** Mirrors the shared runtime into the playground's Decision box. */
   private syncModelState() {
     this.textPlayground.setModelState({
@@ -91,6 +134,7 @@ class DecisionMakerTask {
   }
 
   cleanup() {
+    this.visionPlayground?.cleanup();
     this.inferenceTimer.cleanup();
     // The worker and model stay loaded in decisionRuntime for the next page.
     for (const dispose of this.disposers) dispose();
@@ -106,7 +150,12 @@ class DecisionMakerTask {
 let activeTask: DecisionMakerTask | null = null;
 
 export async function setupDecisionMaker(container: HTMLElement) {
-  activeTask = new DecisionMakerTask(container);
+  activeTask = new DecisionMakerTask(container, 'text');
+  activeTask.init();
+}
+
+export async function setupDecisionVision(container: HTMLElement) {
+  activeTask = new DecisionMakerTask(container, 'vision');
   activeTask.init();
 }
 
@@ -116,3 +165,5 @@ export function cleanupDecisionMaker() {
     activeTask = null;
   }
 }
+
+export const cleanupDecisionVision = cleanupDecisionMaker;

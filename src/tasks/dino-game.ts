@@ -30,6 +30,7 @@
 
 import template from '../templates/dino-game.html?raw';
 import { InferenceTimer } from '../components/inference-timer';
+import { ViewToggle } from '../components/view-toggle';
 import { decisionRuntime } from '../components/decision-runtime';
 import { mountDecisionModelPanel } from '../components/decision-model-panel';
 
@@ -458,6 +459,20 @@ class DinoGameTask {
     this.el['dm-options'].innerHTML = DINO_QUESTION.options
       .map((o) => `<li><b>${o.label}</b> — ${o.description}</li>`)
       .join('');
+
+    new ViewToggle(
+      'view-mode-toggle',
+      [
+        { label: 'Text', value: 'text', icon: 'notes' },
+        { label: 'Vision', value: 'vision', icon: 'badge' },
+        { label: 'Game', value: 'game', icon: 'sports_esports' },
+      ],
+      'game',
+      (value) => {
+        if (value === 'text') window.location.hash = '/decision/decision_maker';
+        else if (value === 'vision') window.location.hash = '/decision/id_photo';
+      }
+    );
 
     const canvas = this.el['dm-canvas'] as HTMLCanvasElement;
     const dpr = window.devicePixelRatio || 1;

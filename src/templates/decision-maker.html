@@ -18,10 +18,11 @@
   <div class="output-panel">
     <div class="output-header">
       <h2>Decision Maker</h2>
-      <a href="#/decision/dino_game" class="dm-cross-link">Play the Dino Game →</a>
+      <div id="view-mode-toggle"></div>
     </div>
     <div class="viewport">
       <div id="dm-text-view" class="dm-view"></div>
+      <div id="dm-vision-view" class="dm-view" style="display: none"></div>
     </div>
   </div>
 
@@ -31,16 +32,6 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-    }
-    .dm-cross-link {
-      color: var(--primary);
-      font-size: 0.9rem;
-      font-weight: 500;
-      text-decoration: none;
-      white-space: nowrap;
-    }
-    .dm-cross-link:hover {
-      text-decoration: underline;
     }
   </style>
 </div>

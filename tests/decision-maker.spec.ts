@@ -102,4 +102,29 @@ test.describe('Decision Maker Task', () => {
     await page.click(`#${containerId}-toggle button[data-value="standard"]`);
     await expect(page.locator(`#${containerId}-tab-standard`)).toHaveClass(/active/);
   });
+
+  test('should switch between Text, Vision, and Game tabs and evaluate ID photo presets', async ({ page }) => {
+    await page.goto('/#/decision/decision_maker');
+    await page.waitForLoadState('domcontentloaded');
+
+    const toggle = page.locator('#view-mode-toggle');
+    await expect(toggle.locator('button[data-value="text"]')).toHaveClass(/active/);
+    await expect(toggle.locator('button[data-value="vision"]')).toBeVisible();
+    await expect(toggle.locator('button[data-value="game"]')).toBeVisible();
+
+    // Switch to Vision tab
+    await toggle.locator('button[data-value="vision"]').click();
+    await expect(toggle.locator('button[data-value="vision"]')).toHaveClass(/active/);
+    await expect(page.locator('#dm-vision-view')).toBeVisible();
+    await expect(page.locator('#dv-preset-strip .dv-preset-btn')).toHaveCount(8);
+    await expect(page.locator('#dv-rules-list .dv-rule-card')).toHaveCount(9);
+    await expect(page.locator('#dv-verdict-title')).toHaveText('COMPLIANT');
+    await expect(page.locator('#dv-verdict-sub')).toHaveText('9 / 9 Passed');
+
+    // Select a failing preset (Tilted Selfie -> 8 Fails)
+    await page.locator('#dv-preset-strip .dv-preset-btn[data-preset-id="id_fail_tilted_glasses_selfie.jpg"]').click();
+    await expect(page.locator('#dv-verdict-title')).toHaveText('8 ISSUES DETECTED');
+    await expect(page.locator('#dv-verdict-sub')).toHaveText('1 / 9 Passed');
+  });
 });
+
