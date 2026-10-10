@@ -32,6 +32,7 @@ export function renderSidebar(container: HTMLElement) {
       <div class="category-header">Decision</div>
       <ul>
         <li><a href="#/decision/decision_maker" class="nav-button" data-task="decision-maker">Decision Maker</a></li>
+        <li><a href="#/decision/id_photo" class="nav-button" data-task="decision-id-photo">Decision Maker - ID Photo</a></li>
         <li><a href="#/decision/dino_game" class="nav-button" data-task="dino-game">Decision Maker - Dino Game</a></li>
       </ul>
 

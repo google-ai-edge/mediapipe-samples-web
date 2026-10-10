@@ -258,6 +258,20 @@ export const TASK_BANNER_LINKS: Record<string, TaskBannerLinks> = {
     stackblitzUrl:
       'https://stackblitz.com/github/google-ai-edge/mediapipe-samples-web?file=src%2Ftasks%2Fdecision-maker.ts',
   },
+  '/decision/id_photo': {
+    label: 'Decision Maker - ID Photo',
+    docsUrl: MEDIAPIPE_DOCS_OVERVIEW_URL,
+    sampleCodeUrl:
+      'https://github.com/google-ai-edge/mediapipe-samples-web/blob/main/src/tasks/decision-maker-vision.ts',
+    samples: {
+      web: 'https://github.com/google-ai-edge/mediapipe-samples-web/blob/main/src/tasks/decision-maker-vision.ts',
+      android: 'https://github.com/google-ai-edge/mediapipe-samples/tree/main/examples/decision/android',
+      ios: MEDIAPIPE_DOCS_OVERVIEW_URL,
+      python: MEDIAPIPE_DOCS_OVERVIEW_URL,
+    },
+    stackblitzUrl:
+      'https://stackblitz.com/github/google-ai-edge/mediapipe-samples-web?file=src%2Ftasks%2Fdecision-maker-vision.ts',
+  },
   '/decision/dino_game': {
     label: 'Decision Maker - Dino Game',
     docsUrl: MEDIAPIPE_DOCS_OVERVIEW_URL,

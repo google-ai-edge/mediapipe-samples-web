@@ -1,0 +1,594 @@
+<div class="dt-root dv-root">
+  <!-- 1. Photo Input & Presets -------------------------------------------- -->
+  <section id="dv-input-card" class="dt-card dt-step">
+    <div class="dt-step-header">
+      <span class="dt-step-num">1</span>
+      <div class="dt-step-title">
+        Photo Input
+        <span class="dt-step-sub">Select a preset, upload an image, or use your live webcam</span>
+      </div>
+      <div class="dv-header-actions">
+        <button type="button" id="dv-guide-btn" class="dt-btn-sm active" title="Toggle biometric alignment guide">
+          <span class="material-icons">grid_on</span> Guide: ON
+        </button>
+        <button type="button" id="dv-webcam-btn" class="dt-btn-sm">
+          <span class="material-icons">videocam</span> <span id="dv-webcam-btn-label">Live Check</span>
+        </button>
+        <button type="button" id="dv-snap-btn" class="dt-action-btn dt-action-btn-sm" style="display: none">
+          <span class="material-icons">photo_camera</span> Freeze Photo
+        </button>
+        <label for="dv-upload-input" class="dt-action-btn dt-action-btn-sm dv-upload-label">
+          <span class="material-icons">upload_file</span> Upload Photo
+        </label>
+        <input id="dv-upload-input" type="file" accept="image/*" style="display: none" />
+      </div>
+    </div>
+
+    <div id="dv-preset-strip" class="dv-preset-strip"></div>
+  </section>
+
+  <!-- 2. Biometric & Vision Compliance ------------------------------------ -->
+  <section id="dv-result-card" class="dt-card dt-step">
+    <div class="dt-step-header">
+      <span class="dt-step-num">2</span>
+      <div class="dt-step-title">
+        ID &amp; Passport Photo Compliance
+        <span class="dt-step-sub">Click any rule to inspect or customize its reference examples</span>
+      </div>
+      <span id="dv-result-meta" class="dt-result-meta">9/9 rules</span>
+    </div>
+
+    <div class="dv-stage-grid">
+      <!-- Left: Portrait Viewport + Single-Line Verdict Banner -->
+      <div class="dv-viewport-col">
+        <div class="dv-viewport-frame">
+          <img id="dv-main-img" alt="Selected ID photo" />
+          <video id="dv-webcam-video" autoplay playsinline muted></video>
+          <svg id="dv-overlay-svg" viewBox="0 0 360 460" preserveAspectRatio="none"></svg>
+        </div>
+
+        <div id="dv-verdict-banner" class="dv-verdict-banner pass">
+          <div class="dv-verdict-main">
+            <span id="dv-verdict-icon" class="material-icons">check_circle</span>
+            <span id="dv-verdict-title">COMPLIANT</span>
+          </div>
+          <div id="dv-verdict-sub" class="dv-verdict-sub">9 / 9 Passed</div>
+        </div>
+      </div>
+
+      <!-- Right: 9 Passport & Visa Photo Rules Grid -->
+      <div class="dv-rules-col">
+        <div id="dv-rules-list" class="dv-rules-list"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. Reference Examples & Rule Calibration ---------------------------- -->
+  <section id="dv-exemplar-card" class="dt-card dt-step">
+    <div class="dt-step-header">
+      <span class="dt-step-num">3</span>
+      <div class="dt-step-title">
+        Reference Examples
+        <span id="dv-active-rule-title" class="dt-step-sub">1. Full Face Present</span>
+      </div>
+      <span id="dv-active-rule-badge" class="dv-rule-badge pass">PASS (95%)</span>
+    </div>
+
+    <p id="dv-active-rule-prompt" class="dv-rule-prompt"></p>
+
+    <div class="dv-exemplar-grid">
+      <!-- Passing Examples -->
+      <div class="dv-exemplar-col pass">
+        <div class="dv-exemplar-col-header">
+          <span class="dv-exemplar-col-title pass">
+            <span class="material-icons">check_circle</span> Passing Examples
+          </span>
+          <span id="dv-pos-count" class="dv-exemplar-count">2</span>
+        </div>
+        <div id="dv-pos-list" class="dv-exemplar-list"></div>
+        <div class="dv-exemplar-actions">
+          <button type="button" id="dv-add-pos-current" class="dt-btn-sm">
+            <span class="material-icons">add_photo_alternate</span> + Current
+          </button>
+          <label for="dv-upload-pos-input" class="dt-btn-sm dv-upload-exemplar-label">
+            <span class="material-icons">upload</span> Upload
+          </label>
+          <input id="dv-upload-pos-input" type="file" accept="image/*" style="display: none" />
+        </div>
+      </div>
+
+      <!-- Failing Examples -->
+      <div class="dv-exemplar-col fail">
+        <div class="dv-exemplar-col-header">
+          <span class="dv-exemplar-col-title fail"> <span class="material-icons">cancel</span> Failing Examples </span>
+          <span id="dv-neg-count" class="dv-exemplar-count">3</span>
+        </div>
+        <div id="dv-neg-list" class="dv-exemplar-list"></div>
+        <div class="dv-exemplar-actions">
+          <button type="button" id="dv-add-neg-current" class="dt-btn-sm">
+            <span class="material-icons">add_photo_alternate</span> + Current
+          </button>
+          <label for="dv-upload-neg-input" class="dt-btn-sm dv-upload-exemplar-label">
+            <span class="material-icons">upload</span> Upload
+          </label>
+          <input id="dv-upload-neg-input" type="file" accept="image/*" style="display: none" />
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <style>
+    .dv-root {
+      width: 100%;
+      max-width: 920px;
+    }
+
+    .dv-header-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .dv-header-actions .dt-btn-sm {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .dv-header-actions .dt-btn-sm .material-icons {
+      font-size: 16px;
+    }
+
+    .dv-header-actions .dt-btn-sm.active {
+      background: var(--primary-soft);
+      border-color: var(--primary-border);
+      color: var(--primary);
+      font-weight: 600;
+    }
+
+    .dv-upload-label {
+      margin: 0;
+      cursor: pointer;
+    }
+
+    /* ---- 8-Photo Preset Strip ---------------------------------------- */
+    .dv-preset-strip {
+      display: grid;
+      grid-template-columns: repeat(8, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    @media (max-width: 860px) {
+      .dv-preset-strip {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+    }
+
+    .dv-preset-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      padding: 6px 4px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-color);
+      background: var(--bg-color, #f8f9fa);
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .dv-preset-btn:hover {
+      border-color: var(--primary);
+      background: #fff;
+    }
+
+    .dv-preset-btn.active {
+      border-color: var(--primary);
+      background: var(--primary-soft);
+      box-shadow: 0 0 0 1px var(--primary);
+    }
+
+    .dv-preset-thumb {
+      width: 44px;
+      height: 54px;
+      object-fit: cover;
+      border-radius: 6px;
+      border: 1px solid var(--border-color);
+      background: #e8eaed;
+    }
+
+    .dv-preset-title {
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: var(--text-main);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 100%;
+    }
+
+    .dv-preset-tag {
+      font-family: 'Roboto Mono', monospace;
+      font-size: 0.65rem;
+      font-weight: 600;
+      padding: 1px 6px;
+      border-radius: 10px;
+      white-space: nowrap;
+    }
+
+    .dv-preset-tag.pass {
+      background: #e6f4ea;
+      color: #137333;
+    }
+
+    .dv-preset-tag.fail {
+      background: #fce8e6;
+      color: #c5221f;
+    }
+
+    /* ---- Main Split: Viewport (Left) + 9 Rules Grid (Right) ---------- */
+    .dv-stage-grid {
+      display: grid;
+      grid-template-columns: 240px minmax(0, 1fr);
+      gap: 14px;
+      align-items: stretch;
+    }
+
+    @media (max-width: 780px) {
+      .dv-stage-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .dv-viewport-col {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .dv-viewport-frame {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 360 / 460;
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+      background: #e8eaed;
+      border: 1px solid var(--border-color);
+    }
+
+    #dv-main-img,
+    #dv-webcam-video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: center center;
+      display: block;
+    }
+
+    #dv-webcam-video {
+      transform: scaleX(-1);
+      display: none;
+    }
+
+    #dv-overlay-svg {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+
+    .dv-verdict-banner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 10px 12px;
+      border-radius: var(--radius-sm);
+      border: 1px solid transparent;
+      font-weight: 600;
+    }
+
+    .dv-verdict-banner.pass {
+      background: #e6f4ea;
+      border-color: #ceead6;
+      color: #137333;
+    }
+
+    .dv-verdict-banner.fail {
+      background: #fce8e6;
+      border-color: #fad2cf;
+      color: #c5221f;
+    }
+
+    .dv-verdict-main {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.85rem;
+      white-space: nowrap;
+    }
+
+    .dv-verdict-main .material-icons {
+      font-size: 18px;
+    }
+
+    .dv-verdict-sub {
+      font-family: 'Roboto Mono', monospace;
+      font-size: 0.76rem;
+      white-space: nowrap;
+    }
+
+    /* ---- 9 Passport Compliance Rules Grid ---------------------------- */
+    .dv-rules-col {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+
+    .dv-rules-list {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+      flex: 1;
+    }
+
+    @media (max-width: 680px) {
+      .dv-rules-list {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    .dv-rule-card {
+      background: var(--bg-color, #f8f9fa);
+      border: 1px solid var(--border-color);
+      border-left: 3px solid var(--border-color);
+      border-radius: var(--radius-sm);
+      padding: 10px 11px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 6px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      min-width: 0;
+    }
+
+    .dv-rule-card.pass {
+      border-left-color: #137333;
+    }
+
+    .dv-rule-card.fail {
+      border-left-color: #c5221f;
+      background: #fef7f6;
+    }
+
+    .dv-rule-card:hover {
+      border-color: var(--primary);
+    }
+
+    .dv-rule-card.selected {
+      border-color: var(--primary);
+      background: #fff;
+      box-shadow: 0 0 0 1px var(--primary);
+    }
+
+    .dv-rule-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+      min-width: 0;
+    }
+
+    .dv-rule-name {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--text-main);
+      min-width: 0;
+      flex: 1;
+    }
+
+    .dv-rule-name span:last-child {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .dv-rule-name .material-icons {
+      font-size: 16px;
+      color: var(--primary);
+      flex-shrink: 0;
+    }
+
+    .dv-rule-card.fail .dv-rule-name .material-icons {
+      color: #c5221f;
+    }
+
+    .dv-rule-badge {
+      font-family: 'Roboto Mono', monospace;
+      font-size: 0.65rem;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 10px;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .dv-rule-badge.pass {
+      background: #e6f4ea;
+      color: #137333;
+    }
+
+    .dv-rule-badge.fail {
+      background: #fce8e6;
+      color: #c5221f;
+    }
+
+    .dv-rule-reason {
+      font-size: 0.74rem;
+      color: var(--text-secondary);
+      line-height: 1.3;
+    }
+
+    .dv-rule-bar-track {
+      width: 100%;
+      height: 5px;
+      border-radius: 3px;
+      background: #e8eaed;
+      overflow: hidden;
+    }
+
+    .dv-rule-bar-fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 0.2s ease;
+    }
+
+    .dv-rule-bar-fill.pass {
+      background: #137333;
+    }
+
+    .dv-rule-bar-fill.fail {
+      background: #c5221f;
+    }
+
+    /* ---- Reference Examples & Calibration ---------------------------- */
+    .dv-rule-prompt {
+      font-size: 0.84rem;
+      color: var(--text-secondary);
+      margin: 0 0 12px;
+      line-height: 1.4;
+    }
+
+    .dv-exemplar-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    @media (max-width: 640px) {
+      .dv-exemplar-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .dv-exemplar-col {
+      background: var(--bg-color, #f8f9fa);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-sm);
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .dv-exemplar-col.pass {
+      border-top: 3px solid #137333;
+    }
+
+    .dv-exemplar-col.fail {
+      border-top: 3px solid #c5221f;
+    }
+
+    .dv-exemplar-col-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .dv-exemplar-col-title {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 0.78rem;
+      font-weight: 600;
+    }
+
+    .dv-exemplar-col-title .material-icons {
+      font-size: 16px;
+    }
+
+    .dv-exemplar-col-title.pass {
+      color: #137333;
+    }
+
+    .dv-exemplar-col-title.fail {
+      color: #c5221f;
+    }
+
+    .dv-exemplar-count {
+      font-family: 'Roboto Mono', monospace;
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+    }
+
+    .dv-exemplar-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .dv-exemplar-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 8px 4px 6px;
+      border-radius: 6px;
+      border: 1px solid var(--border-color);
+      background: #fff;
+      font-size: 0.75rem;
+      color: var(--text-main);
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .dv-exemplar-item.off {
+      opacity: 0.45;
+    }
+
+    .dv-exemplar-item input[type='checkbox'] {
+      margin: 0;
+      accent-color: var(--primary);
+      cursor: pointer;
+    }
+
+    .dv-exemplar-thumb {
+      width: 24px;
+      height: 30px;
+      object-fit: cover;
+      border-radius: 4px;
+      border: 1px solid var(--border-color);
+    }
+
+    .dv-exemplar-actions {
+      display: flex;
+      gap: 6px;
+      margin-top: auto;
+      padding-top: 4px;
+    }
+
+    .dv-exemplar-actions .dt-btn-sm {
+      flex: 1;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      text-align: center;
+    }
+
+    .dv-exemplar-actions .dt-btn-sm .material-icons {
+      font-size: 15px;
+    }
+
+    .dv-upload-exemplar-label {
+      margin: 0;
+      cursor: pointer;
+    }
+  </style>
+</div>
