@@ -24,14 +24,14 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.64.0",
-    "@types/node": "^26.6.4",
+    "@types/node": "^26.6.5",
     "esbuild": "^0.28.2",
     "eslint-plugin-html": "^8.2.1",
     "husky": "^9.1.7",
     "lint-staged": "^17.6.0",
-    "prettier": "^3.9.9",
+    "prettier": "^3.9.10",
     "typescript": "^7.0.2",
-    "vite": "^8.3.3"
+    "vite": "^8.3.4"
   },
   "lint-staged": {
     "src/**/*.{ts,html,css}": "prettier --write"
