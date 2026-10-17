@@ -25,7 +25,11 @@
 
 import type { QuestionKind } from '../tasks/decision-maker-json';
 import { resolveModelDownloadUrl } from './model-cache';
-import { EMBEDDING_GEMMA_2_TEXT_270M, EMBEDDING_GEMMA_2_TEXT_VISION_440M } from './model-registry';
+import {
+  EMBEDDING_GEMMA_2_740M,
+  EMBEDDING_GEMMA_2_TEXT_270M,
+  EMBEDDING_GEMMA_2_TEXT_VISION_440M,
+} from './model-registry';
 
 /**
  * Built-in models. `url` models are downloaded directly (through the shared
@@ -47,6 +51,12 @@ export const DECISION_MODELS: Record<
     label: EMBEDDING_GEMMA_2_TEXT_VISION_440M.name,
     file: EMBEDDING_GEMMA_2_TEXT_VISION_440M.fileName,
     url: EMBEDDING_GEMMA_2_TEXT_VISION_440M.url,
+    supportsVision: true,
+  },
+  embeddinggemma2_740m: {
+    label: EMBEDDING_GEMMA_2_740M.name,
+    file: EMBEDDING_GEMMA_2_740M.fileName,
+    url: EMBEDDING_GEMMA_2_740M.url,
     supportsVision: true,
   },
   laya_s256: {

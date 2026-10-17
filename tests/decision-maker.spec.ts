@@ -151,5 +151,27 @@ test.describe('Decision Maker Task', () => {
     await page.locator('#dv-rules-list .dv-rule-card[data-rule-id="no_glasses"]').click();
     await expect(page.locator('#dv-active-rule-title')).toContainText('7. No Eyeglasses or Sunglasses');
   });
-});
 
+  test('should support Scene Image and Text State input modes in Dino Game', async ({ page }) => {
+    await page.goto('/#/decision/dino_game');
+    await page.waitForLoadState('domcontentloaded');
+
+    await expect(page.locator('.output-header h2')).toHaveText('Decision Maker - Dino Game');
+    await expect(page.locator('.model-select')).toHaveValue('embeddinggemma2_text_vision_440m');
+
+    await expect(page.locator('#dm-mode-image')).toHaveClass(/active/);
+    await expect(page.locator('#dm-scene-preview-wrap')).toBeVisible();
+    await expect(page.locator('#dm-scene-canvas')).toBeVisible();
+    await expect(page.locator('#dm-scene-canvas')).toHaveAttribute('width', '768');
+    await expect(page.locator('#dm-scene-canvas')).toHaveAttribute('height', '192');
+    await expect(page.locator('#dm-proto-grid .dm-proto-card')).toHaveCount(6);
+    await expect(page.locator('#dm-prompt')).toBeHidden();
+
+    // Switch to Text State mode
+    await page.locator('#dm-mode-text').click();
+    await expect(page.locator('#dm-mode-text')).toHaveClass(/active/);
+    await expect(page.locator('#dm-prompt')).toBeVisible();
+    await expect(page.locator('#dm-scene-preview-wrap')).toBeHidden();
+    await expect(page.locator('#dm-proto-section')).toBeHidden();
+  });
+});
