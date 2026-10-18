@@ -23,6 +23,20 @@
     <div class="section-title">Settings</div>
     <div class="control-group">
       <div class="control-label">
+        <span>Scene Input Modality</span>
+      </div>
+      <div class="dm-mode-switch" role="group" aria-label="Scene input modality">
+        <button type="button" id="dm-mode-image" class="dm-mode-btn active">
+          <span class="material-icons">image</span><span>Scene Image</span>
+        </button>
+        <button type="button" id="dm-mode-text" class="dm-mode-btn">
+          <span class="material-icons">notes</span><span>Text State</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="control-group">
+      <div class="control-label">
         <span>Simulation Speed</span>
         <span id="dm-speed-value" class="value-badge">1x</span>
       </div>
@@ -31,7 +45,7 @@
 
     <div class="control-group">
       <label class="dm-checkbox">
-        <input type="checkbox" id="dm-pause-on-decision" checked />
+        <input type="checkbox" id="dm-pause-on-decision" />
         <span>Pause when the model picks JUMP or DUCK</span>
       </label>
     </div>
@@ -50,10 +64,10 @@
     </div>
     <div class="viewport">
       <div id="dm-game-view" class="dm-view">
-        <p class="dm-help">
-          The model never sees the game. When something new comes into view, it gets a one-line text description and
-          makes a Choice: <b>jump</b>, <b>duck</b>, or <b>wait</b>. It has about 100 ms to answer before the dino must
-          move.
+        <p id="dm-help" class="dm-help">
+          The game captures the <b>full 768×192 game scene</b> (dino on the left and all near &amp; far obstacles on the
+          track—with no text labels) and compares those pixels against 6 reference full-scene prototypes in
+          <code>DecisionMaker</code> to choose: <b>jump</b>, <b>duck</b>, <b>sprint</b>, or <b>wait</b>.
         </p>
         <canvas id="dm-canvas" class="dm-canvas"></canvas>
 
@@ -73,6 +87,11 @@
                 <span id="dm-prob-value-DUCK" class="dm-prob-value">-</span>
               </div>
               <div class="dm-prob">
+                <span class="dm-label dm-prob-label">sprint</span>
+                <div class="dm-prob-bar"><div id="dm-prob-SPRINT" class="dm-prob-fill"></div></div>
+                <span id="dm-prob-value-SPRINT" class="dm-prob-value">-</span>
+              </div>
+              <div class="dm-prob">
                 <span class="dm-label dm-prob-label">wait</span>
                 <div class="dm-prob-bar"><div id="dm-prob-WAIT" class="dm-prob-fill"></div></div>
                 <span id="dm-prob-value-WAIT" class="dm-prob-value">-</span>
@@ -88,11 +107,30 @@
           </div>
 
           <div class="dm-card">
-            <div class="dm-label">Model input</div>
-            <div id="dm-prompt" class="dm-prompt">(model not called yet)</div>
-            <div class="dm-question">
-              <span class="dm-label">Choice</span> <span id="dm-question-text"></span>
-              <ul id="dm-options" class="dm-options"></ul>
+            <div class="dm-input-header">
+              <div class="dm-label" id="dm-input-label">Model input (full 768×192 game scene)</div>
+              <span id="dm-input-badge" class="dm-input-badge">Vision · { imageBytes }</span>
+            </div>
+            <div class="dm-input-body">
+              <div id="dm-scene-preview-wrap" class="dm-scene-preview-wrap">
+                <canvas id="dm-scene-canvas" width="768" height="192" class="dm-scene-canvas"></canvas>
+                <div id="dm-scene-caption" class="dm-scene-caption">
+                  Full 768×192 native-patch scene sent to model (dino + near &amp; far obstacles)
+                </div>
+              </div>
+              <div class="dm-input-details">
+                <div id="dm-prompt" class="dm-prompt" style="display: none">(model not called yet)</div>
+                <div class="dm-question">
+                  <span class="dm-label">Choice</span> <span id="dm-question-text"></span>
+                  <ul id="dm-options" class="dm-options" style="display: none"></ul>
+                  <div id="dm-proto-section" class="dm-proto-section">
+                    <div class="dm-proto-subtitle">
+                      Encoded reference full-scene options (<code>options[].imageBytes</code>):
+                    </div>
+                    <div id="dm-proto-grid" class="dm-proto-grid"></div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -227,6 +265,10 @@
       background: var(--primary);
       color: #fff;
     }
+    .dm-action.sprint {
+      background: #0b8043;
+      color: #fff;
+    }
     .dm-action.crash {
       background: #d93025;
       color: #fff;
@@ -241,7 +283,7 @@
       display: flex;
       flex-direction: column;
       gap: 4px;
-      width: 220px;
+      width: 230px;
     }
     .dm-prob {
       display: flex;
@@ -249,7 +291,7 @@
       gap: 8px;
     }
     .dm-prob-label {
-      width: 36px;
+      width: 44px;
     }
     .dm-prob-bar {
       flex: 1;
@@ -312,6 +354,162 @@
       border-radius: 6px;
       color: var(--text-main);
       margin-top: 6px;
+    }
+    .dm-mode-switch {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      margin-top: 6px;
+    }
+    .dm-mode-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      padding: 7px 10px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-color);
+      background: var(--surface);
+      color: var(--text-secondary);
+      font-size: 0.82rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .dm-mode-btn .material-icons {
+      font-size: 16px;
+    }
+    .dm-mode-btn:hover {
+      border-color: var(--primary);
+      color: var(--text-main);
+    }
+    .dm-mode-btn.active {
+      background: rgba(0, 127, 139, 0.1);
+      border-color: var(--primary);
+      color: var(--primary);
+      font-weight: 600;
+    }
+    .dm-input-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .dm-input-badge {
+      font-family: 'Roboto Mono', monospace;
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: rgba(0, 127, 139, 0.1);
+      color: var(--primary);
+    }
+    .dm-input-body {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .dm-scene-preview-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 4px;
+      width: 100%;
+    }
+    .dm-scene-canvas {
+      width: 100%;
+      max-width: 560px;
+      aspect-ratio: 768 / 192;
+      height: auto;
+      border: 1.5px solid #007f8b;
+      border-radius: 6px;
+      background: #fff;
+      image-rendering: pixelated;
+      display: block;
+    }
+    .dm-scene-caption {
+      font-family: 'Roboto Mono', monospace;
+      font-size: 0.72rem;
+      color: var(--text-secondary);
+    }
+    .dm-input-details {
+      width: 100%;
+    }
+    .dm-proto-section {
+      margin-top: 8px;
+    }
+    .dm-proto-subtitle {
+      font-size: 0.78rem;
+      color: var(--text-secondary);
+      margin-bottom: 6px;
+    }
+    .dm-proto-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(158px, 1fr));
+      gap: 6px;
+    }
+    .dm-proto-card {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      padding: 5px 6px;
+      border: 1px solid var(--border-color);
+      border-radius: 5px;
+      background: #fafafa;
+      transition:
+        border-color 0.15s,
+        background 0.15s,
+        box-shadow 0.15s;
+    }
+    .dm-proto-card.matched {
+      border-color: #007f8b;
+      background: rgba(0, 127, 139, 0.08);
+      box-shadow: 0 0 0 1px #007f8b;
+    }
+    .dm-proto-thumb {
+      width: 100%;
+      aspect-ratio: 768 / 192;
+      height: auto;
+      border: 1px solid #dadce0;
+      border-radius: 3px;
+      background: #fff;
+      image-rendering: pixelated;
+      display: block;
+    }
+    .dm-proto-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 4px;
+      font-size: 0.68rem;
+      color: var(--text-secondary);
+      line-height: 1.2;
+    }
+    .dm-proto-badge {
+      font-family: 'Roboto Mono', monospace;
+      font-weight: 700;
+      font-size: 0.62rem;
+      padding: 1px 4px;
+      border-radius: 3px;
+      background: #e8eaed;
+      color: #3c4043;
+      flex-shrink: 0;
+    }
+    .dm-proto-badge.jump,
+    .dm-proto-badge.duck {
+      background: rgba(0, 127, 139, 0.14);
+      color: #007f8b;
+    }
+    .dm-proto-badge.sprint {
+      background: rgba(11, 128, 67, 0.14);
+      color: #0b8043;
+    }
+    .dm-proto-title {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      flex: 1;
     }
   </style>
 </div>

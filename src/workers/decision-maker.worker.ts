@@ -198,9 +198,11 @@ class DecisionMakerWorker extends BaseWorker<DecisionMaker> {
     question: {
       criteria?: Record<string, string>;
       /** Alternative to `criteria`, as accepted by ChoiceQuestion (used e.g. by the Dino game). */
-      options?: Array<{ label: string; description?: string }>;
+      options?: Array<{ label: string; description?: string; imageBytes?: Uint8Array }>;
       instructions?: string;
       context?: string;
+      temperature?: number;
+      normalizePrior?: boolean;
     },
     imageBytes?: Uint8Array
   ): Promise<{ selectedKey: string; probabilities: Record<string, number>; lowSignal?: boolean }> {
@@ -216,7 +218,8 @@ class DecisionMakerWorker extends BaseWorker<DecisionMaker> {
     }
 
     const hasImage = Boolean(imageBytes && imageBytes.byteLength > 0);
-    if (!hasImage && isTooShort(text)) {
+    const hasOptionMedia = (question.options ?? []).some((o) => o.imageBytes && o.imageBytes.byteLength > 0);
+    if (!hasImage && !hasOptionMedia && isTooShort(text)) {
       const fallbackKey = keys[keys.length - 1];
       const probs: Record<string, number> = {};
       for (const k of keys) probs[k] = k === fallbackKey ? 1 : 0;
@@ -227,14 +230,20 @@ class DecisionMakerWorker extends BaseWorker<DecisionMaker> {
 
     if (this.isEmbeddingGemma) {
       return dm.evaluateChoice(input, {
-        instructions: '',
+        instructions: hasOptionMedia ? (question.instructions ?? '') : '',
         criteria,
-      });
+        ...(hasOptionMedia ? { options: question.options } : {}),
+        ...(typeof question.temperature === 'number' ? { temperature: question.temperature } : {}),
+        ...(typeof question.normalizePrior === 'boolean' ? { normalizePrior: question.normalizePrior } : {}),
+      } as any);
     }
     return dm.evaluateChoice(input, {
       instructions: question.instructions,
       context: question.context,
       criteria,
+      ...(hasOptionMedia ? { options: question.options } : {}),
+      ...(typeof question.temperature === 'number' ? { temperature: question.temperature } : {}),
+      ...(typeof question.normalizePrior === 'boolean' ? { normalizePrior: question.normalizePrior } : {}),
     } as any);
   }
 

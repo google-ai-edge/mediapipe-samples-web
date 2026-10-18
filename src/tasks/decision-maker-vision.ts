@@ -22,6 +22,7 @@
  */
 
 import template from '../templates/decision-maker-vision.html?raw';
+import { DECISION_MODELS } from '../components/decision-runtime';
 
 export interface PassportRuleOption {
   label: string;
@@ -360,6 +361,30 @@ function photoAssetUrl(fileName: string): string {
   return `${normalizedBase}images/id_photos/${fileName}`;
 }
 
+function isBuiltInPhotoId(id: string): boolean {
+  return id.endsWith('.jpg') && !id.includes('_1');
+}
+
+function presetThumbSrc(p: PhotoPreset): string {
+  return isBuiltInPhotoId(p.id) ? photoAssetUrl(`thumbs/${p.id}`) : p.url;
+}
+
+function presetThumbSrcSet(p: PhotoPreset): string {
+  return isBuiltInPhotoId(p.id)
+    ? `${photoAssetUrl(`thumbs_1x/${p.id}`)} 1x, ${photoAssetUrl(`thumbs/${p.id}`)} 2x`
+    : '';
+}
+
+function exemplarThumbSrc(item: ExemplarEntry): string {
+  return isBuiltInPhotoId(item.id) ? photoAssetUrl(`thumbs_1x/${item.id}`) : item.url;
+}
+
+function exemplarThumbSrcSet(item: ExemplarEntry): string {
+  return isBuiltInPhotoId(item.id)
+    ? `${photoAssetUrl(`thumbs_xs/${item.id}`)} 1x, ${photoAssetUrl(`thumbs_1x/${item.id}`)} 2x`
+    : '';
+}
+
 export const PRESET_PHOTOS: PhotoPreset[] = [
   {
     id: 'passport_compliant_female.jpg',
@@ -687,7 +712,8 @@ export class DecisionVisionPlayground {
   private isVisionModelReady(): boolean {
     if (!this.modelState.ready || !this.ask) return false;
     return (
-      this.modelState.loadedValue === 'embeddinggemma2_text_vision_440m' || Boolean(this.modelState.hasCustomModel)
+      Boolean(this.modelState.loadedValue && DECISION_MODELS[this.modelState.loadedValue]?.supportsVision) ||
+      Boolean(this.modelState.hasCustomModel)
     );
   }
 
@@ -974,8 +1000,10 @@ export class DecisionVisionPlayground {
       btn.dataset.presetId = p.id;
       btn.addEventListener('click', () => this.selectPresetPhoto(p.id));
       const tagClass = p.isCompliant === null ? '' : p.isCompliant ? 'pass' : 'fail';
+      const thumbSrc = presetThumbSrc(p);
+      const thumbSet = presetThumbSrcSet(p);
       btn.innerHTML = `
-        <img class="dv-preset-thumb" src="${p.url}" alt="${p.title}" />
+        <img class="dv-preset-thumb" src="${thumbSrc}"${thumbSet ? ` srcset="${thumbSet}"` : ''} alt="${p.title}" />
         <div class="dv-preset-title">${p.title}</div>
         <span class="dv-preset-tag ${tagClass}">${p.sub}</span>
       `;
@@ -1056,16 +1084,14 @@ export class DecisionVisionPlayground {
       if (isPending) {
         banner.className = 'dv-verdict-banner';
         iconEl.textContent = 'hourglass_top';
-        titleEl.textContent = this.isVisionModelReady() ? 'EVALUATING PHOTO…' : 'LOADING 435M-VL MODEL…';
-        subEl.textContent = this.isVisionModelReady()
-          ? 'Scoring 9 biometric compliance rules…'
-          : 'Waiting for model initialization…';
+        titleEl.textContent = this.isVisionModelReady() ? 'EVALUATING…' : 'LOADING MODEL…';
+        subEl.textContent = this.isVisionModelReady() ? '9 Rules' : 'Please wait';
       } else {
         banner.className = 'dv-verdict-banner ' + (allPassed ? 'pass' : 'fail');
         iconEl.textContent = allPassed ? 'check_circle' : 'error';
         const failCount = PASSPORT_RULES.length - passCount;
         titleEl.textContent = allPassed ? 'COMPLIANT' : `${failCount} ISSUE${failCount > 1 ? 'S' : ''}`;
-        subEl.textContent = `${passCount} / ${PASSPORT_RULES.length} Passed`;
+        subEl.textContent = `${passCount}/${PASSPORT_RULES.length} Passed`;
       }
     }
 
@@ -1159,7 +1185,9 @@ export class DecisionVisionPlayground {
         });
         const img = document.createElement('img');
         img.className = 'dv-exemplar-thumb';
-        img.src = item.url;
+        img.src = exemplarThumbSrc(item);
+        const srcSet = exemplarThumbSrcSet(item);
+        if (srcSet) img.srcset = srcSet;
         img.alt = item.name;
         const span = document.createElement('span');
         span.textContent = item.name;
