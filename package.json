@@ -15,23 +15,23 @@
     "prepare": "husky"
   },
   "dependencies": {
-    "@mediapipe/tasks-audio": "^1.1.0",
+    "@mediapipe/tasks-audio": "^1.1.1",
     "@mediapipe/tasks-decision": "^1.1.1",
-    "@mediapipe/tasks-retrieval": "^1.1.0",
-    "@mediapipe/tasks-text": "^1.1.0",
-    "@mediapipe/tasks-vision": "^1.1.0",
+    "@mediapipe/tasks-retrieval": "^1.1.1",
+    "@mediapipe/tasks-text": "^1.1.1",
+    "@mediapipe/tasks-vision": "^1.1.1",
     "mediapipe-od-ts": "link:"
   },
   "devDependencies": {
-    "@playwright/test": "^1.64.0",
-    "@types/node": "^26.6.4",
+    "@playwright/test": "^1.64.1",
+    "@types/node": "^26.6.5",
     "esbuild": "^0.28.2",
     "eslint-plugin-html": "^8.2.1",
     "husky": "^9.1.7",
     "lint-staged": "^17.6.0",
-    "prettier": "^3.9.9",
+    "prettier": "^3.9.10",
     "typescript": "^7.0.2",
-    "vite": "^8.3.3"
+    "vite": "^8.3.5"
   },
   "lint-staged": {
     "src/**/*.{ts,html,css}": "prettier --write"
