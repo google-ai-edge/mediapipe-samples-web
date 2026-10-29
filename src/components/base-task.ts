@@ -41,6 +41,8 @@ export abstract class BaseTask {
   protected initQueue: string[] = [];
 
   protected isWorkerReady = false;
+  /** Set once a model load has been requested (explicitly or automatically). */
+  protected modelRequested = false;
 
   constructor(protected options: BaseTaskOptions) {
     this.container = options.container;
@@ -62,6 +64,12 @@ export abstract class BaseTask {
     this.onInitializeUI();
     this.setupDelegateSelect();
 
+    // Tasks with large models (`autoLoad: false`) wait for "Initialize Task"
+    // (or for the selector to auto-load a model that is already cached).
+    if (this.getModelSelectorConfig().autoLoad === false) {
+      this.updateStatus('Model not loaded');
+      return;
+    }
     await this.initializeTask();
   }
 
@@ -160,7 +168,9 @@ export abstract class BaseTask {
     if (delegateSelect) {
       delegateSelect.addEventListener('change', async () => {
         this.currentDelegate = delegateSelect.value as 'GPU' | 'CPU';
-        await this.initializeTask();
+        // Only reload a model that was already requested; never start a
+        // (potentially large) download just because the delegate changed.
+        if (this.modelRequested) await this.initializeTask();
       });
       delegateSelect.value = this.currentDelegate;
     }
@@ -209,6 +219,7 @@ export abstract class BaseTask {
   }
 
   protected async initializeTask(): Promise<void> {
+    this.modelRequested = true;
     document.querySelector('.viewport')?.classList.add('loading-model');
     this.isWorkerReady = false;
     this.inferenceTimer.resetRollingWindow();
