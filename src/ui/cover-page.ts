@@ -25,6 +25,13 @@ export function setupCoverPage(container: HTMLElement) {
                   <p>Classify audio clips into categories.</p>
                 </div>
               </a>
+              <a href="#/audio/audio_transcriber" class="cover-card">
+                <span class="material-icons card-icon">subtitles</span>
+                <div class="card-content">
+                  <h3>Audio Transcriber</h3>
+                  <p>Transcribe speech to text in real time.</p>
+                </div>
+              </a>
             </div>
           </div>
 

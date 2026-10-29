@@ -1,0 +1,190 @@
+<div class="task-container">
+  <!-- Controls on Left -->
+  <div class="controls-panel">
+    <!-- Model Section -->
+    <div class="section-title">Model Selection</div>
+    <div id="model-selector-container"></div>
+
+    <div class="divider"></div>
+
+    <!-- Settings Section -->
+    <div class="section-title">Settings</div>
+
+    <div class="control-group">
+      <label class="checkbox-label" style="display: flex; align-items: center; gap: 8px; cursor: pointer">
+        <input type="checkbox" id="interim-results" checked />
+        <span>Show interim results</span>
+      </label>
+    </div>
+
+    <div class="control-group">
+      <div class="control-label">
+        <span>Delegate</span>
+      </div>
+      <div class="select-wrapper">
+        <select id="delegate-select">
+          <option value="GPU" selected>GPU</option>
+          <option value="CPU">CPU</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="status-group">
+      <div id="status-message" class="status-message">Ready</div>
+      <div id="inference-time" class="inference-time">Inference Time: - ms</div>
+    </div>
+  </div>
+
+  <!-- Output on Right -->
+  <div class="output-panel">
+    <div class="output-header">
+      <h2>Audio Transcriber</h2>
+      <div id="view-mode-toggle"></div>
+    </div>
+
+    <div class="viewport audio-viewport">
+      <!-- Microphone View -->
+      <div id="view-microphone" class="view-content active">
+        <div class="cam-container">
+          <div class="audio-visualizer-container">
+            <canvas id="waveform-canvas"></canvas>
+          </div>
+          <button id="recordButton" class="action-button" style="margin-top: 20px" disabled>
+            <span class="material-icons">mic</span> Start Recording
+          </button>
+        </div>
+      </div>
+
+      <!-- File View -->
+      <div id="view-file" class="view-content">
+        <div class="upload-dropzone">
+          <div class="dropzone-content">
+            <span class="material-icons large-icon">audio_file</span>
+            <p>Drag and drop or click to upload audio</p>
+            <input type="file" id="audio-upload" accept="audio/*,video/*" />
+          </div>
+          <div id="audio-preview-container" class="preview-container" style="display: none">
+            <audio id="audio-player" controls style="width: 100%; margin-bottom: 20px"></audio>
+            <button id="run-file-transcription" class="action-button" disabled>
+              <span class="material-icons">subtitles</span> Transcribe Audio
+            </button>
+            <div id="file-progress" class="asr-file-progress" style="display: none">
+              <div id="file-progress-bar" class="asr-file-progress-bar"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Transcript for both views -->
+      <div class="asr-transcript-card">
+        <div class="asr-transcript-header">
+          <span class="asr-transcript-title">Transcript</span>
+          <div class="asr-transcript-actions">
+            <span id="asr-rtf" class="asr-rtf" title="Inference time / audio duration"></span>
+            <button id="asr-copy-btn" class="sample-chip" disabled>
+              <span class="material-icons" style="font-size: 16px; margin-right: 4px">content_copy</span>Copy
+            </button>
+            <button id="asr-clear-btn" class="sample-chip" disabled>
+              <span class="material-icons" style="font-size: 16px; margin-right: 4px">delete</span>Clear
+            </button>
+          </div>
+        </div>
+        <div id="asr-transcript" class="asr-transcript" aria-live="polite"></div>
+      </div>
+    </div>
+  </div>
+
+  <style>
+    .asr-transcript-card {
+      width: 100%;
+      max-width: 640px;
+      padding: 0 10px 20px 10px;
+      box-sizing: border-box;
+    }
+
+    .asr-transcript-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+      gap: 8px;
+    }
+
+    .asr-transcript-title {
+      font-size: 0.76rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--text-secondary);
+    }
+
+    .asr-transcript-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .asr-rtf {
+      font-family: 'Roboto Mono', monospace;
+      font-size: 0.78rem;
+      color: var(--text-secondary);
+    }
+
+    .asr-transcript {
+      min-height: 140px;
+      max-height: 320px;
+      overflow-y: auto;
+      padding: 12px 14px;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-sm);
+      background: #ffffff;
+      font-size: 1rem;
+      line-height: 1.6;
+      color: var(--text-main);
+    }
+
+    .asr-transcript:empty::before {
+      content: 'Record from the microphone or transcribe an audio file to see the transcript here.';
+      color: #9aa0a6;
+      font-style: italic;
+    }
+
+    .asr-segment {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 6px;
+    }
+
+    .asr-segment-time {
+      flex-shrink: 0;
+      font-family: 'Roboto Mono', monospace;
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      padding-top: 3px;
+      min-width: 44px;
+    }
+
+    .asr-segment.interim .asr-segment-text {
+      color: var(--text-secondary);
+      font-style: italic;
+    }
+
+    .asr-file-progress {
+      width: 100%;
+      height: 6px;
+      margin-top: 12px;
+      background: var(--border-color);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .asr-file-progress-bar {
+      width: 0;
+      height: 100%;
+      background: var(--primary);
+      transition: width 0.15s linear;
+    }
+  </style>
+</div>

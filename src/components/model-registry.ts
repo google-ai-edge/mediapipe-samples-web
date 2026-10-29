@@ -59,3 +59,14 @@ export const EMBEDDING_GEMMA_2_740M: HostedModel = {
 export function hostedModelDownloadUrl(model: HostedModel): string {
   return resolveModelDownloadUrl(model.url, model.fileName);
 }
+
+export const PARAKEET_TDT_V3: HostedModel = {
+  id: 'parakeet_tdt_v3',
+  name: 'Parakeet-TDT-0.6B-v3 (25 languages)',
+  url: 'https://huggingface.co/litert-community/parakeet-tdt-0.6b-v3/tree/3ce205aa928f443f423214195cfe83ebe4802826',
+  fileName: 'parakeet_tdt_0.6b_v3_5s_i8_stateful.litertlm',
+  description: '25 languages',
+};
+
+/** ASR models published on the LiteRT Hugging Face community. */
+export const ASR_MODELS: HostedModel[] = [PARAKEET_TDT_V3];
