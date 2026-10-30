@@ -19,6 +19,7 @@ import { setupObjectDetector, cleanupObjectDetector } from './tasks/object-detec
 import { setupImageSegmenter, cleanupImageSegmenter } from './tasks/image-segmenter';
 import { setupAudioClassifier, cleanupAudioClassifier } from './tasks/audio-classifier';
 import { setupAudioTranscriber, cleanupAudioTranscriber } from './tasks/audio-transcriber';
+import { setupTextToSpeech, cleanupTextToSpeech } from './tasks/text-to-speech';
 import { setupTextClassifier, cleanupTextClassifier } from './tasks/text-classifier';
 import { setupTextEmbedder, cleanupTextEmbedder } from './tasks/text-embedder';
 import { setupFaceDetector, cleanupFaceDetector } from './tasks/face-detector';
@@ -152,6 +153,11 @@ const routes = {
     setup: setupAudioTranscriber,
     cleanup: cleanupAudioTranscriber,
     label: 'Audio Transcriber',
+  },
+  '/audio/text_to_speech': {
+    setup: setupTextToSpeech,
+    cleanup: cleanupTextToSpeech,
+    label: 'Text to Speech',
   },
   '/text/text_classifier': {
     setup: setupTextClassifier,

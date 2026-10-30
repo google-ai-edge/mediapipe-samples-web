@@ -33,6 +33,7 @@ export function renderMobileNav(container: HTMLElement) {
         <option value="#/vision/object_detector">Object Detection</option>
         <option value="#/audio/audio_classifier">Audio Classifier</option>
         <option value="#/audio/audio_transcriber">Audio Transcriber</option>
+        <option value="#/audio/text_to_speech">Text to Speech</option>
         <option value="#/text/text_classifier">Text Classification</option>
         <option value="#/text/language_detector">Language Detection</option>
         <option value="#/text/text_embedder">Text Embedding</option>

@@ -1,0 +1,233 @@
+<div class="task-container">
+  <!-- Controls on Left -->
+  <div class="controls-panel">
+    <!-- Model Section -->
+    <div class="section-title">Model Selection</div>
+    <div id="model-selector-container"></div>
+
+    <div class="divider"></div>
+
+    <!-- Settings Section -->
+    <div class="section-title">Settings</div>
+
+    <div class="control-group">
+      <div class="control-label">
+        <span>Voice</span>
+      </div>
+      <div class="select-wrapper">
+        <select id="voice-select" disabled>
+          <option value="">Load a model first</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="control-group">
+      <div class="control-label">
+        <span>Speaking Rate</span>
+        <span id="speaking-rate-value" class="value-badge">1.0</span>
+      </div>
+      <input type="range" id="speaking-rate" min="0.5" max="2" step="0.1" value="1" class="range-slider" />
+      <div class="control-hint">Applied when the model is (re)initialized.</div>
+    </div>
+
+    <div class="control-group">
+      <div class="control-label">
+        <span>Delegate</span>
+      </div>
+      <div class="select-wrapper">
+        <select id="delegate-select">
+          <option value="GPU" selected>GPU</option>
+          <option value="CPU">CPU</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="status-group">
+      <div id="status-message" class="status-message">Ready</div>
+      <div id="inference-time" class="inference-time">Inference Time: - ms</div>
+    </div>
+  </div>
+
+  <!-- Output on Right -->
+  <div class="output-panel">
+    <div class="output-header">
+      <h2>Text to Speech</h2>
+    </div>
+
+    <div class="viewport tts-viewport">
+      <div class="tts-card">
+        <div class="preset-bar" id="tts-samples">
+          <span class="preset-bar-label">Samples</span>
+          <button class="sample-chip" data-sample="welcome">Welcome</button>
+          <button class="sample-chip" data-sample="story">Story</button>
+          <button class="sample-chip" data-sample="numbers">Numbers &amp; Dates</button>
+          <button class="sample-chip" data-sample="voice-language">In voice language</button>
+        </div>
+
+        <textarea
+          id="tts-text-input"
+          class="slot-textarea"
+          rows="5"
+          placeholder="Type or paste the text to speak..."
+        ></textarea>
+
+        <div class="tts-actions">
+          <button id="tts-speak-btn" class="action-button" disabled>
+            <span class="material-icons">record_voice_over</span> Speak
+          </button>
+          <button id="tts-stream-btn" class="action-button secondary" disabled>
+            <span class="material-icons">graphic_eq</span> Stream
+          </button>
+          <button id="tts-stop-btn" class="action-button secondary" disabled>
+            <span class="material-icons">stop</span> Stop
+          </button>
+          <button id="tts-download-btn" class="action-button secondary" disabled>
+            <span class="material-icons">download</span> WAV
+          </button>
+        </div>
+      </div>
+
+      <div id="tts-output" class="tts-output">
+        <div class="audio-visualizer-container">
+          <canvas id="tts-waveform"></canvas>
+        </div>
+
+        <div class="tts-metrics">
+          <div class="tts-metric">
+            <span class="tts-metric-label">First audio</span>
+            <span id="tts-metric-first" class="tts-metric-value">-</span>
+          </div>
+          <div class="tts-metric">
+            <span class="tts-metric-label">Synthesis</span>
+            <span id="tts-metric-total" class="tts-metric-value">-</span>
+          </div>
+          <div class="tts-metric">
+            <span class="tts-metric-label">Audio</span>
+            <span id="tts-metric-audio" class="tts-metric-value">-</span>
+          </div>
+          <div class="tts-metric">
+            <span class="tts-metric-label">Real-time factor</span>
+            <span id="tts-metric-rtf" class="tts-metric-value">-</span>
+          </div>
+        </div>
+
+        <div id="tts-transcript" class="tts-transcript" aria-live="polite"></div>
+      </div>
+    </div>
+  </div>
+
+  <style>
+    .tts-viewport {
+      justify-content: flex-start !important;
+      padding: 20px;
+      gap: 16px;
+    }
+
+    .tts-card,
+    .tts-output {
+      width: 100%;
+      max-width: 720px;
+    }
+
+    .tts-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .tts-actions .action-button {
+      margin-top: 0;
+    }
+
+    .tts-output .audio-visualizer-container {
+      margin-top: 0;
+    }
+
+    #tts-waveform {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .tts-metrics {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .tts-metric {
+      display: flex;
+      flex-direction: column;
+      padding: 8px 12px;
+      background: #f8fafc;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-sm);
+    }
+
+    .tts-metric-label {
+      font-size: 0.72rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--text-secondary);
+    }
+
+    .tts-metric-value {
+      font-family: 'Roboto Mono', monospace;
+      font-size: 0.95rem;
+      color: var(--text-main);
+      margin-top: 2px;
+    }
+
+    .tts-transcript {
+      margin-top: 12px;
+      padding: 12px 14px;
+      min-height: 48px;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-sm);
+      background: #ffffff;
+      font-size: 1rem;
+      line-height: 1.7;
+      color: var(--text-secondary);
+      white-space: pre-wrap;
+    }
+
+    .tts-transcript:empty::before {
+      content: 'Spoken words are highlighted here during playback.';
+      color: #9aa0a6;
+      font-style: italic;
+    }
+
+    .tts-transcript .tts-word {
+      border-radius: 4px;
+      padding: 0 1px;
+      transition: background-color 0.08s ease;
+    }
+
+    .tts-transcript .tts-word.spoken {
+      color: var(--text-main);
+    }
+
+    .tts-transcript .tts-word.active {
+      background: var(--primary-soft, #e0f2f1);
+      color: var(--primary);
+      font-weight: 500;
+    }
+
+    .control-hint {
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      margin-top: 4px;
+    }
+
+    @media (max-width: 600px) {
+      .tts-metrics {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+  </style>
+</div>
