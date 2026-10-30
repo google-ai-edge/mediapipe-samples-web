@@ -216,6 +216,19 @@ export const TASK_BANNER_LINKS: Record<string, TaskBannerLinks> = {
     stackblitzUrl:
       'https://stackblitz.com/github/google-ai-edge/mediapipe-samples-web?file=src%2Ftasks%2Faudio-transcriber.ts',
   },
+  '/audio/text_to_speech': {
+    label: 'Text to Speech',
+    docsUrl: 'https://developers.google.com/edge/mediapipe/solutions/audio/text_to_speech/web_js',
+    sampleCodeUrl: 'https://github.com/google-ai-edge/mediapipe-samples-web/blob/main/src/tasks/text-to-speech.ts',
+    samples: {
+      web: 'https://github.com/google-ai-edge/mediapipe-samples-web/blob/main/src/tasks/text-to-speech.ts',
+      android: 'https://github.com/google-ai-edge/mediapipe-samples/tree/main/examples/text_to_speech/android',
+      ios: 'https://github.com/google-ai-edge/mediapipe-samples/tree/main/examples/text_to_speech/ios',
+      python: '',
+    },
+    stackblitzUrl:
+      'https://stackblitz.com/github/google-ai-edge/mediapipe-samples-web?file=src%2Ftasks%2Ftext-to-speech.ts',
+  },
   '/text/text_classifier': {
     label: 'Text Classifier',
     docsUrl: 'https://developers.google.com/edge/mediapipe/solutions/text/text_classifier/web_js',

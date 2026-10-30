@@ -70,3 +70,14 @@ export const PARAKEET_TDT_V3: HostedModel = {
 
 /** ASR models published on the LiteRT Hugging Face community. */
 export const ASR_MODELS: HostedModel[] = [PARAKEET_TDT_V3];
+
+export const KOKORO_82M: HostedModel = {
+  id: 'kokoro_82m',
+  name: 'Kokoro-82M (9 languages)',
+  url: 'https://huggingface.co/litert-community/Kokoro-82M/tree/81e43a025bccabcbbd487f08bc3ebd65b5fc7295',
+  fileName: 'kokoro_int8_gpu_fp16.litertlm',
+  description: '9 languages',
+};
+
+/** TTS models published on the LiteRT Hugging Face community. */
+export const TTS_MODELS: HostedModel[] = [KOKORO_82M];

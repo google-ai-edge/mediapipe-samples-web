@@ -32,6 +32,13 @@ export function setupCoverPage(container: HTMLElement) {
                   <p>Transcribe speech to text in real time.</p>
                 </div>
               </a>
+              <a href="#/audio/text_to_speech" class="cover-card">
+                <span class="material-icons card-icon">record_voice_over</span>
+                <div class="card-content">
+                  <h3>Text to Speech</h3>
+                  <p>Synthesize natural speech from text.</p>
+                </div>
+              </a>
             </div>
           </div>
 
