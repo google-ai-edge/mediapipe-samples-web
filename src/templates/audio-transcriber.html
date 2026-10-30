@@ -14,8 +14,8 @@
       </div>
       <div class="select-wrapper">
         <select id="transcription-mode-select">
-          <option value="streaming" selected>Streaming (500 ms chunks)</option>
-          <option value="unary">Unary (Full Clip at Once)</option>
+          <option value="streaming" selected>Streaming</option>
+          <option value="unary">Unary</option>
         </select>
       </div>
     </div>
@@ -26,8 +26,8 @@
       </div>
       <div class="select-wrapper">
         <select id="interim-results-select">
-          <option value="true" selected>Enabled (Live Hypothesis)</option>
-          <option value="false">Finalized Segments Only</option>
+          <option value="true" selected>Enabled</option>
+          <option value="false">Disabled</option>
         </select>
       </div>
     </div>
@@ -38,8 +38,8 @@
       </div>
       <div class="select-wrapper">
         <select id="delegate-select">
-          <option value="GPU" selected>GPU (WebGPU)</option>
-          <option value="CPU">CPU (XNNPACK)</option>
+          <option value="GPU" selected>GPU</option>
+          <option value="CPU">CPU</option>
         </select>
       </div>
     </div>
@@ -74,41 +74,31 @@
                 type="button"
                 class="sample-btn active"
                 data-sample="sample_english_greeting.wav"
-                data-label="English Greeting (7.2s)"
+                data-label="English Greeting"
               >
-                EN Greeting (7.2s)
+                EN Greeting
               </button>
               <button
                 type="button"
                 class="sample-btn"
                 data-sample="sample_story_narration.wav"
-                data-label="Story Narration (9.4s)"
+                data-label="Story Narration"
               >
-                EN Story (9.4s)
+                EN Story
               </button>
               <button
                 type="button"
                 class="sample-btn"
                 data-sample="sample_wikipedia_long.wav"
-                data-label="Wikipedia Passage (34s)"
+                data-label="Wikipedia Passage"
               >
-                Wikipedia (34s)
+                Wikipedia
               </button>
-              <button
-                type="button"
-                class="sample-btn"
-                data-sample="sample_spanish.wav"
-                data-label="Spanish Sample (4.0s)"
-              >
-                Español (4s)
+              <button type="button" class="sample-btn" data-sample="sample_spanish.wav" data-label="Spanish Sample">
+                Español
               </button>
-              <button
-                type="button"
-                class="sample-btn"
-                data-sample="sample_french.wav"
-                data-label="French Sample (5.2s)"
-              >
-                Français (5s)
+              <button type="button" class="sample-btn" data-sample="sample_french.wav" data-label="French Sample">
+                Français
               </button>
             </div>
           </div>
@@ -155,7 +145,7 @@
             <div class="asr-card-title-group">
               <span class="material-icons asr-card-icon">mic</span>
               <span class="asr-card-title">Live Microphone Streaming</span>
-              <span id="mic-status-pill" class="asr-meta-pill">16 kHz PCM · 500 ms chunks</span>
+              <span id="mic-status-pill" class="asr-meta-pill">16 kHz PCM</span>
             </div>
           </div>
 

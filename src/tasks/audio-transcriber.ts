@@ -100,7 +100,7 @@ class AudioTranscriberTask {
   // Decoded clip state
   private clipSamples: Float32Array | null = null;
   private clipSampleRate = 16000;
-  private clipLabel = 'English Greeting (7.2s)';
+  private clipLabel = 'English Greeting';
 
   // Live microphone state
   private micAudioCtx: AudioContext | null = null;
@@ -153,7 +153,7 @@ class AudioTranscriberTask {
     this.initWorker();
 
     // Load default bundled sample clip
-    void this.loadSampleClip('sample_english_greeting.wav', 'English Greeting (7.2s)');
+    void this.loadSampleClip('sample_english_greeting.wav', 'English Greeting');
     void this.tryAutoLoadCachedModel();
   }
 
@@ -549,9 +549,8 @@ class AudioTranscriberTask {
 
       const progressFrac = audioDurationSec > 0 ? Math.min(1, audioProcessedSec / audioDurationSec) : 0;
       this.drawClipWaveform(this.clipSamples, progressFrac);
-      const winMetric = chunkLatencyMs > 0 ? ` (${Math.round(chunkLatencyMs)} ms/win)` : '';
-      this.transcriptMetricsBadge.textContent = `Streaming · ${audioProcessedSec.toFixed(1)}s / ${audioDurationSec.toFixed(1)}s${winMetric}`;
-      this.setStatus(`Transcribing (${audioProcessedSec.toFixed(1)}s / ${audioDurationSec.toFixed(1)}s)...`, 'busy');
+      this.transcriptMetricsBadge.textContent = `Streaming · ${audioProcessedSec.toFixed(1)}s / ${audioDurationSec.toFixed(1)}s`;
+      this.setStatus(`Transcribing ${audioProcessedSec.toFixed(1)}s / ${audioDurationSec.toFixed(1)}s...`, 'busy');
       return;
     }
 
@@ -563,11 +562,10 @@ class AudioTranscriberTask {
 
       const finalText = (result?.text || '').trim();
       const segments: TranscriptionSegment[] = result?.segments || [];
-      this.renderTranscript(finalText || '(No speech detected)', '', segments);
+      this.renderTranscript(finalText || 'No speech detected', '', segments);
 
       const rtf = audioDurationSec > 0 ? inferenceTime / 1000 / audioDurationSec : 0;
-      const speedX = rtf > 0 ? (1 / rtf).toFixed(1) : '-';
-      this.transcriptMetricsBadge.textContent = `Done · ${Math.round(inferenceTime)} ms · RTF ${rtf.toFixed(2)}x (${speedX}x RT)`;
+      this.transcriptMetricsBadge.textContent = `Done · ${Math.round(inferenceTime)} ms · RTF ${rtf.toFixed(2)}x`;
       this.setStatus('Ready', 'ready');
       this.updateControlsState();
       return;
@@ -581,8 +579,7 @@ class AudioTranscriberTask {
       }
       const displayInterim = interimText || (confirmedText ? '' : 'Listening...');
       this.renderTranscript(confirmedText, displayInterim, segments);
-      const winMetric = chunkLatencyMs > 0 ? ` (${Math.round(chunkLatencyMs)} ms/win)` : '';
-      this.micStatusPill.textContent = `Live · ${audioProcessedSec.toFixed(1)}s${winMetric}`;
+      this.micStatusPill.textContent = `Live · ${audioProcessedSec.toFixed(1)}s`;
       this.transcriptMetricsBadge.textContent = `Live Mic · ${audioProcessedSec.toFixed(1)}s`;
       return;
     }
@@ -591,8 +588,8 @@ class AudioTranscriberTask {
       this.isMicChunkInFlight = false;
       const { confirmedText, segments, flushLatencyMs, audioProcessedSec } = data;
       this.inferenceTimer.record(flushLatencyMs, this.delegate);
-      this.renderTranscript(confirmedText || '(No speech detected)', '', segments);
-      this.micStatusPill.textContent = '16 kHz PCM · 500 ms chunks';
+      this.renderTranscript(confirmedText || 'No speech detected', '', segments);
+      this.micStatusPill.textContent = '16 kHz PCM';
       this.transcriptMetricsBadge.textContent = `Recorded ${audioProcessedSec.toFixed(1)}s`;
       this.setStatus('Ready', 'ready');
       this.updateControlsState();
@@ -698,7 +695,7 @@ class AudioTranscriberTask {
       this.clipSampleRate = sampleRate;
 
       const durSec = (samples.length / sampleRate).toFixed(1);
-      this.clipMetaBadge.textContent = `${file.name} (${durSec}s)`;
+      this.clipMetaBadge.textContent = `${file.name} · ${durSec}s`;
       this.drawClipWaveform(samples, 0);
       this.updateControlsState();
     } catch (err: any) {
@@ -769,7 +766,7 @@ class AudioTranscriberTask {
     this.drawClipWaveform(this.clipSamples, 0);
     this.renderTranscript('', 'Transcribing...', []);
     this.transcriptMetricsBadge.textContent =
-      this.transcriptionMode === 'streaming' ? 'Streaming (500 ms chunks)...' : 'Running Unary ASR...';
+      this.transcriptionMode === 'streaming' ? 'Streaming...' : 'Transcribing...';
     this.setStatus(`Transcribing ${this.clipLabel}...`, 'busy');
     this.updateControlsState();
 

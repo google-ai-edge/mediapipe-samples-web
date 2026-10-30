@@ -31,7 +31,7 @@ test.describe('Audio Transcriber Task', () => {
 
     const modelSelect = page.locator('.model-select');
     await expect(modelSelect).toBeVisible();
-    await expect(modelSelect).toHaveValue('moonshine_tiny');
+    await expect(modelSelect).toHaveValue('parakeet_tdt_0_6b_v3');
 
     const modeSelect = page.locator('#transcription-mode-select');
     await expect(modeSelect).toHaveValue('streaming');
