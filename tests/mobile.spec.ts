@@ -113,6 +113,7 @@ test.describe('Mobile Layout & Navigation', () => {
       '/vision/object_detector',
       '/vision/image_embedder',
       '/audio/audio_classifier',
+      '/audio/audio_transcriber',
       '/text/text_classifier',
       '/text/text_embedder',
       '/retrieval/universal_embedder',

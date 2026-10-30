@@ -27,6 +27,7 @@ export function renderSidebar(container: HTMLElement) {
       <div class="category-header">Audio</div>
       <ul>
         <li><a href="#/audio/audio_classifier" class="nav-button nav-audio" data-task="audio-classifier">Audio Classifier</a></li>
+        <li><a href="#/audio/audio_transcriber" class="nav-button nav-audio" data-task="audio-transcriber">Audio Transcriber</a></li>
       </ul>
 
       <div class="category-header">Decision</div>

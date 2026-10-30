@@ -23,6 +23,7 @@ Play with the demos here: https://google-ai-edge.github.io/mediapipe-samples-web
 
 ### Audio
 - **Audio Classifier**: Classify ambient sounds in real-time.
+- **Audio Transcriber**: Transcribe speech from the microphone or an audio file (Parakeet).
 
 ### Decision
 - **Decision Maker**: Make decisions from text or JSON input using logic rules.

@@ -18,6 +18,7 @@ import './app_clean.css';
 import { setupObjectDetector, cleanupObjectDetector } from './tasks/object-detector';
 import { setupImageSegmenter, cleanupImageSegmenter } from './tasks/image-segmenter';
 import { setupAudioClassifier, cleanupAudioClassifier } from './tasks/audio-classifier';
+import { setupAudioTranscriber, cleanupAudioTranscriber } from './tasks/audio-transcriber';
 import { setupTextClassifier, cleanupTextClassifier } from './tasks/text-classifier';
 import { setupTextEmbedder, cleanupTextEmbedder } from './tasks/text-embedder';
 import { setupFaceDetector, cleanupFaceDetector } from './tasks/face-detector';
@@ -146,6 +147,11 @@ const routes = {
     setup: setupAudioClassifier,
     cleanup: cleanupAudioClassifier,
     label: 'Audio Classifier',
+  },
+  '/audio/audio_transcriber': {
+    setup: setupAudioTranscriber,
+    cleanup: cleanupAudioTranscriber,
+    label: 'Audio Transcriber',
   },
   '/text/text_classifier': {
     setup: setupTextClassifier,
