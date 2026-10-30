@@ -1,0 +1,589 @@
+<div class="task-container">
+  <!-- Controls on Left -->
+  <div class="controls-panel">
+    <div class="section-title">Model Selection</div>
+    <div id="model-selector-container"></div>
+
+    <div class="divider"></div>
+
+    <div class="section-title">Settings</div>
+
+    <div class="control-group">
+      <div class="control-label">
+        <span>Language</span>
+      </div>
+      <div class="select-wrapper">
+        <select id="tts-locale-select">
+          <option value="en-US" selected>English (en-US)</option>
+          <option value="en-GB">British English (en-GB)</option>
+          <option value="es-ES">Spanish (es-ES)</option>
+          <option value="fr-FR">French (fr-FR)</option>
+          <option value="it-IT">Italian (it-IT)</option>
+          <option value="pt-BR">Portuguese (pt-BR)</option>
+          <option value="nl-NL">Dutch (nl-NL)</option>
+          <option value="hi-IN">Hindi (hi-IN)</option>
+          <option value="ja-JP">Japanese (ja-JP)</option>
+          <option value="zh-CN">Mandarin Chinese (zh-CN)</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="control-group">
+      <div class="control-label">
+        <span>Voice</span>
+      </div>
+      <div class="select-wrapper">
+        <select id="tts-voice-select">
+          <option value="af_heart" selected>Heart — US Female (af_heart)</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="control-group">
+      <div class="control-label">
+        <span>Synthesis Mode</span>
+      </div>
+      <div class="select-wrapper">
+        <select id="tts-mode-select">
+          <option value="stream" selected>Streaming (Clause Chunks)</option>
+          <option value="unary">Unary (Full Utterance)</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="control-group">
+      <div class="control-label">
+        <span>Playback Speed</span>
+      </div>
+      <div class="select-wrapper">
+        <select id="tts-speed-select">
+          <option value="0.75">0.75x (Slow)</option>
+          <option value="1.0" selected>1.0x (Normal)</option>
+          <option value="1.25">1.25x (Fast)</option>
+          <option value="1.5">1.5x (Very Fast)</option>
+          <option value="2.0">2.0x (Double)</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="control-group">
+      <div class="control-label">
+        <span>Word Highlight</span>
+      </div>
+      <div class="select-wrapper">
+        <select id="tts-word-highlight-select">
+          <option value="true" selected>Enabled (Read-Along)</option>
+          <option value="false">Sentence Only</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="control-group">
+      <div class="control-label">
+        <span>Delegate</span>
+      </div>
+      <div class="select-wrapper">
+        <select id="delegate-select">
+          <option value="GPU" selected>GPU (WebGPU)</option>
+          <option value="CPU">CPU (XNNPACK)</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="status-group">
+      <div id="status-message" class="status-message">Select a model on the left to begin</div>
+      <div id="inference-time" class="inference-time">Inference Time: - ms</div>
+    </div>
+  </div>
+
+  <!-- Output on Right -->
+  <div class="output-panel">
+    <div class="output-header">
+      <h2>Text-to-Speech</h2>
+      <div id="view-mode-toggle" class="view-toggle"></div>
+    </div>
+
+    <div class="viewport audio-viewport tts-viewport">
+      <!-- Interactive Reader & Editor Section -->
+      <div class="tts-view-section">
+        <!-- View 1: Interactive Read-Along Reader Card -->
+        <div id="view-reader" class="tts-card">
+          <div class="tts-card-header">
+            <div class="tts-card-title-group">
+              <span class="material-icons tts-card-icon">menu_book</span>
+              <span class="tts-card-title">Interactive Read-Along Passage</span>
+            </div>
+
+            <div class="tts-reader-controls">
+              <button id="reader-prev-btn" type="button" class="tts-ctrl-btn" title="Previous Sentence" disabled>
+                <span class="material-icons" style="font-size: 16px">skip_previous</span>
+                <span>Prev</span>
+              </button>
+              <button id="reader-narrate-btn" type="button" class="action-button primary tts-narrate-btn">
+                <span class="material-icons" style="font-size: 18px">play_arrow</span>
+                <span id="reader-narrate-label">Load Model &amp; Narrate</span>
+              </button>
+              <button id="reader-next-btn" type="button" class="tts-ctrl-btn" title="Next Sentence" disabled>
+                <span>Next</span>
+                <span class="material-icons" style="font-size: 16px">skip_next</span>
+              </button>
+              <button
+                id="reader-stop-btn"
+                type="button"
+                class="action-button secondary tts-stop-btn"
+                style="display: none"
+              >
+                <span class="material-icons" style="font-size: 18px">stop</span>
+                <span>Stop</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Language / Passage Presets -->
+          <div id="tts-presets-bar" class="samples-container tts-presets-row">
+            <button type="button" class="sample-btn active" data-preset="en-US">EN (US)</button>
+            <button type="button" class="sample-btn" data-preset="en-GB">EN (UK)</button>
+            <button type="button" class="sample-btn" data-preset="es-ES">Español</button>
+            <button type="button" class="sample-btn" data-preset="fr-FR">Français</button>
+            <button type="button" class="sample-btn" data-preset="it-IT">Italiano</button>
+            <button type="button" class="sample-btn" data-preset="pt-BR">Português</button>
+            <button type="button" class="sample-btn" data-preset="hi-IN">Hindi</button>
+            <button type="button" class="sample-btn" data-preset="ja-JP">日本語</button>
+            <button type="button" class="sample-btn" data-preset="zh-CN">中文</button>
+            <button type="button" class="sample-btn" data-preset="polyglot">Polyglot Tour</button>
+          </div>
+
+          <div class="tts-reader-statusbar">
+            <div class="tts-reader-hint">
+              <span class="material-icons" style="font-size: 15px">touch_app</span>
+              <span>Click any sentence below to jump and read along.</span>
+            </div>
+            <div class="tts-reader-badges">
+              <span id="reader-progress-badge" class="tts-meta-pill">Ready · 4 sentences</span>
+              <span id="reader-word-badge" class="tts-word-pill" style="display: none">—</span>
+            </div>
+          </div>
+
+          <div id="reader-body" class="tts-reader-body"></div>
+        </div>
+
+        <!-- View 2: Custom Text Editor Card -->
+        <div id="view-editor" class="tts-card" style="display: none">
+          <div class="tts-card-header">
+            <div class="tts-card-title-group">
+              <span class="material-icons tts-card-icon">edit_note</span>
+              <span class="tts-card-title">Custom Text Synthesis</span>
+            </div>
+            <div class="tts-reader-controls">
+              <button id="run-tts-btn" type="button" class="action-button primary tts-narrate-btn">
+                <span class="material-icons" style="font-size: 18px">volume_up</span>
+                <span id="run-tts-btn-label">Load Model &amp; Speak</span>
+              </button>
+              <button
+                id="stop-tts-btn"
+                type="button"
+                class="action-button secondary tts-stop-btn"
+                style="display: none"
+              >
+                <span class="material-icons" style="font-size: 18px">stop</span>
+                <span>Stop</span>
+              </button>
+            </div>
+          </div>
+
+          <textarea
+            id="tts-text-input"
+            class="tts-textarea"
+            rows="4"
+            placeholder="Enter any text to synthesize into natural speech..."
+          >
+Welcome to MediaPipe Text-to-Speech on the web! This demo runs neural speech synthesis models directly inside your browser using WebAssembly, delivering low-latency streaming audio and word-level read-along timestamps.</textarea>
+
+          <div id="editor-readalong-box" class="tts-editor-readalong" style="display: none">
+            <div class="tts-segments-title">Live Word Alignment</div>
+            <div id="editor-readalong-preview" class="tts-reader-body" style="min-height: 56px"></div>
+          </div>
+        </div>
+
+        <!-- Synthesized Audio Waveform & Player Card -->
+        <div class="tts-card tts-output-card">
+          <div class="tts-card-header">
+            <div class="tts-card-title-group">
+              <span class="material-icons tts-card-icon">graphic_eq</span>
+              <span class="tts-card-title">Synthesized Audio Output</span>
+              <span id="tts-metrics-badge" class="tts-meta-pill">24.0 kHz Mono PCM</span>
+            </div>
+          </div>
+
+          <div class="tts-waveform-wrap">
+            <canvas id="tts-waveform-canvas" width="900" height="84"></canvas>
+          </div>
+
+          <div class="tts-player-row">
+            <audio id="tts-audio-player" controls style="flex: 1; height: 40px"></audio>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .output-header .view-tab {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+
+  .output-header .view-tab .material-icons {
+    font-size: 18px;
+    line-height: 1;
+  }
+
+  .tts-viewport {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    padding: 20px 24px;
+    gap: 16px;
+    overflow-y: auto;
+  }
+
+  .tts-view-section {
+    width: 100%;
+    max-width: 920px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .tts-card {
+    background: var(--surface-color);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    padding: 18px 20px;
+    box-shadow: var(--shadow-sm);
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .tts-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: nowrap;
+    gap: 12px;
+  }
+
+  .tts-card-title-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: nowrap;
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  @media (max-width: 760px) {
+    .tts-card-header {
+      flex-wrap: wrap;
+    }
+    .tts-card-title-group {
+      flex-wrap: wrap;
+    }
+  }
+
+  .tts-card-icon {
+    color: var(--primary);
+    font-size: 20px;
+    flex-shrink: 0;
+  }
+
+  .tts-card-title {
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: var(--text-primary);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .tts-meta-pill {
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: rgba(0, 127, 139, 0.1);
+    color: var(--primary);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .tts-word-pill {
+    font-size: 0.75rem;
+    font-weight: 700;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: #fef3c7;
+    border: 1px solid #f59e0b;
+    color: #78350f;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 190px;
+    flex-shrink: 1;
+  }
+
+  .tts-presets-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+  }
+
+  .tts-presets-row .sample-btn {
+    padding: 4px 9px;
+    border-radius: 999px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-color);
+    color: var(--text-secondary);
+    font-size: 0.74rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .tts-presets-row .sample-btn:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+  }
+
+  .tts-presets-row .sample-btn.active {
+    background: rgba(0, 127, 139, 0.12);
+    border-color: var(--primary);
+    color: var(--primary);
+    font-weight: 600;
+  }
+
+  .tts-reader-statusbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    min-height: 26px;
+  }
+
+  .tts-reader-badges {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+
+  .tts-reader-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: nowrap;
+    flex-shrink: 0;
+  }
+
+  .tts-ctrl-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    height: 36px;
+    margin: 0 !important;
+    padding: 0 12px;
+    border-radius: 999px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-color);
+    color: var(--text-secondary);
+    font-size: 0.82rem;
+    font-weight: 500;
+    line-height: 1;
+    box-sizing: border-box;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .tts-ctrl-btn:hover:not(:disabled) {
+    border-color: var(--primary);
+    color: var(--primary);
+  }
+
+  .tts-ctrl-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+  .tts-narrate-btn {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 6px !important;
+    width: auto !important;
+    height: 36px !important;
+    margin: 0 !important;
+    padding: 0 16px !important;
+    border-radius: 999px !important;
+    font-size: 0.84rem !important;
+    font-weight: 600 !important;
+    line-height: 1 !important;
+    box-sizing: border-box !important;
+    box-shadow: 0 1px 3px rgba(0, 127, 139, 0.25) !important;
+  }
+
+  .tts-stop-btn {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 5px !important;
+    width: auto !important;
+    height: 36px !important;
+    margin: 0 !important;
+    padding: 0 14px !important;
+    border-radius: 999px !important;
+    font-size: 0.82rem !important;
+    font-weight: 600 !important;
+    line-height: 1 !important;
+    box-sizing: border-box !important;
+    background: #fef2f2 !important;
+    color: #dc2626 !important;
+    border: 1px solid #fecaca !important;
+    box-shadow: none !important;
+  }
+
+  .tts-reader-hint {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+  }
+
+  .tts-reader-body {
+    background: var(--bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 16px 18px;
+    line-height: 1.9;
+    font-size: 1.04rem;
+    color: var(--text-primary);
+    max-height: 260px;
+    overflow-y: auto;
+  }
+
+  .tts-paragraph {
+    margin: 0 0 12px 0;
+  }
+
+  .tts-paragraph:last-child {
+    margin-bottom: 0;
+  }
+
+  .tts-sentence {
+    cursor: pointer;
+    padding: 3px 6px;
+    border-radius: 6px;
+    transition:
+      background-color 0.15s ease,
+      box-shadow 0.15s ease;
+  }
+
+  .tts-sentence:hover {
+    background: rgba(0, 127, 139, 0.06);
+  }
+
+  .tts-sentence.active {
+    background: rgba(0, 127, 139, 0.08);
+    box-shadow: 0 0 0 1px rgba(0, 127, 139, 0.24);
+  }
+
+  .tts-sentence.synthesizing {
+    background: rgba(245, 158, 11, 0.12);
+    box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.35);
+  }
+
+  .tts-word {
+    padding: 2px 4px;
+    border-radius: 5px;
+    transition:
+      background-color 0.07s ease,
+      color 0.07s ease,
+      box-shadow 0.07s ease;
+  }
+
+  .tts-word.active {
+    background: transparent;
+    color: #0f172a;
+    font-weight: 600;
+    box-shadow: none;
+    text-decoration: underline 2.5px #007f8b;
+    text-underline-offset: 4px;
+  }
+
+  .tts-word.spoken {
+    color: #0f172a;
+    text-decoration: underline 2px rgba(0, 127, 139, 0.55);
+    text-underline-offset: 4px;
+  }
+
+  .tts-textarea {
+    width: 100%;
+    box-sizing: border-box;
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    background: var(--bg-color);
+    color: var(--text-primary);
+    padding: 12px 14px;
+    font-family: inherit;
+    font-size: 0.96rem;
+    line-height: 1.6;
+    resize: vertical;
+  }
+
+  .tts-textarea:focus {
+    outline: none;
+    border-color: var(--primary);
+  }
+
+  .tts-segments-title {
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+  }
+
+  .tts-waveform-wrap {
+    position: relative;
+    width: 100%;
+    height: 84px;
+    background: var(--bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  #tts-waveform-canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  .tts-player-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+</style>

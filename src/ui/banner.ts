@@ -203,6 +203,32 @@ export const TASK_BANNER_LINKS: Record<string, TaskBannerLinks> = {
     stackblitzUrl:
       'https://stackblitz.com/github/google-ai-edge/mediapipe-samples-web?file=src%2Ftasks%2Faudio-classifier.ts',
   },
+  '/audio/audio_transcriber': {
+    label: 'Audio Transcriber',
+    docsUrl: 'https://developers.google.com/edge/mediapipe/solutions/audio/audio_transcriber/web_js',
+    sampleCodeUrl: 'https://github.com/google-ai-edge/mediapipe-samples-web/blob/main/src/tasks/audio-transcriber.ts',
+    samples: {
+      web: 'https://github.com/google-ai-edge/mediapipe-samples-web/blob/main/src/tasks/audio-transcriber.ts',
+      android: 'https://github.com/google-ai-edge/mediapipe-samples/tree/main/examples/audio_transcriber/android',
+      ios: 'https://github.com/google-ai-edge/mediapipe-samples/tree/main/examples/audio_transcriber/ios',
+      python: 'https://github.com/google-ai-edge/mediapipe-samples/tree/main/examples/audio_transcriber/python',
+    },
+    stackblitzUrl:
+      'https://stackblitz.com/github/google-ai-edge/mediapipe-samples-web?file=src%2Ftasks%2Faudio-transcriber.ts',
+  },
+  '/audio/text_to_speech': {
+    label: 'Text-to-Speech',
+    docsUrl: 'https://developers.google.com/edge/mediapipe/solutions/audio/text_to_speech/web_js',
+    sampleCodeUrl: 'https://github.com/google-ai-edge/mediapipe-samples-web/blob/main/src/tasks/text-to-speech.ts',
+    samples: {
+      web: 'https://github.com/google-ai-edge/mediapipe-samples-web/blob/main/src/tasks/text-to-speech.ts',
+      android: 'https://github.com/google-ai-edge/mediapipe-samples/tree/main/examples/text_to_speech/android',
+      ios: 'https://github.com/google-ai-edge/mediapipe-samples/tree/main/examples/text_to_speech/ios',
+      python: 'https://github.com/google-ai-edge/mediapipe-samples/tree/main/examples/text_to_speech/python',
+    },
+    stackblitzUrl:
+      'https://stackblitz.com/github/google-ai-edge/mediapipe-samples-web?file=src%2Ftasks%2Ftext-to-speech.ts',
+  },
   '/text/text_classifier': {
     label: 'Text Classifier',
     docsUrl: 'https://developers.google.com/edge/mediapipe/solutions/text/text_classifier/web_js',

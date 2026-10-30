@@ -1,0 +1,550 @@
+<div class="task-container">
+  <!-- Controls on Left -->
+  <div class="controls-panel">
+    <div class="section-title">Model Selection</div>
+    <div id="model-selector-container"></div>
+
+    <div class="divider"></div>
+
+    <div class="section-title">Settings</div>
+
+    <div class="control-group">
+      <div class="control-label">
+        <span>Transcription Mode</span>
+      </div>
+      <div class="select-wrapper">
+        <select id="transcription-mode-select">
+          <option value="streaming" selected>Streaming (500 ms chunks)</option>
+          <option value="unary">Unary (Full Clip at Once)</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="control-group">
+      <div class="control-label">
+        <span>Interim Results</span>
+      </div>
+      <div class="select-wrapper">
+        <select id="interim-results-select">
+          <option value="true" selected>Enabled (Live Hypothesis)</option>
+          <option value="false">Finalized Segments Only</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="control-group">
+      <div class="control-label">
+        <span>Delegate</span>
+      </div>
+      <div class="select-wrapper">
+        <select id="delegate-select">
+          <option value="GPU" selected>GPU (WebGPU)</option>
+          <option value="CPU">CPU (XNNPACK)</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="status-group">
+      <div id="status-message" class="status-message">Select a model on the left to begin</div>
+      <div id="inference-time" class="inference-time">Inference Time: - ms</div>
+    </div>
+  </div>
+
+  <!-- Output on Right -->
+  <div class="output-panel">
+    <div class="output-header">
+      <h2>Audio Transcriber</h2>
+      <div id="view-mode-toggle" class="view-toggle"></div>
+    </div>
+
+    <div class="viewport audio-viewport asr-viewport">
+      <!-- Sample & Audio File View -->
+      <div id="view-file" class="asr-view-section">
+        <div class="asr-card">
+          <div class="asr-card-header">
+            <div class="asr-card-title-group">
+              <span class="material-icons asr-card-icon">graphic_eq</span>
+              <span class="asr-card-title">Audio Input</span>
+              <span id="clip-meta-badge" class="asr-meta-pill">7.2s · 16 kHz</span>
+            </div>
+            <div id="sample-clips-container" class="samples-container">
+              <button
+                type="button"
+                class="sample-btn active"
+                data-sample="sample_english_greeting.wav"
+                data-label="English Greeting (7.2s)"
+              >
+                EN Greeting (7.2s)
+              </button>
+              <button
+                type="button"
+                class="sample-btn"
+                data-sample="sample_story_narration.wav"
+                data-label="Story Narration (9.4s)"
+              >
+                EN Story (9.4s)
+              </button>
+              <button
+                type="button"
+                class="sample-btn"
+                data-sample="sample_wikipedia_long.wav"
+                data-label="Wikipedia Passage (34s)"
+              >
+                Wikipedia (34s)
+              </button>
+              <button
+                type="button"
+                class="sample-btn"
+                data-sample="sample_spanish.wav"
+                data-label="Spanish Sample (4.0s)"
+              >
+                Español (4s)
+              </button>
+              <button
+                type="button"
+                class="sample-btn"
+                data-sample="sample_french.wav"
+                data-label="French Sample (5.2s)"
+              >
+                Français (5s)
+              </button>
+            </div>
+          </div>
+
+          <div class="asr-waveform-wrap">
+            <canvas id="file-waveform-canvas" width="760" height="72"></canvas>
+          </div>
+
+          <div id="audio-preview-container" class="asr-player-row">
+            <audio id="audio-player" controls preload="metadata"></audio>
+            <label
+              for="audio-upload"
+              class="upload-dropzone asr-compact-dropzone"
+              title="Upload or drop a custom audio file"
+            >
+              <input type="file" id="audio-upload" accept="audio/*" hidden />
+              <span class="material-icons">upload_file</span>
+              <span>Upload Audio</span>
+            </label>
+          </div>
+
+          <div class="asr-actions-row">
+            <button type="button" id="run-file-transcription" class="action-button primary-btn">
+              <span class="material-icons">transcribe</span>
+              <span id="run-file-btn-label">Transcribe Audio</span>
+            </button>
+            <button
+              type="button"
+              id="stop-file-transcription"
+              class="action-button secondary-btn"
+              style="display: none"
+            >
+              <span class="material-icons">stop</span>
+              <span>Stop</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Live Microphone View -->
+      <div id="view-microphone" class="asr-view-section" style="display: none">
+        <div class="asr-card">
+          <div class="asr-card-header">
+            <div class="asr-card-title-group">
+              <span class="material-icons asr-card-icon">mic</span>
+              <span class="asr-card-title">Live Microphone Streaming</span>
+              <span id="mic-status-pill" class="asr-meta-pill">16 kHz PCM · 500 ms chunks</span>
+            </div>
+          </div>
+
+          <div class="visualizer-container asr-mic-visualizer">
+            <canvas id="visualizer" width="760" height="120"></canvas>
+            <div id="mic-placeholder" class="placeholder-text">
+              <span class="material-icons">mic_none</span>
+              <p>Click "Start Recording" to stream live microphone audio into AudioTranscriber</p>
+            </div>
+          </div>
+
+          <div class="asr-actions-row" style="justify-content: center">
+            <button type="button" id="recordButton" class="action-button record-btn">
+              <span class="material-icons">mic</span>
+              <span>Start Recording</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Shared Live Transcription Output Card -->
+      <div id="transcription-results-card" class="asr-card asr-results-card">
+        <div class="asr-card-header">
+          <div class="asr-card-title-group">
+            <span class="material-icons asr-card-icon">subtitles</span>
+            <span class="asr-card-title">Transcript</span>
+            <span id="transcript-metrics-badge" class="asr-meta-pill">Ready</span>
+          </div>
+          <button
+            type="button"
+            id="copy-transcript-btn"
+            class="sample-btn"
+            title="Copy transcript to clipboard"
+            disabled
+          >
+            <span class="material-icons" style="font-size: 14px; vertical-align: middle; margin-right: 4px"
+              >content_copy</span
+            >
+            <span id="copy-transcript-label">Copy</span>
+          </button>
+        </div>
+
+        <div id="transcript-output-box" class="asr-transcript-box" aria-live="polite">
+          <span id="transcript-placeholder" class="asr-transcript-placeholder">
+            Load a model on the left or click "Transcribe Audio" to run on-device speech recognition.
+          </span>
+          <span id="transcript-confirmed-text" class="asr-confirmed-text"></span>
+          <span id="transcript-interim-text" class="asr-interim-text"></span>
+        </div>
+
+        <div id="segments-container" class="asr-segments-section" style="display: none">
+          <div class="asr-segments-header">Timestamped Segments</div>
+          <div id="segments-list" class="asr-segments-list"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <style>
+    .output-header .view-tab {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    .output-header .view-tab .material-icons {
+      font-size: 18px;
+      line-height: 1;
+    }
+
+    .asr-viewport {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding: 20px 24px 32px;
+      gap: 16px;
+      overflow-y: auto;
+    }
+
+    .asr-view-section {
+      width: 100%;
+      max-width: 820px;
+    }
+
+    .asr-card {
+      width: 100%;
+      max-width: 820px;
+      background: var(--surface-color);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 18px 20px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    }
+
+    .asr-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+    }
+
+    .asr-card-title-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .asr-card-icon {
+      color: var(--primary);
+      font-size: 20px;
+    }
+
+    .asr-card-title {
+      font-weight: 600;
+      font-size: 0.98rem;
+      color: var(--text-primary);
+    }
+
+    .asr-meta-pill {
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 3px 10px;
+      border-radius: 999px;
+      background: var(--primary-soft);
+      color: var(--primary);
+      font-family: 'Roboto Mono', monospace;
+    }
+
+    .samples-container {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .sample-btn {
+      background: transparent;
+      border: 1px solid var(--border-color);
+      border-radius: 999px;
+      padding: 5px 11px;
+      font-size: 0.76rem;
+      font-weight: 500;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.18s ease;
+    }
+
+    .sample-btn:hover:not(:disabled) {
+      background: var(--surface-color-hover);
+      color: var(--primary);
+      border-color: var(--primary);
+    }
+
+    .sample-btn.active {
+      background: var(--primary-soft);
+      color: var(--primary);
+      border-color: var(--primary);
+      font-weight: 600;
+    }
+
+    .sample-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .asr-waveform-wrap {
+      width: 100%;
+      background: #f8fafc;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      overflow: hidden;
+      margin-bottom: 12px;
+    }
+
+    #file-waveform-canvas {
+      width: 100%;
+      height: 72px;
+      display: block;
+    }
+
+    .asr-player-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+    }
+
+    .asr-player-row audio {
+      flex: 1;
+      min-width: 220px;
+      height: 40px;
+    }
+
+    .asr-compact-dropzone {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 14px;
+      border: 1.5px dashed var(--border-color);
+      border-radius: 8px;
+      font-size: 0.82rem;
+      font-weight: 500;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      background: #f8fafc;
+      margin: 0;
+      width: auto;
+      height: 40px;
+    }
+
+    .asr-compact-dropzone:hover,
+    .asr-compact-dropzone.dragover {
+      border-color: var(--primary);
+      color: var(--primary);
+      background: var(--primary-soft);
+    }
+
+    .asr-compact-dropzone .material-icons {
+      font-size: 18px;
+      margin: 0;
+    }
+
+    .asr-actions-row {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .asr-actions-row .action-button {
+      width: auto;
+      margin-top: 0;
+      padding: 10px 22px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      line-height: 1;
+    }
+
+    .asr-actions-row .action-button .material-icons {
+      font-size: 18px;
+      line-height: 1;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .record-btn.recording {
+      background: #dc2626;
+    }
+
+    .record-btn.recording:hover:not(:disabled) {
+      background: #b91c1c;
+    }
+
+    .asr-mic-visualizer {
+      position: relative;
+      width: 100%;
+      height: 120px;
+      margin-bottom: 16px;
+      background: #f8fafc;
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .asr-mic-visualizer canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .asr-mic-visualizer .placeholder-text {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      color: var(--text-secondary);
+      font-size: 0.88rem;
+      background: #f8fafc;
+      pointer-events: none;
+      text-align: center;
+      padding: 12px 16px;
+    }
+
+    .asr-mic-visualizer .placeholder-text .material-icons {
+      font-size: 28px;
+      color: var(--primary);
+      opacity: 0.75;
+    }
+
+    .asr-mic-visualizer .placeholder-text p {
+      margin: 0;
+    }
+
+    .asr-transcript-box {
+      min-height: 96px;
+      padding: 16px;
+      border-radius: 8px;
+      background: #f8fafc;
+      border: 1px solid var(--border-color);
+      font-size: 1.02rem;
+      line-height: 1.65;
+      color: var(--text-primary);
+      word-break: break-word;
+    }
+
+    .asr-transcript-placeholder {
+      color: var(--text-secondary);
+      font-size: 0.92rem;
+    }
+
+    .asr-confirmed-text {
+      color: var(--text-primary);
+      font-weight: 400;
+    }
+
+    .asr-interim-text {
+      color: var(--primary);
+      font-style: italic;
+      opacity: 0.85;
+    }
+
+    .asr-segments-section {
+      margin-top: 14px;
+      border-top: 1px solid var(--border-color);
+      padding-top: 12px;
+    }
+
+    .asr-segments-header {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--text-secondary);
+      margin-bottom: 8px;
+    }
+
+    .asr-segments-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+
+    .asr-segment-row {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      padding: 6px 10px;
+      border-radius: 6px;
+      background: #f8fafc;
+      border: 1px solid var(--border-color);
+      font-size: 0.88rem;
+    }
+
+    .asr-segment-row.interim {
+      border-style: dashed;
+      border-color: var(--primary-border);
+      background: var(--primary-soft);
+    }
+
+    .asr-segment-time {
+      font-family: 'Roboto Mono', monospace;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--primary);
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .asr-segment-text {
+      color: var(--text-primary);
+      flex: 1;
+    }
+  </style>
+</div>

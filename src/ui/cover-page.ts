@@ -25,6 +25,20 @@ export function setupCoverPage(container: HTMLElement) {
                   <p>Classify audio clips into categories.</p>
                 </div>
               </a>
+              <a href="#/audio/audio_transcriber" class="cover-card">
+                <span class="material-icons card-icon">transcribe</span>
+                <div class="card-content">
+                  <h3>Audio Transcriber</h3>
+                  <p>Transcribe streaming microphone speech and audio clips into text.</p>
+                </div>
+              </a>
+              <a href="#/audio/text_to_speech" class="cover-card">
+                <span class="material-icons card-icon">record_voice_over</span>
+                <div class="card-content">
+                  <h3>Text-to-Speech</h3>
+                  <p>Synthesize multilingual speech with streaming read-along word alignment.</p>
+                </div>
+              </a>
             </div>
           </div>
 

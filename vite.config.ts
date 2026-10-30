@@ -117,6 +117,8 @@ export default defineConfig(({ mode }) => ({
     },
   },
   server: {
+    host: true,
+    allowedHosts: true,
     port: 5174,
     strictPort: true,
     headers: {
@@ -126,6 +128,8 @@ export default defineConfig(({ mode }) => ({
     },
   },
   preview: {
+    host: true,
+    allowedHosts: true,
     port: 5174,
     headers: {
       'Cross-Origin-Opener-Policy': 'same-origin',
