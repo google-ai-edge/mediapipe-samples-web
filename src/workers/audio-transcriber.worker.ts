@@ -175,6 +175,232 @@ function resampleToTarget(samples: Float32Array, fromRate: number, toRate: numbe
   return out;
 }
 
+function canonToken(token: string): string {
+  return token.toLowerCase().replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '');
+}
+
+function isSuffixFragmentOverlap(prevTok: string, currTok: string): boolean {
+  const cPrev = canonToken(prevTok);
+  const cCurr = canonToken(currTok);
+  return cPrev.length >= 5 && cCurr.length >= 3 && cPrev !== cCurr && cPrev.endsWith(cCurr);
+}
+
+function extractTrailingPunct(token: string): string {
+  const m = token.match(/([.!?…,:;]+)$/);
+  return m ? m[1] : '';
+}
+
+function deduplicateTokensWithinSegment(rawTokens: string[]): string[] {
+  const tokens = rawTokens.slice();
+  let i = 0;
+  while (i < tokens.length) {
+    let matchedK = 0;
+    const maxK = Math.min(6, Math.floor((tokens.length - i) / 2));
+    for (let k = maxK; k >= 2; k--) {
+      let allMatch = true;
+      for (let j = 0; j < k; j++) {
+        const cA = canonToken(tokens[i + j]);
+        const cB = canonToken(tokens[i + k + j]);
+        if (!cA || cA !== cB) {
+          allMatch = false;
+          break;
+        }
+      }
+      if (allMatch) {
+        matchedK = k;
+        break;
+      }
+    }
+    if (matchedK >= 2) {
+      const firstLastIdx = i + matchedK - 1;
+      const secondLastIdx = i + 2 * matchedK - 1;
+      const firstPunct = extractTrailingPunct(tokens[firstLastIdx]);
+      const secondPunct = extractTrailingPunct(tokens[secondLastIdx]);
+      if (!firstPunct && secondPunct) {
+        tokens[firstLastIdx] += secondPunct;
+      }
+      const nextTokAfterRepeat = tokens[i + 2 * matchedK];
+      if (nextTokAfterRepeat && /^[a-z]/.test(nextTokAfterRepeat) && tokens[firstLastIdx].endsWith('.')) {
+        tokens[firstLastIdx] = tokens[firstLastIdx].replace(/\.+$/, '');
+      }
+      tokens.splice(i + matchedK, matchedK);
+      continue;
+    }
+
+    if (i + 1 < tokens.length) {
+      const cA = canonToken(tokens[i]);
+      const cB = canonToken(tokens[i + 1]);
+      const pA = extractTrailingPunct(tokens[i]);
+      const isPunctuatedSingleRepeat = Boolean(cA && cA === cB && pA.length > 0);
+      if (isPunctuatedSingleRepeat || isSuffixFragmentOverlap(tokens[i], tokens[i + 1])) {
+        if (cA === cB) {
+          const pB = extractTrailingPunct(tokens[i + 1]);
+          if (!pA && pB) {
+            tokens[i] += pB;
+          }
+          const nextTok = tokens[i + 2];
+          if (nextTok && /^[a-z]/.test(nextTok) && tokens[i].endsWith('.')) {
+            tokens[i] = tokens[i].replace(/\.+$/, '');
+          }
+        }
+        tokens.splice(i + 1, 1);
+        continue;
+      }
+    }
+    i++;
+  }
+  return tokens;
+}
+
+function getTailTokens(segments: TranscriptionSegment[], maxTokens = 8): string[] {
+  const tail: string[] = [];
+  for (let i = segments.length - 1; i >= 0 && tail.length < maxTokens; i--) {
+    const words = (segments[i].transcript || '').trim().split(/\s+/).filter(Boolean);
+    for (let j = words.length - 1; j >= 0 && tail.length < maxTokens; j--) {
+      tail.unshift(words[j]);
+    }
+  }
+  return tail;
+}
+
+function findBoundaryOverlapStripCount(
+  prevTokens: string[],
+  currTokens: string[]
+): {
+  stripCount: number;
+  dropLastPrevToken: boolean;
+} {
+  if (prevTokens.length === 0 || currTokens.length === 0) {
+    return { stripCount: 0, dropLastPrevToken: false };
+  }
+  const maxK = Math.min(8, prevTokens.length, currTokens.length);
+  for (let k = maxK; k >= 1; k--) {
+    let match = true;
+    for (let j = 0; j < k; j++) {
+      const cPrev = canonToken(prevTokens[prevTokens.length - k + j]);
+      const cCurr = canonToken(currTokens[j]);
+      if (!cPrev || cPrev !== cCurr) {
+        match = false;
+        break;
+      }
+    }
+    if (match) {
+      return { stripCount: k, dropLastPrevToken: false };
+    }
+  }
+
+  if (isSuffixFragmentOverlap(prevTokens[prevTokens.length - 1], currTokens[0])) {
+    return { stripCount: 1, dropLastPrevToken: false };
+  }
+
+  // Handle 1-token overshoot at the end of the previous window (e.g. "...trying out" + "trying ...")
+  if (prevTokens.length >= 2) {
+    const prevWithoutLast = prevTokens.slice(0, prevTokens.length - 1);
+    const maxK2 = Math.min(4, prevWithoutLast.length, currTokens.length);
+    for (let k = maxK2; k >= 1; k--) {
+      if (k === 1 && canonToken(currTokens[0]).length < 4) continue;
+      let match = true;
+      for (let j = 0; j < k; j++) {
+        const cPrev = canonToken(prevWithoutLast[prevWithoutLast.length - k + j]);
+        const cCurr = canonToken(currTokens[j]);
+        if (!cPrev || cPrev !== cCurr) {
+          match = false;
+          break;
+        }
+      }
+      if (match) {
+        return { stripCount: k, dropLastPrevToken: true };
+      }
+    }
+  }
+
+  return { stripCount: 0, dropLastPrevToken: false };
+}
+
+function appendDeduplicatedSegment(confirmedList: TranscriptionSegment[], nextSeg: TranscriptionSegment): void {
+  const rawTokens = (nextSeg.transcript || '').trim().split(/\s+/).filter(Boolean);
+  if (rawTokens.length === 0) return;
+  let currTokens = deduplicateTokensWithinSegment(rawTokens);
+  if (currTokens.length === 0) return;
+
+  const prevTokens = getTailTokens(confirmedList, 8);
+  const { stripCount, dropLastPrevToken } = findBoundaryOverlapStripCount(prevTokens, currTokens);
+
+  if (stripCount > 0 && confirmedList.length > 0) {
+    const lastSeg = confirmedList[confirmedList.length - 1];
+    const lastSegTokens = (lastSeg.transcript || '').trim().split(/\s+/).filter(Boolean);
+    if (dropLastPrevToken && lastSegTokens.length > 1) {
+      lastSegTokens.pop();
+    }
+    if (lastSegTokens.length > 0) {
+      const lastIdx = lastSegTokens.length - 1;
+      const strippedLastTok = currTokens[stripCount - 1];
+      const prevPunct = extractTrailingPunct(lastSegTokens[lastIdx]);
+      const currPunct = extractTrailingPunct(strippedLastTok);
+      if (!prevPunct && currPunct) {
+        lastSegTokens[lastIdx] += currPunct;
+      }
+      const firstRemaining = currTokens[stripCount];
+      if (firstRemaining && /^[a-z]/.test(firstRemaining) && lastSegTokens[lastIdx].endsWith('.')) {
+        lastSegTokens[lastIdx] = lastSegTokens[lastIdx].replace(/\.+$/, '');
+      }
+      lastSeg.transcript = lastSegTokens.join(' ');
+    }
+    currTokens = currTokens.slice(stripCount);
+  }
+
+  if (currTokens.length === 0) {
+    if (confirmedList.length > 0) {
+      const lastSeg = confirmedList[confirmedList.length - 1];
+      lastSeg.toTimestampMs = Math.max(lastSeg.toTimestampMs || 0, nextSeg.toTimestampMs || 0);
+    }
+    return;
+  }
+
+  confirmedList.push({
+    ...nextSeg,
+    transcript: currTokens.join(' '),
+  });
+}
+
+function deduplicateInterimSegments(
+  confirmedList: TranscriptionSegment[],
+  interimSegments: TranscriptionSegment[]
+): TranscriptionSegment[] {
+  const out: TranscriptionSegment[] = [];
+  const virtualConfirmed = confirmedList.map((s) => ({ ...s }));
+  for (const seg of interimSegments) {
+    const beforeLen = virtualConfirmed.length;
+    appendDeduplicatedSegment(virtualConfirmed, { ...seg, isFinal: false });
+    if (virtualConfirmed.length > beforeLen) {
+      out.push({ ...virtualConfirmed[virtualConfirmed.length - 1], isFinal: false });
+    }
+  }
+  return out;
+}
+
+function normalizeSegmentTimestamps(segments: TranscriptionSegment[], totalDurationMs: number): TranscriptionSegment[] {
+  if (segments.length === 0 || totalDurationMs <= 0) return segments;
+  const lastToMs = segments[segments.length - 1].toTimestampMs || 0;
+  if (lastToMs <= 0 || lastToMs >= totalDurationMs * 0.85) {
+    return segments;
+  }
+  const scale = totalDurationMs / lastToMs;
+  let prevEnd = 0;
+  return segments.map((seg, idx) => {
+    const fromMs = idx === 0 ? 0 : prevEnd;
+    const rawTo = Math.round((seg.toTimestampMs || 0) * scale);
+    const toMs =
+      idx === segments.length - 1 ? totalDurationMs : Math.max(fromMs + 100, Math.min(totalDurationMs, rawTo));
+    prevEnd = toMs;
+    return {
+      ...seg,
+      fromTimestampMs: fromMs,
+      toTimestampMs: toMs,
+    };
+  });
+}
+
 class AudioTranscriberWorker extends BaseWorker<AudioTranscriber> {
   private cancelRequested = false;
   private micConfirmedSegments: TranscriptionSegment[] = [];
@@ -324,11 +550,33 @@ class AudioTranscriberWorker extends BaseWorker<AudioTranscriber> {
 
       if (!streamingMode) {
         const startTime = performance.now();
-        const result = await this.taskInstance.transcribe(samples16k, true);
+        const rawResult = await this.taskInstance.transcribe(samples16k, true);
         const inferenceTime = performance.now() - startTime;
+        const dedupedSegments: TranscriptionSegment[] = [];
+        for (const seg of rawResult.segments || []) {
+          if (seg.transcript && seg.transcript.trim()) {
+            appendDeduplicatedSegment(dedupedSegments, { ...seg, isFinal: true });
+          }
+        }
+        if (dedupedSegments.length === 0 && rawResult.text?.trim()) {
+          appendDeduplicatedSegment(dedupedSegments, {
+            transcript: rawResult.text.trim(),
+            isFinal: true,
+            fromTimestampMs: 0,
+            toTimestampMs: Math.round(audioDurationSec * 1000),
+          });
+        }
+        const normalizedSegments = normalizeSegmentTimestamps(dedupedSegments, Math.round(audioDurationSec * 1000));
+        const finalText = normalizedSegments
+          .map((s) => s.transcript.trim())
+          .filter(Boolean)
+          .join(' ');
         self.postMessage({
           type: 'TRANSCRIBE_RESULT',
-          result,
+          result: {
+            text: finalText,
+            segments: normalizedSegments,
+          },
           inferenceTime,
           audioDurationSec,
           isFinal: true,
@@ -365,24 +613,25 @@ class AudioTranscriberWorker extends BaseWorker<AudioTranscriber> {
           Boolean(stepResult.segments && stepResult.segments.length > 0) || Boolean(stepResult.text?.trim());
         if (hasStepSegments) {
           lastWindowLatencyMs = chunkLatencyMs;
-          latestInterimSegments = [];
+          const rawInterim: TranscriptionSegment[] = [];
           for (const seg of stepResult.segments || []) {
             if (seg.isFinal !== false) {
               if (seg.transcript && seg.transcript.trim()) {
-                confirmedSegments.push(seg);
+                appendDeduplicatedSegment(confirmedSegments, seg);
               }
             } else if (seg.transcript && seg.transcript.trim()) {
-              latestInterimSegments.push(seg);
+              rawInterim.push(seg);
             }
           }
           if ((!stepResult.segments || stepResult.segments.length === 0) && stepResult.text?.trim()) {
-            latestInterimSegments.push({
+            rawInterim.push({
               transcript: stepResult.text.trim(),
               isFinal: false,
               fromTimestampMs: Math.round((startIdx / TARGET_SAMPLE_RATE) * 1000),
               toTimestampMs: Math.round((endIdx / TARGET_SAMPLE_RATE) * 1000),
             });
           }
+          latestInterimSegments = deduplicateInterimSegments(confirmedSegments, rawInterim);
         }
 
         const confirmedText = confirmedSegments
@@ -421,11 +670,11 @@ class AudioTranscriberWorker extends BaseWorker<AudioTranscriber> {
 
       for (const seg of flushResult.segments || []) {
         if (seg.transcript && seg.transcript.trim()) {
-          confirmedSegments.push({ ...seg, isFinal: true });
+          appendDeduplicatedSegment(confirmedSegments, { ...seg, isFinal: true });
         }
       }
       if (confirmedSegments.length === 0 && flushResult.text?.trim()) {
-        confirmedSegments.push({
+        appendDeduplicatedSegment(confirmedSegments, {
           transcript: flushResult.text.trim(),
           isFinal: true,
           fromTimestampMs: 0,
@@ -433,7 +682,8 @@ class AudioTranscriberWorker extends BaseWorker<AudioTranscriber> {
         });
       }
 
-      const finalText = confirmedSegments
+      const normalizedSegments = normalizeSegmentTimestamps(confirmedSegments, Math.round(audioDurationSec * 1000));
+      const finalText = normalizedSegments
         .map((s) => s.transcript.trim())
         .filter(Boolean)
         .join(' ');
@@ -442,7 +692,7 @@ class AudioTranscriberWorker extends BaseWorker<AudioTranscriber> {
         type: 'TRANSCRIBE_RESULT',
         result: {
           text: finalText,
-          segments: confirmedSegments,
+          segments: normalizedSegments,
         },
         inferenceTime: totalInferenceMs,
         audioDurationSec,
@@ -479,24 +729,25 @@ class AudioTranscriberWorker extends BaseWorker<AudioTranscriber> {
         Boolean(stepResult.segments && stepResult.segments.length > 0) || Boolean(stepResult.text?.trim());
       if (hasStepSegments) {
         this.lastMicWindowLatencyMs = chunkLatencyMs;
-        this.micInterimSegments = [];
+        const rawInterim: TranscriptionSegment[] = [];
         for (const seg of stepResult.segments || []) {
           if (seg.isFinal !== false) {
             if (seg.transcript && seg.transcript.trim()) {
-              this.micConfirmedSegments.push(seg);
+              appendDeduplicatedSegment(this.micConfirmedSegments, seg);
             }
           } else if (seg.transcript && seg.transcript.trim()) {
-            this.micInterimSegments.push(seg);
+            rawInterim.push(seg);
           }
         }
         if ((!stepResult.segments || stepResult.segments.length === 0) && stepResult.text?.trim()) {
-          this.micInterimSegments.push({
+          rawInterim.push({
             transcript: stepResult.text.trim(),
             isFinal: false,
             fromTimestampMs: Math.round((startSample / TARGET_SAMPLE_RATE) * 1000),
             toTimestampMs: Math.round((endSample / TARGET_SAMPLE_RATE) * 1000),
           });
         }
+        this.micInterimSegments = deduplicateInterimSegments(this.micConfirmedSegments, rawInterim);
       }
 
       const confirmedText = this.micConfirmedSegments
@@ -530,7 +781,7 @@ class AudioTranscriberWorker extends BaseWorker<AudioTranscriber> {
             const stepResult = await this.taskInstance.transcribeStream(samples16k);
             for (const seg of stepResult.segments || []) {
               if (seg.isFinal !== false && seg.transcript?.trim()) {
-                this.micConfirmedSegments.push(seg);
+                appendDeduplicatedSegment(this.micConfirmedSegments, seg);
               }
             }
           } catch (_) {}
@@ -543,11 +794,11 @@ class AudioTranscriberWorker extends BaseWorker<AudioTranscriber> {
 
       for (const seg of flushResult.segments || []) {
         if (seg.transcript && seg.transcript.trim()) {
-          this.micConfirmedSegments.push({ ...seg, isFinal: true });
+          appendDeduplicatedSegment(this.micConfirmedSegments, { ...seg, isFinal: true });
         }
       }
       if (this.micConfirmedSegments.length === 0 && flushResult.text?.trim()) {
-        this.micConfirmedSegments.push({
+        appendDeduplicatedSegment(this.micConfirmedSegments, {
           transcript: flushResult.text.trim(),
           isFinal: true,
           fromTimestampMs: 0,
@@ -555,6 +806,11 @@ class AudioTranscriberWorker extends BaseWorker<AudioTranscriber> {
         });
       }
 
+      const normalizedSegments = normalizeSegmentTimestamps(
+        this.micConfirmedSegments,
+        Math.round((this.micSamplesProcessed / TARGET_SAMPLE_RATE) * 1000)
+      );
+      this.micConfirmedSegments = normalizedSegments;
       const confirmedText = this.micConfirmedSegments
         .map((s) => s.transcript.trim())
         .filter(Boolean)

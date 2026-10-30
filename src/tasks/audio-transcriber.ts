@@ -101,6 +101,7 @@ class AudioTranscriberTask {
   private clipSamples: Float32Array | null = null;
   private clipSampleRate = 16000;
   private clipLabel = 'English Greeting';
+  private loadingClipPromise: Promise<void> | null = null;
 
   // Live microphone state
   private micAudioCtx: AudioContext | null = null;
@@ -661,46 +662,62 @@ class AudioTranscriberTask {
   }
 
   private async loadSampleClip(sampleFile: string, label: string) {
-    try {
-      const base = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL : `${import.meta.env.BASE_URL}/`;
-      const url = `${base}audio/${sampleFile}`;
-      this.audioPlayer.src = url;
-      this.clipLabel = label;
-
-      const resp = await fetch(url);
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      const buf = await resp.arrayBuffer();
-      const { samples, sampleRate } = await this.decodeAudioArrayBuffer(buf);
-      this.clipSamples = samples;
-      this.clipSampleRate = sampleRate;
-
-      const durSec = (samples.length / sampleRate).toFixed(1);
-      this.clipMetaBadge.textContent = `${durSec}s · ${(sampleRate / 1000).toFixed(0)} kHz`;
-      this.drawClipWaveform(samples, 0);
-      this.updateControlsState();
-    } catch (err: any) {
-      console.error('Error loading sample clip:', err);
+    if (!this.isTranscribing && !this.isRecording) {
+      this.renderTranscript('', '', []);
+      this.transcriptMetricsBadge.textContent = this.isModelReady ? 'Model Ready' : 'Ready';
     }
+    const task = (async () => {
+      try {
+        const base = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL : `${import.meta.env.BASE_URL}/`;
+        const url = `${base}audio/${sampleFile}`;
+        this.audioPlayer.src = url;
+        this.clipLabel = label;
+
+        const resp = await fetch(url);
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const buf = await resp.arrayBuffer();
+        const { samples, sampleRate } = await this.decodeAudioArrayBuffer(buf);
+        this.clipSamples = samples;
+        this.clipSampleRate = sampleRate;
+
+        const durSec = (samples.length / sampleRate).toFixed(1);
+        this.clipMetaBadge.textContent = `${durSec}s · ${(sampleRate / 1000).toFixed(0)} kHz`;
+        this.drawClipWaveform(samples, 0);
+        this.updateControlsState();
+      } catch (err: any) {
+        console.error('Error loading sample clip:', err);
+      }
+    })();
+    this.loadingClipPromise = task;
+    await task;
   }
 
   private async handleFileUpload(file: File) {
-    try {
-      const url = URL.createObjectURL(file);
-      this.audioPlayer.src = url;
-      this.clipLabel = file.name;
-
-      const buf = await file.arrayBuffer();
-      const { samples, sampleRate } = await this.decodeAudioArrayBuffer(buf);
-      this.clipSamples = samples;
-      this.clipSampleRate = sampleRate;
-
-      const durSec = (samples.length / sampleRate).toFixed(1);
-      this.clipMetaBadge.textContent = `${file.name} · ${durSec}s`;
-      this.drawClipWaveform(samples, 0);
-      this.updateControlsState();
-    } catch (err: any) {
-      this.setStatus(`Error decoding audio file: ${err.message}`, 'error');
+    if (!this.isTranscribing && !this.isRecording) {
+      this.renderTranscript('', '', []);
+      this.transcriptMetricsBadge.textContent = this.isModelReady ? 'Model Ready' : 'Ready';
     }
+    const task = (async () => {
+      try {
+        const url = URL.createObjectURL(file);
+        this.audioPlayer.src = url;
+        this.clipLabel = file.name;
+
+        const buf = await file.arrayBuffer();
+        const { samples, sampleRate } = await this.decodeAudioArrayBuffer(buf);
+        this.clipSamples = samples;
+        this.clipSampleRate = sampleRate;
+
+        const durSec = (samples.length / sampleRate).toFixed(1);
+        this.clipMetaBadge.textContent = `${file.name} · ${durSec}s`;
+        this.drawClipWaveform(samples, 0);
+        this.updateControlsState();
+      } catch (err: any) {
+        this.setStatus(`Error decoding audio file: ${err.message}`, 'error');
+      }
+    })();
+    this.loadingClipPromise = task;
+    await task;
   }
 
   private drawClipWaveform(samples: Float32Array | null, progressFrac = 0) {
@@ -758,7 +775,10 @@ class AudioTranscriberTask {
     }
   }
 
-  private runFileTranscription() {
+  private async runFileTranscription() {
+    if (this.loadingClipPromise) {
+      await this.loadingClipPromise;
+    }
     if (!this.worker || !this.isModelReady || !this.clipSamples || this.isTranscribing) return;
 
     this.sessionId++;
