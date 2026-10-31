@@ -20,9 +20,7 @@ test.describe('Text to Speech Task', () => {
   test.beforeEach(async ({ page }) => {
     page.on('console', (msg) => console.log(`[Browser Console]: ${msg.text()}`));
     page.on('pageerror', (err) => console.log(`[Browser Error]: ${err}`));
-    page.on('requestfailed', (req) =>
-      console.log(`[Request Failed]: ${req.url()} - ${req.failure()?.errorText}`)
-    );
+    page.on('requestfailed', (req) => console.log(`[Request Failed]: ${req.url()} - ${req.failure()?.errorText}`));
 
     await page.goto('/#/audio/text_to_speech');
     await page.waitForLoadState('domcontentloaded');
@@ -48,7 +46,8 @@ test.describe('Text to Speech Task', () => {
     await expect(modelSelect).toHaveValue('kokoro_82m');
     // Only the Kokoro model should be exposed
     await expect(modelSelect.locator('option')).toHaveCount(1);
-    await expect(modelSelect.locator('option')).toHaveText('Kokoro-82M (9 languages)');
+    await expect(modelSelect.locator('option')).toContainText('Kokoro-82M (9 languages)');
+    await expect(modelSelect.locator('option')).toContainText('281.1 MB');
 
     const initButton = page.locator('#model-selector-container-standard-load-btn');
     await expect(initButton).toBeVisible();

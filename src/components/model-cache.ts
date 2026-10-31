@@ -100,6 +100,55 @@ export function formatMegabytes(bytes: number): string {
 }
 
 /**
+ * Download sizes (in bytes) of the built-in models, keyed by resolved download
+ * URL, so the model dropdown can show the download size before a model is
+ * fetched without issuing extra network requests.
+ */
+const KNOWN_MODEL_SIZES: Record<string, number> = {
+  'https://storage.googleapis.com/mediapipe-models/object_detector/efficientdet_lite0/float32/1/efficientdet_lite0.tflite': 13836895,
+  'https://storage.googleapis.com/mediapipe-models/object_detector/efficientdet_lite2/float32/1/efficientdet_lite2.tflite': 23096891,
+  'https://storage.googleapis.com/mediapipe-models/object_detector/ssd_mobilenet_v2/float32/1/ssd_mobilenet_v2.tflite': 11316189,
+  'https://storage.googleapis.com/mediapipe-models/object_detector/ssd_mobilenet_v2/float16/1/ssd_mobilenet_v2.tflite': 5918749,
+  'https://storage.googleapis.com/mediapipe-models/interactive_segmenter_v2/magic_touch/int8/1/interactive_segmentation.task': 30525312,
+  'https://storage.googleapis.com/mediapipe-models/audio_classifier/yamnet/float32/1/yamnet.tflite': 4126810,
+  'https://storage.googleapis.com/mediapipe-models/holistic_landmarker/holistic_landmarker/float16/1/holistic_landmarker.task': 13683609,
+  'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task': 7819105,
+  'https://storage.googleapis.com/mediapipe-models/text_classifier/bert_classifier/float32/1/bert_classifier.tflite': 25707538,
+  'https://storage.googleapis.com/mediapipe-models/text_classifier/average_word_classifier/float32/1/average_word_classifier.tflite': 775706,
+  'https://storage.googleapis.com/mediapipe-models/language_detector/language_detector/float32/1/language_detector.tflite': 315294,
+  'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task': 3758596,
+  'https://storage.googleapis.com/mediapipe-models/gesture_recognizer/gesture_recognizer/float16/1/gesture_recognizer.task': 8373440,
+  'https://storage.googleapis.com/mediapipe-models/text_embedder/universal_sentence_encoder/float32/1/universal_sentence_encoder.tflite': 6120274,
+  'https://storage.googleapis.com/mediapipe-models/text_embedder/embedding_gemma/int4int8/latest/embedding_gemma.task': 183816181,
+  'https://storage.googleapis.com/mediapipe-models/image_classifier/efficientnet_lite0/float32/1/efficientnet_lite0.tflite': 18582189,
+  'https://storage.googleapis.com/mediapipe-models/image_classifier/efficientnet_lite2/float32/1/efficientnet_lite2.tflite': 24325765,
+  'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task': 5777746,
+  'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task': 9398198,
+  'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_heavy/float16/1/pose_landmarker_heavy.task': 30664242,
+  'https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite': 229746,
+  'https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_full_range/float16/1/blaze_face_full_range.tflite': 1083786,
+  'https://storage.googleapis.com/mediapipe-models/image_segmenter/deeplab_v3/float32/1/deeplab_v3.tflite': 2780176,
+  'https://storage.googleapis.com/mediapipe-models/image_segmenter/hair_segmenter/float32/1/hair_segmenter.tflite': 781618,
+  'https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter/float16/latest/selfie_segmenter.tflite': 249537,
+  'https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter/float16/1/selfie_segmenter.tflite': 249537,
+  'https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter_landscape/float16/latest/selfie_segmenter_landscape.tflite': 250177,
+  'https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_multiclass_256x256/float32/latest/selfie_multiclass_256x256.tflite': 16371837,
+  'https://storage.googleapis.com/mediapipe-models/image_embedder/mobilenet_v3_small/float32/1/mobilenet_v3_small.tflite': 4117670,
+  'https://storage.googleapis.com/mediapipe-models/image_embedder/mobilenet_v3_large/float32/1/mobilenet_v3_large.tflite': 10889458,
+  'https://storage.googleapis.com/mediapipe-models/decision_maker/laya/float32/laya_s256/latest/laya_s256.task': 678477844,
+  'https://huggingface.co/litert-community/embeddinggemma-2-text-270m-litert-lm/resolve/main/embeddinggemma-2-text-270m.litertlm': 164626432,
+  'https://huggingface.co/litert-community/embeddinggemma-2-text-vision-440m-litert-lm/resolve/main/embeddinggemma-2-text-vision-440m.litertlm': 387710976,
+  'https://huggingface.co/litert-community/embeddinggemma-2-740m-litert-lm/resolve/main/embeddinggemma-2-740m.litertlm': 484622336,
+  'https://huggingface.co/litert-community/parakeet-tdt-0.6b-v3/resolve/3ce205aa928f443f423214195cfe83ebe4802826/parakeet_tdt_0.6b_v3_5s_i8_stateful.litertlm': 614588752,
+  'https://huggingface.co/litert-community/Kokoro-82M/resolve/81e43a025bccabcbbd487f08bc3ebd65b5fc7295/kokoro_int8_gpu_fp16.litertlm': 294750530,
+};
+
+/** Returns the known download size in bytes for a model URL, if available. */
+export function getKnownModelSize(url: string): number | undefined {
+  return KNOWN_MODEL_SIZES[resolveModelDownloadUrl(url)] ?? KNOWN_MODEL_SIZES[url];
+}
+
+/**
  * Pipes `stream` through a counter that reports cumulative progress.
  * Returns the input unchanged when there is nobody to report to.
  */
@@ -209,6 +258,7 @@ export async function openModelStream(url: string, onProgress?: ModelProgressCal
 
   const response = await fetchFromNetwork(url);
   const size = contentLength(response);
+  if (size > 0) KNOWN_MODEL_SIZES[url] = size;
   let body = response.body!;
   let written: Promise<boolean> = Promise.resolve(false);
 

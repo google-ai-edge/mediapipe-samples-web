@@ -80,6 +80,7 @@ class ImageSegmenterTask extends BaseVisionTask {
       this.canvasElement.parentElement?.appendChild(overlayCanvas);
     }
     this.overlayCanvas = overlayCanvas;
+    this.models = standardModels;
 
     if (this.modelSelector) {
       this.modelSelector.updateOptions([
@@ -130,8 +131,6 @@ class ImageSegmenterTask extends BaseVisionTask {
       if (imageCanvas) imageCanvas.style.opacity = opacityInput.value;
       if (this.overlayCanvas) this.overlayCanvas.style.opacity = opacityInput.value;
     }
-
-    this.models = standardModels;
   }
 
   private triggerImageFromTestImage() {

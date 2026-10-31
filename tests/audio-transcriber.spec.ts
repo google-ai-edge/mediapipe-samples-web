@@ -20,9 +20,7 @@ test.describe('Audio Transcriber Task', () => {
   test.beforeEach(async ({ page }) => {
     page.on('console', (msg) => console.log(`[Browser Console]: ${msg.text()}`));
     page.on('pageerror', (err) => console.log(`[Browser Error]: ${err}`));
-    page.on('requestfailed', (req) =>
-      console.log(`[Request Failed]: ${req.url()} - ${req.failure()?.errorText}`)
-    );
+    page.on('requestfailed', (req) => console.log(`[Request Failed]: ${req.url()} - ${req.failure()?.errorText}`));
 
     await page.goto('/#/audio/audio_transcriber');
     await page.waitForLoadState('domcontentloaded');
@@ -48,7 +46,8 @@ test.describe('Audio Transcriber Task', () => {
     await expect(modelSelect).toHaveValue('parakeet_tdt_v3');
     // Only the Parakeet model should be exposed
     await expect(modelSelect.locator('option')).toHaveCount(1);
-    await expect(modelSelect.locator('option')).toHaveText('Parakeet-TDT-0.6B-v3 (25 languages)');
+    await expect(modelSelect.locator('option')).toContainText('Parakeet-TDT-0.6B-v3 (25 languages)');
+    await expect(modelSelect.locator('option')).toContainText('586.1 MB');
 
     const initButton = page.locator('#model-selector-container-standard-load-btn');
     await expect(initButton).toBeVisible();
