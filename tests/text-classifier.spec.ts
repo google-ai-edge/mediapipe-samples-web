@@ -36,6 +36,10 @@ test.describe('Text Classification Task', () => {
       modelFetches++;
       route.fulfill({ path: assetPath });
     });
+    await page.route('**/average_word_classifier.tflite', (route) => {
+      const assetPath = path.join(__dirname, 'assets', 'average_word_classifier.tflite');
+      route.fulfill({ path: assetPath });
+    });
 
     await page.goto('#/text/text_classifier');
   });
@@ -52,6 +56,8 @@ test.describe('Text Classification Task', () => {
     // Wait for results
     const resultsContainer = page.locator('#classification-results');
     await expect(resultsContainer).not.toBeEmpty();
+    await expect(resultsContainer.locator('.placeholder-results')).toHaveCount(0);
+    await expect(resultsContainer.locator('.classification-item')).toHaveCount(2);
 
     // Check for positive sentiment
     await expect(resultsContainer).toContainText('positive');
@@ -60,6 +66,29 @@ test.describe('Text Classification Task', () => {
     const inferenceTime = page.locator('#inference-time');
     await expect(inferenceTime).toContainText('ms');
     await expect(inferenceTime).not.toContainText('- ms');
+
+    // Switch to Average Word Classifier and back to BERT without leaving stale boxes
+    await page.selectOption('.model-select', 'average_word_classifier');
+    await expect(page.locator('.model-select option[value="average_word_classifier"]')).toHaveAttribute(
+      'data-state',
+      'loaded',
+      { timeout: 30000 }
+    );
+    await expect(resultsContainer.locator('.classification-item .class-name').first()).toHaveText('positive', {
+      timeout: 30000,
+    });
+    await expect(resultsContainer.locator('.classification-item')).toHaveCount(2);
+
+    await page.selectOption('.model-select', 'bert_classifier');
+    await expect(page.locator('.model-select option[value="bert_classifier"]')).toHaveAttribute(
+      'data-state',
+      'loaded',
+      { timeout: 30000 }
+    );
+    await expect(resultsContainer.locator('.classification-item .class-name').first()).toHaveText('positive', {
+      timeout: 30000,
+    });
+    await expect(resultsContainer.locator('.classification-item')).toHaveCount(2);
   });
 
   test('should cache the downloaded model and reuse it after a reload', async ({ page }) => {

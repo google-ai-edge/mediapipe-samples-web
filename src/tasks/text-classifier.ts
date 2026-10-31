@@ -85,6 +85,7 @@ class TextClassifierTask extends BaseTextTask {
     if (this.classifyBtn) {
       this.classifyBtn.disabled = true;
     }
+    this.classificationResultUI?.clear();
     await super.initializeTask();
   }
 
@@ -118,11 +119,15 @@ class TextClassifierTask extends BaseTextTask {
     }
   }
 
-  protected override handleInitDone() {
-    super.handleInitDone();
+  protected override handleInitDone(data?: any) {
+    super.handleInitDone(data);
+    if (!this.isWorkerReady) return;
     if (this.classifyBtn) {
       this.classifyBtn.disabled = false;
       this.classifyBtn.innerText = 'Classify';
+    }
+    if (this.textInput?.value.trim()) {
+      this.classifyText(this.textInput.value);
     }
   }
 
@@ -146,7 +151,7 @@ class TextClassifierTask extends BaseTextTask {
     categories.sort((a: any, b: any) => b.score - a.score);
 
     const items: ClassificationItem[] = categories.map((c: any) => ({
-      label: c.categoryName,
+      label: c.categoryName === '1' ? 'positive' : c.categoryName === '0' ? 'negative' : c.categoryName,
       score: c.score,
     }));
 

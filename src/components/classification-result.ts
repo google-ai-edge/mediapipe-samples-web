@@ -22,11 +22,13 @@ export interface ClassificationItem {
 export class ClassificationResult {
   private container: HTMLElement;
   private maxRowsRendered = 0;
+  private initialHTML: string;
 
   constructor(containerId: string) {
     const el = document.getElementById(containerId);
     if (!el) throw new Error(`ClassificationResult: container ${containerId} not found`);
     this.container = el;
+    this.initialHTML = el.innerHTML;
     this.injectStyles();
   }
 
@@ -94,6 +96,13 @@ export class ClassificationResult {
     }
     const totalRows = Math.max(this.maxRowsRendered, results.length);
 
+    // Remove any non-item placeholder wrapper before syncing rows
+    Array.from(this.container.children).forEach((child) => {
+      if (!child.classList.contains('classification-item')) {
+        child.remove();
+      }
+    });
+
     // Get current rows
     const currentRows = Array.from(this.container.children) as HTMLElement[];
 
@@ -148,6 +157,6 @@ export class ClassificationResult {
 
   public clear() {
     this.maxRowsRendered = 0;
-    this.container.innerHTML = '';
+    this.container.innerHTML = this.initialHTML;
   }
 }
