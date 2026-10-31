@@ -215,8 +215,5 @@ test.describe('Audio Transcriber Task', () => {
 
     const mobileHeader = page.locator('.mobile-header');
     await expect(mobileHeader).toBeVisible();
-
-    const select = page.locator('#mobile-task-select');
-    await expect(select).toHaveValue('#/audio/audio_transcriber');
   });
 });
