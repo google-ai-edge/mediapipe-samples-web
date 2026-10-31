@@ -93,5 +93,6 @@ test.describe('Text Classification Task', () => {
       'data-state',
       /.*/
     );
+    await expect(page.locator('.model-select option[value="average_word_classifier"]')).toContainText('0.7 MB');
   });
 });

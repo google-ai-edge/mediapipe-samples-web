@@ -15,7 +15,7 @@
  */
 
 import { ViewToggle } from './view-toggle';
-import { formatMegabytes, isModelCached, removeCachedModel } from './model-cache';
+import { formatMegabytes, getKnownModelSize, isModelCached, removeCachedModel } from './model-cache';
 
 export interface ModelOption {
   label: string;
@@ -23,6 +23,8 @@ export interface ModelOption {
   isDefault?: boolean;
   /** Listed so users know it is coming, but not selectable yet. */
   disabled?: boolean;
+  /** Download size in bytes (optional; resolved from URL when omitted). */
+  size?: number;
 }
 
 export type ModelSelection = { type: 'standard'; value: string } | { type: 'custom'; file: File };
@@ -415,6 +417,14 @@ export class ModelSelector {
     return null;
   }
 
+  /** Known download size in bytes for a standard model, if available. */
+  private sizeOf(value: string): number | undefined {
+    const opt = this.options.find((o) => o.value === value);
+    if (opt?.size && opt.size > 0) return opt.size;
+    const url = this.config.resolveUrl ? this.config.resolveUrl(value) : value;
+    return url ? getKnownModelSize(url) : undefined;
+  }
+
   /**
    * Shows the state of every model: a badge on the dropdown control for the
    * selected one, and a text tag in the option list for all of them (options
@@ -427,6 +437,8 @@ export class ModelSelector {
         (RICH_OPTIONS ? option.querySelector('.model-label')?.textContent : option.textContent) ??
         '';
       const state = this.stateOf(option.value);
+      const size = state ? undefined : this.sizeOf(option.value);
+      const sizeText = size ? formatMegabytes(size) : null;
       if (state) {
         option.dataset.state = state;
         option.dataset.tag = state === 'loaded' ? 'Active' : 'Loaded'; // keep for legacy css just in case
@@ -475,11 +487,17 @@ export class ModelSelector {
               });
               actions.appendChild(delBtn);
             }
+          } else if (sizeText) {
+            const sizeEl = document.createElement('span');
+            sizeEl.className = 'model-option-size';
+            sizeEl.textContent = sizeText;
+            actions.appendChild(sizeEl);
           }
         }
       } else {
-        const fallbackTag = state === 'loaded' ? LOADED_TAG : DOWNLOADED_TAG;
-        option.textContent = state ? `${label}  ${fallbackTag}` : label;
+        const fallbackTag =
+          state === 'loaded' ? LOADED_TAG : state === 'downloaded' ? DOWNLOADED_TAG : sizeText ? `(${sizeText})` : '';
+        option.textContent = fallbackTag ? `${label}  ${fallbackTag}` : label;
       }
     }
 

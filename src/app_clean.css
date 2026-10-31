@@ -590,6 +590,14 @@ select:focus {
     background: var(--primary);
   }
 
+  .model-option-size {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+
   .model-option-icon {
     font-size: 1.1rem;
     display: flex;
