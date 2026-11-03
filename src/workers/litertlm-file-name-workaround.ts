@@ -51,10 +51,10 @@ export function litertLmFileNameFor(source: string | undefined): string | undefi
 }
 
 /**
- * Installs the workaround. `getModelFileName` is consulted each time a module is
- * created and returns the file name to use instead of "model.litertlm", or
- * undefined to leave the module untouched. Must be called before the task's
- * Wasm loader runs.
+ * Installs the workaround. `getModelFileName` is consulted whenever a task
+ * writes or opens its model, and returns the file name to use instead of
+ * "model.litertlm", or undefined to keep the default. Must be called before the
+ * task's Wasm loader runs.
  */
 export function installLitertLmFileNameWorkaround(getModelFileName: () => string | undefined) {
   const g = globalThis as any;
@@ -62,7 +62,7 @@ export function installLitertLmFileNameWorkaround(getModelFileName: () => string
   const wrap = (f: any) =>
     typeof f !== 'function' || f.__litertLmFileNameWrapped
       ? f
-      : Object.assign(async (...args: any[]) => patchModule(await f(...args), getModelFileName()), {
+      : Object.assign(async (...args: any[]) => patchModule(await f(...args), getModelFileName), {
           __litertLmFileNameWrapped: true,
         });
   factory = wrap(factory);
@@ -75,15 +75,21 @@ export function installLitertLmFileNameWorkaround(getModelFileName: () => string
   });
 }
 
-function patchModule(module: any, fileName: string | undefined): any {
-  if (!fileName || !module || typeof module.FS_createDataFile !== 'function') return module;
-  const from = `/${DEFAULT_MODEL_FILE}`;
-  const to = `/${fileName}`;
-  const remap = (path: unknown) => (path === from ? to : path);
+function patchModule(module: any, getModelFileName: () => string | undefined): any {
+  if (!module || typeof module.FS_createDataFile !== 'function') return module;
+  // Resolved per call rather than per module: the loaded model can change
+  // while the same module instance is reused.
+  const remap = (path: unknown) => {
+    const fileName = getModelFileName();
+    return fileName && path === `/${DEFAULT_MODEL_FILE}` ? `/${fileName}` : path;
+  };
 
   const createDataFile = module.FS_createDataFile;
-  module.FS_createDataFile = (parent: string, name: string, ...rest: unknown[]) =>
-    createDataFile.call(module, parent, parent === '/' && name === DEFAULT_MODEL_FILE ? fileName : name, ...rest);
+  module.FS_createDataFile = (parent: string, name: string, ...rest: unknown[]) => {
+    const fileName = getModelFileName();
+    const target = fileName && parent === '/' && name === DEFAULT_MODEL_FILE ? fileName : name;
+    return createDataFile.call(module, parent, target, ...rest);
+  };
 
   const unlink = module.FS_unlink;
   if (typeof unlink === 'function') {
