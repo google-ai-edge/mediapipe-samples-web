@@ -16,6 +16,7 @@
 
 import { TextToSpeech, TextToSpeechStream, VoiceInfo } from '@mediapipe/tasks-audio';
 import { BaseWorker } from './base-worker';
+import { installLitertLmFileNameWorkaround, litertLmFileNameFor } from './litertlm-file-name-workaround';
 
 /**
  * Runs the MediaPipe TextToSpeech task off the main thread.
@@ -39,6 +40,11 @@ class TextToSpeechWorker extends BaseWorker<TextToSpeech> {
 
   constructor() {
     super();
+    // Keep the model's file name (e.g. "kokoro_int8_gpu_fp16.litertlm") in the
+    // Wasm file system so the native task detects the model architecture.
+    installLitertLmFileNameWorkaround(() =>
+      litertLmFileNameFor(this.currentOptions.modelFile?.name ?? this.currentOptions.modelAssetPath)
+    );
     // BaseWorker handles one message at a time. CANCEL must not wait behind the
     // synthesis it is meant to stop, so it is handled before the queue.
     const queued = self.onmessage!;
