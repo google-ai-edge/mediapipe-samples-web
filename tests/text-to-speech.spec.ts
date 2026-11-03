@@ -44,10 +44,15 @@ test.describe('Text to Speech Task', () => {
     const modelSelect = page.locator('#model-selector-container-standard-select');
     await expect(modelSelect).toBeVisible();
     await expect(modelSelect).toHaveValue('kokoro_82m');
-    // Only the Kokoro model should be exposed
-    await expect(modelSelect.locator('option')).toHaveCount(1);
-    await expect(modelSelect.locator('option')).toContainText('Kokoro-82M (9 languages)');
-    await expect(modelSelect.locator('option')).toContainText('281.1 MB');
+    // Kokoro (GPU and CPU variants), PocketTTS (English and multilingual) and Phonon
+    const options = modelSelect.locator('option');
+    await expect(options).toHaveCount(5);
+    await expect(options.nth(0)).toContainText('Kokoro-82M (9 languages)');
+    await expect(options.nth(0)).toContainText('281.1 MB');
+    await expect(options.nth(1)).toContainText('Kokoro-82M CPU (9 languages)');
+    await expect(options.nth(2)).toContainText('PocketTTS-100M (English)');
+    await expect(options.nth(3)).toContainText('PocketTTS-100M (7 languages)');
+    await expect(options.nth(4)).toContainText('Phonon-31M (English)');
 
     const initButton = page.locator('#model-selector-container-standard-load-btn');
     await expect(initButton).toBeVisible();

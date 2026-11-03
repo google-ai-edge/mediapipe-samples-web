@@ -79,5 +79,44 @@ export const KOKORO_82M: HostedModel = {
   description: '9 languages',
 };
 
+/** Kokoro variant for devices without a usable GPU (CPU / WASM). */
+export const KOKORO_82M_CPU: HostedModel = {
+  id: 'kokoro_82m_cpu',
+  name: 'Kokoro-82M CPU (9 languages)',
+  url: 'https://huggingface.co/litert-community/Kokoro-82M',
+  fileName: 'kokoro_int8_fp16.litertlm',
+  description: '9 languages, CPU-optimized',
+};
+
+export const POCKET_TTS_EN: HostedModel = {
+  id: 'pocket_tts_en',
+  name: 'PocketTTS-100M (English)',
+  url: 'https://huggingface.co/litert-community/pocket-tts',
+  fileName: 'pocket_tts_en_int8.litertlm',
+  description: 'English',
+};
+
+export const POCKET_TTS_MULTILINGUAL: HostedModel = {
+  id: 'pocket_tts',
+  name: 'PocketTTS-100M (7 languages)',
+  url: 'https://huggingface.co/litert-community/pocket-tts',
+  fileName: 'pocket_tts_int8.litertlm',
+  description: '7 languages',
+};
+
+export const PHONON_31M_EN: HostedModel = {
+  id: 'phonon_31m_en',
+  name: 'Phonon-31M (English)',
+  url: 'https://huggingface.co/litert-community/phonon-31m-en',
+  fileName: 'phonon_int8.litertlm',
+  description: 'English',
+};
+
 /** TTS models published on the LiteRT Hugging Face community. */
-export const TTS_MODELS: HostedModel[] = [KOKORO_82M];
+export const TTS_MODELS: HostedModel[] = [
+  KOKORO_82M,
+  KOKORO_82M_CPU,
+  POCKET_TTS_EN,
+  POCKET_TTS_MULTILINGUAL,
+  PHONON_31M_EN,
+];

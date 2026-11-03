@@ -45,6 +45,7 @@ const LOCALIZED_SAMPLES: Record<string, string> = {
   de: 'Willkommen bei MediaPipe. Diese Stimme wird vollständig in Ihrem Browser erzeugt, ganz ohne Server.',
   it: 'Benvenuto in MediaPipe. Questa voce viene generata interamente nel tuo browser, senza alcun server.',
   pt: 'Bem-vindo ao MediaPipe. Esta voz é gerada inteiramente no seu navegador, sem nenhum servidor.',
+  nl: 'Welkom bij MediaPipe. Deze stem wordt volledig in je browser gegenereerd, zonder enige server.',
   hi: 'मीडियापाइप में आपका स्वागत है। यह आवाज़ पूरी तरह से आपके ब्राउज़र में बनाई जाती है।',
   ja: 'MediaPipeへようこそ。この音声は、すべてお使いのブラウザの中で生成されています。',
   zh: '欢迎使用 MediaPipe。这个声音完全在您的浏览器中生成，无需任何服务器。',
@@ -233,6 +234,11 @@ class TextToSpeechTask extends BaseTask {
     const ids = voices.map((v) => v.voiceId);
     if (ids.includes(previous)) this.voiceSelect.value = previous;
     else if (ids.includes(PREFERRED_VOICE)) this.voiceSelect.value = PREFERRED_VOICE;
+    else {
+      // Default to an English voice to match the default sample text.
+      const english = voices.find((v) => /^en\b/i.test(v.locale ?? ''));
+      if (english) this.voiceSelect.value = english.voiceId;
+    }
     this.voiceSelect.disabled = false;
   }
 

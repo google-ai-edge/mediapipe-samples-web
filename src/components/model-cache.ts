@@ -141,6 +141,10 @@ const KNOWN_MODEL_SIZES: Record<string, number> = {
   'https://huggingface.co/litert-community/embeddinggemma-2-740m-litert-lm/resolve/main/embeddinggemma-2-740m.litertlm': 484622336,
   'https://huggingface.co/litert-community/parakeet-tdt-0.6b-v3/resolve/main/parakeet_tdt_0.6b_v3_5s_i8_stateful.litertlm': 614588752,
   'https://huggingface.co/litert-community/Kokoro-82M/resolve/main/kokoro_int8_gpu_fp16.litertlm': 294750530,
+  'https://huggingface.co/litert-community/Kokoro-82M/resolve/main/kokoro_int8_fp16.litertlm': 294783298,
+  'https://huggingface.co/litert-community/pocket-tts/resolve/main/pocket_tts_en_int8.litertlm': 162766856,
+  'https://huggingface.co/litert-community/pocket-tts/resolve/main/pocket_tts_int8.litertlm': 760061960,
+  'https://huggingface.co/litert-community/phonon-31m-en/resolve/main/phonon_int8.litertlm': 87205888,
 };
 
 /** Returns the known download size in bytes for a model URL, if available. */
