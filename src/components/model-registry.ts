@@ -63,7 +63,7 @@ export function hostedModelDownloadUrl(model: HostedModel): string {
 export const PARAKEET_TDT_V3: HostedModel = {
   id: 'parakeet_tdt_v3',
   name: 'Parakeet-TDT-0.6B-v3 (25 languages)',
-  url: 'https://huggingface.co/litert-community/parakeet-tdt-0.6b-v3/tree/3ce205aa928f443f423214195cfe83ebe4802826',
+  url: 'https://huggingface.co/litert-community/parakeet-tdt-0.6b-v3',
   fileName: 'parakeet_tdt_0.6b_v3_5s_i8_stateful.litertlm',
   description: '25 languages',
 };
@@ -74,7 +74,7 @@ export const ASR_MODELS: HostedModel[] = [PARAKEET_TDT_V3];
 export const KOKORO_82M: HostedModel = {
   id: 'kokoro_82m',
   name: 'Kokoro-82M (9 languages)',
-  url: 'https://huggingface.co/litert-community/Kokoro-82M/tree/81e43a025bccabcbbd487f08bc3ebd65b5fc7295',
+  url: 'https://huggingface.co/litert-community/Kokoro-82M',
   fileName: 'kokoro_int8_gpu_fp16.litertlm',
   description: '9 languages',
 };
