@@ -40,11 +40,13 @@ class TextToSpeechWorker extends BaseWorker<TextToSpeech> {
 
   constructor() {
     super();
-    // Keep the model's file name (e.g. "kokoro_int8_gpu_fp16.litertlm") in the
-    // Wasm file system so the native task detects the model architecture.
-    installLitertLmFileNameWorkaround(() =>
-      litertLmFileNameFor(this.currentOptions.modelFile?.name ?? this.currentOptions.modelAssetPath)
-    );
+    // Keep Kokoro's file name (e.g. "kokoro_int8_gpu_fp16.litertlm") in the
+    // Wasm file system so the native task detects the model architecture. Other
+    // models are detected correctly from their contents.
+    installLitertLmFileNameWorkaround(() => {
+      const name = litertLmFileNameFor(this.currentOptions.modelFile?.name ?? this.currentOptions.modelAssetPath);
+      return name && /kokoro/i.test(name) ? name : undefined;
+    });
     // BaseWorker handles one message at a time. CANCEL must not wait behind the
     // synthesis it is meant to stop, so it is handled before the queue.
     const queued = self.onmessage!;
