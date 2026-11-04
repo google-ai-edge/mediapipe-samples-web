@@ -33,6 +33,11 @@ import { installLitertLmFileNameWorkaround, litertLmFileNameFor } from './litert
  *   SYNTHESIS_DONE  { requestId, totalMs, cancelled }
  *   SYNTHESIS_ERROR { requestId, error }
  */
+/** Lets queued messages (such as CANCEL) run before continuing. */
+function yieldToEventLoop(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
 class TextToSpeechWorker extends BaseWorker<TextToSpeech> {
   private voices: VoiceInfo[] = [];
   private activeStream: TextToSpeechStream | undefined;
@@ -136,6 +141,10 @@ class TextToSpeechWorker extends BaseWorker<TextToSpeech> {
           for await (const chunk of this.activeStream) {
             if (this.cancelled) break;
             this.postChunk(requestId, chunk, startMs);
+            // Reading the next chunk resolves as a microtask, so without this
+            // the worker never returns to its event loop during a stream and
+            // can't receive CANCEL until the whole stream is done.
+            await yieldToEventLoop();
           }
         } finally {
           this.activeStream.close();

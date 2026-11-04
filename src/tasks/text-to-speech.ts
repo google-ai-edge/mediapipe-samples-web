@@ -284,7 +284,7 @@ class TextToSpeechTask extends BaseTask {
     this.resetMetrics();
     this.drawWaveform();
 
-    this.updateStatus(mode === 'STREAM' ? 'Streaming...' : 'Synthesizing...');
+    this.updateStatus(mode === 'STREAM' ? 'Streaming...' : 'Synthesizing full text...');
     this.setActionsEnabled(true);
 
     this.worker.postMessage({
@@ -379,6 +379,10 @@ class TextToSpeechTask extends BaseTask {
   private stop() {
     if (this.isSynthesizing) {
       this.worker?.postMessage({ type: 'CANCEL' });
+      // Ignore chunks of the cancelled request that are already on their way.
+      this.requestId++;
+      this.isSynthesizing = false;
+      this.updateStatus('Stopped');
     }
     this.stopPlayback();
     if (this.speakBtn) this.setActionsEnabled(true);
