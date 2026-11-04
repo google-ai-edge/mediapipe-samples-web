@@ -284,7 +284,7 @@ class TextToSpeechTask extends BaseTask {
     this.resetMetrics();
     this.drawWaveform();
 
-    this.updateStatus(mode === 'STREAM' ? 'Streaming...' : 'Synthesizing...');
+    this.updateStatus(mode === 'STREAM' ? 'Streaming...' : 'Synthesizing full text...');
     this.setActionsEnabled(true);
 
     this.worker.postMessage({

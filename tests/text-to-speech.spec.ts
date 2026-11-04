@@ -163,13 +163,19 @@ test.describe('Text to Speech Task', () => {
     const canvas = page.locator('#tts-waveform');
     await expect(canvas).toBeVisible();
 
-    const speakBtn = page.locator('#tts-speak-btn');
-    await expect(speakBtn).toBeVisible();
-    await expect(speakBtn).toContainText('Speak');
-
+    // Streaming is the primary action and comes first.
     const streamBtn = page.locator('#tts-stream-btn');
     await expect(streamBtn).toBeVisible();
     await expect(streamBtn).toContainText('Stream');
+    await expect(streamBtn).not.toHaveClass(/secondary/);
+    await expect(page.locator('.tts-actions button').first()).toHaveId('tts-stream-btn');
+
+    // Unary synthesis is secondary and explains that it waits for the whole text.
+    const speakBtn = page.locator('#tts-speak-btn');
+    await expect(speakBtn).toBeVisible();
+    await expect(speakBtn).toContainText('Synthesize all');
+    await expect(speakBtn).toHaveClass(/secondary/);
+    await expect(speakBtn).toHaveAttribute('title', /entire text into a single clip/);
 
     const stopBtn = page.locator('#tts-stop-btn');
     await expect(stopBtn).toBeVisible();

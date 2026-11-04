@@ -74,11 +74,21 @@
         ></textarea>
 
         <div class="tts-actions">
-          <button id="tts-speak-btn" class="action-button" disabled>
-            <span class="material-icons">record_voice_over</span> Speak
-          </button>
-          <button id="tts-stream-btn" class="action-button secondary" disabled>
+          <button
+            id="tts-stream-btn"
+            class="action-button"
+            title="Plays audio as soon as the first clause is synthesized, while the rest of the text is still being synthesized."
+            disabled
+          >
             <span class="material-icons">graphic_eq</span> Stream
+          </button>
+          <button
+            id="tts-speak-btn"
+            class="action-button secondary"
+            title="Synthesizes the entire text into a single clip before playback starts. Use Stream to hear audio sooner."
+            disabled
+          >
+            <span class="material-icons">record_voice_over</span> Synthesize all
           </button>
           <button id="tts-stop-btn" class="action-button secondary" disabled>
             <span class="material-icons">stop</span> Stop
