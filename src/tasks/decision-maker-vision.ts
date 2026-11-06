@@ -212,12 +212,12 @@ export const PASSPORT_RULES: PassportRule[] = [
     title: '1. Head Inside Frame',
     statement: 'Whole head, eyes, and chin visible in frame',
     normalizePrior: false,
-    prompt: "Can you see the person's full head including eyes, forehead, and hair inside the frame?",
+    prompt: "Can you see the top of the person's hair and their shirt below the chin?",
     options: [
       {
         label: 'pass_frontal',
         description:
-          'Portrait showing the full face with both eyes, forehead, top of hair, chin, and shirt visible inside the frame.',
+          'Portrait or webcam selfie showing the top of the head with hair, forehead, both eyes, chin, and shirt or shoulders.',
       },
       {
         label: 'fail_cropped',
@@ -226,7 +226,7 @@ export const PASSPORT_RULES: PassportRule[] = [
       {
         label: 'fail_top_cut',
         description:
-          'Half-face selfie cut off at the nose with only the lower face, beard or mouth, chin, and shirt visible and no eyes.',
+          'Half-face crop cut off at the nose with only the lower face, beard or mouth, chin, and shirt visible and no eyes.',
       },
     ],
     optionDisplay: {
@@ -1587,7 +1587,8 @@ export class DecisionVisionPlayground {
         rule.id === 'eyes_open' &&
         results['full_face'] &&
         !results['full_face'].passed &&
-        results['full_face'].chosenOptionLabel === 'fail_top_cut'
+        results['full_face'].chosenOptionLabel === 'fail_top_cut' &&
+        results['full_face'].prob < 0.45
       ) {
         finalPassProb = Math.min(finalPassProb, results['full_face'].prob);
         specificFailLabel = 'fail_top_cut';
