@@ -1077,7 +1077,8 @@ video {
 }
 
 .viewport.loading-model::after {
-  content: 'Loading Model...';
+  /* Set by BaseTask.setLoadingOverlay(): "Downloading model…" / "Initializing model…". */
+  content: attr(data-loading-text);
   position: absolute;
   top: 0;
   left: 0;

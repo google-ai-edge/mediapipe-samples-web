@@ -46,9 +46,9 @@ test.describe('Per-model auto-download', () => {
     // Picking the large model shows "Initialize Task" and downloads nothing.
     await select.selectOption('embedding_gemma_v1');
     await expect(loadBtn).toBeVisible();
-    await expect(loadBtn).toHaveText('Initialize Task');
+    await expect(loadBtn).toHaveText('Download and Initialize');
     await expect(status).toBeVisible();
-    await expect(status).toHaveText('Not loaded yet');
+    await expect(status).toHaveText('Model not downloaded (175.3 MB)');
     await page.waitForTimeout(1000);
     expect(largeModelFetches).toBe(0);
 
@@ -62,5 +62,43 @@ test.describe('Per-model auto-download', () => {
     await select.selectOption('embedding_gemma_v1');
     await loadBtn.click();
     await expect.poll(() => largeModelFetches).toBeGreaterThan(0);
+  });
+
+  test('shows the download, then the initialization, of a large model', async ({ page }) => {
+    await page.route('**/universal_sentence_encoder.tflite', (route) =>
+      route.fulfill({ path: path.join(__dirname, 'assets', 'universal_sentence_encoder.tflite') })
+    );
+    // Hold the large download open so the "downloading" state can be checked.
+    let releaseDownload: () => void = () => {};
+    const downloadHeld = new Promise<void>((resolve) => (releaseDownload = resolve));
+    await page.route('**/embedding_gemma.task', async (route) => {
+      await downloadHeld;
+      await route.abort();
+    });
+
+    await page.goto('#/text/text_embedder');
+    await expect(page.locator('#embed-btn')).toBeEnabled({ timeout: 30000 });
+    const loadBtn = page.locator('#model-selector-container-standard-load-btn');
+    const status = page.locator('#model-selector-container-standard-status');
+    const viewport = page.locator('.viewport');
+
+    await page.locator('#model-selector-container-standard-select').selectOption('embedding_gemma_v1');
+    await loadBtn.click();
+
+    // Downloading: the button shows it, the status line is hidden, and the
+    // viewport overlay says so.
+    await expect(loadBtn).toHaveText('Downloading…');
+    await expect(loadBtn).toBeDisabled();
+    await expect(status).toBeHidden();
+    await expect(viewport).toHaveClass(/loading-model/);
+    await expect(viewport).toHaveAttribute('data-loading-text', 'Downloading model…');
+    await expect(page.locator('#status-message')).toHaveText('Downloading model…');
+
+    // A failed download clears the overlay and re-enables the button.
+    releaseDownload();
+    await expect(page.locator('#status-message')).toHaveText(/^Error/, { timeout: 30000 });
+    await expect(viewport).not.toHaveClass(/loading-model/);
+    await expect(loadBtn).toBeEnabled();
+    await expect(loadBtn).toHaveText('Download and Initialize');
   });
 });

@@ -49,8 +49,8 @@ test.describe('Decision Maker Task', () => {
     const loadBtn = page.locator(`#${containerId}-standard-load-btn`);
     await expect(loadBtn).toBeVisible();
     await expect(loadBtn).toBeEnabled();
-    await expect(loadBtn).toHaveText('Initialize Task');
-    await expect(page.locator(`#${containerId}-standard-status`)).toHaveText(/Not loaded yet/);
+    await expect(loadBtn).toHaveText('Download and Initialize');
+    await expect(page.locator(`#${containerId}-standard-status`)).toHaveText(/Model not downloaded/);
     await expect(page.locator(`#${containerId}-model-badge`)).toBeHidden();
 
     // Nothing runs before a model is loaded

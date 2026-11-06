@@ -42,7 +42,7 @@ test.describe('Image Classifier Task', () => {
     await page.selectOption('#delegate-select', 'CPU');
 
     // Wait for reload
-    await expect(page.locator('#status-message')).toHaveText('Loading Model...', { timeout: 5000 });
+    await expect(page.locator('#status-message')).toHaveText(/Downloading model…|Initializing model…/, { timeout: 5000 });
     await expect(page.locator('#status-message')).toHaveText(/Ready|Done in/, { timeout: 30000 });
   });
 

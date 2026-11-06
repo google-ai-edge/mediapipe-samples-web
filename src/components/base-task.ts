@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { ModelSelector, type ModelSelectorConfig } from './model-selector';
+import { ModelSelector, loadPhaseLabel, type LoadPhase, type ModelSelectorConfig } from './model-selector';
 import { InferenceTimer } from './inference-timer';
 
 export interface BaseTaskOptions {
@@ -64,7 +64,7 @@ export abstract class BaseTask {
     this.onInitializeUI();
     this.setupDelegateSelect();
 
-    // Large default models wait for "Initialize Task" (or for the selector to
+    // Large default models wait for "Download and Initialize" (or for the selector to
     // auto-load the model if it is already cached).
     if (this.modelSelector && !this.modelSelector.isAutoLoad(this.currentModel)) {
       this.updateStatus('Model not loaded');
@@ -120,6 +120,7 @@ export abstract class BaseTask {
         console.error('Worker error:', event.data.error);
         this.modelSelector?.hideProgress();
         this.modelSelector?.setBusy(false);
+        this.setLoadingOverlay(null);
         this.updateStatus(`Error: ${event.data.error}`);
         break;
     }
@@ -153,7 +154,7 @@ export abstract class BaseTask {
     this.modelSelector?.hideProgress();
     this.modelSelector?.setBusy(false);
     this.modelSelector?.setLoaded(loadedModel === 'custom' ? null : loadedModel);
-    document.querySelector('.viewport')?.classList.remove('loading-model');
+    this.setLoadingOverlay(null);
     this.isWorkerReady = true;
     if (this.hadDelegateFallback) {
       this.updateStatus('GPU unavailable. Using CPU delegate (Ready).');
@@ -196,6 +197,13 @@ export abstract class BaseTask {
       },
       this.getModelSelectorConfig()
     );
+    this.modelSelector.onPhaseChange = (phase) => {
+      // Follow the load from downloading to initializing.
+      if (phase && document.querySelector('.viewport.loading-model')) {
+        this.setLoadingOverlay(phase);
+        this.updateStatus(loadPhaseLabel(phase));
+      }
+    };
     this.inferenceTimer.mount();
   }
 
@@ -218,13 +226,25 @@ export abstract class BaseTask {
     return new URL(modelPath, new URL(baseUrl, window.location.origin)).href;
   }
 
+  /**
+   * Shows the load phase over the viewport (blocking interaction), or removes
+   * the overlay (`null`).
+   */
+  protected setLoadingOverlay(phase: LoadPhase | null) {
+    const viewport = document.querySelector<HTMLElement>('.viewport');
+    if (!viewport) return;
+    viewport.classList.toggle('loading-model', phase !== null);
+    if (phase) viewport.dataset.loadingText = loadPhaseLabel(phase);
+  }
+
   protected async initializeTask(): Promise<void> {
     this.modelRequested = true;
-    document.querySelector('.viewport')?.classList.add('loading-model');
     this.isWorkerReady = false;
     this.inferenceTimer.resetRollingWindow();
     this.modelSelector?.setBusy(true);
-    this.updateStatus('Loading Model...');
+    const phase = this.modelSelector?.getPhase() ?? 'initializing';
+    this.setLoadingOverlay(phase);
+    this.updateStatus(loadPhaseLabel(phase));
 
     // @ts-ignore
     const baseUrl = import.meta.env.BASE_URL;
