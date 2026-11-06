@@ -210,22 +210,29 @@ export const PASSPORT_RULES: PassportRule[] = [
     icon: 'face',
     shortTitle: 'Head in Frame',
     title: '1. Head Inside Frame',
-    statement: 'Whole head and chin visible in frame',
+    statement: 'Whole head, eyes, and chin visible in frame',
     normalizePrior: false,
-    prompt: "Can you see the top of the person's hair and their shirt below the chin?",
+    prompt: "Can you see the person's full head including eyes, forehead, and hair inside the frame?",
     options: [
       {
         label: 'pass_frontal',
-        description: 'Portrait showing the top of the head with hair, the chin, and the shirt or shoulders.',
+        description:
+          'Portrait showing the full face with both eyes, forehead, top of hair, chin, and shirt visible inside the frame.',
       },
       {
         label: 'fail_cropped',
         description: 'Tightly cropped macro close-up of only skin, eyes, nose, and lips filling the entire image.',
       },
+      {
+        label: 'fail_top_cut',
+        description:
+          'Half-face selfie cut off at the nose with only the lower face, beard or mouth, chin, and shirt visible and no eyes.',
+      },
     ],
     optionDisplay: {
       pass_frontal: 'Full head & chin in frame',
       fail_cropped: 'Head/chin clipped at edge',
+      fail_top_cut: 'Upper head / eyes cut off at top',
     },
     enabled: true,
   },
@@ -261,6 +268,7 @@ export const PASSPORT_RULES: PassportRule[] = [
       fail_looking_away: 'Looking away from camera',
       fail_closed: 'Eyes closed / blinking',
       fail_sunglasses: 'Hidden behind dark lenses',
+      fail_top_cut: 'Eyes cut off / not in frame',
     },
     enabled: true,
   },
@@ -296,7 +304,7 @@ export const PASSPORT_RULES: PassportRule[] = [
     shortTitle: 'Plain BG',
     title: '4. Plain Neutral Background',
     statement: 'Plain neutral wall or backdrop',
-    normalizePrior: true,
+    normalizePrior: false,
     prompt: 'Is the background a plain, simple wall or backdrop?',
     options: [
       {
@@ -1573,16 +1581,19 @@ export class DecisionVisionPlayground {
         calPassProb = sigmoid((rawL - (muNeg + 0.8)) * 2.0);
       }
 
-      const finalPassProb = calPassProb;
+      let finalPassProb = calPassProb;
+      let specificFailLabel = rawEntry.failLabel || rule.options[1]?.label || rule.options[0].label;
+      if (
+        rule.id === 'eyes_open' &&
+        results['full_face'] &&
+        !results['full_face'].passed &&
+        results['full_face'].chosenOptionLabel === 'fail_top_cut'
+      ) {
+        finalPassProb = Math.min(finalPassProb, results['full_face'].prob);
+        specificFailLabel = 'fail_top_cut';
+      }
       const passed = finalPassProb >= 0.5;
-      const status: RuleStatusTier = !isEnabled
-        ? 'skipped'
-        : passed
-          ? 'pass'
-          : finalPassProb >= 0.46
-            ? 'borderline'
-            : 'fail';
-      const specificFailLabel = rawEntry.failLabel || rule.options[1]?.label || rule.options[0].label;
+      const status: RuleStatusTier = !isEnabled ? 'skipped' : passed ? 'pass' : 'fail';
       const chosenOptionLabel = passed ? rule.options[0].label : specificFailLabel;
       const reasonText = !isEnabled
         ? `Off (${rule.optionDisplay[chosenOptionLabel] || chosenOptionLabel})`
@@ -1955,18 +1966,12 @@ export class DecisionVisionPlayground {
     if (this.el['dv-result-meta']) {
       this.el['dv-result-meta'].textContent = 'Evaluating photo…';
     }
-    const dmEval = await this.evaluateSourceWithDecisionMaker(img);
-    const rawEg2Vision: Record<string, RawRuleVisionScore> = dmEval ? dmEval.rawEg2Vision : {};
-    if (dmEval?.inferenceTime !== undefined) {
-      this.lastInferenceMs = dmEval.inferenceTime;
-    }
-
-    this.currentPhotoObj = {
+    const pendingObj: PhotoPreset = {
       id: `custom_${Date.now()}`,
       title: titleLabel,
-      sub: wasAutoSnapped ? 'Auto-Snapped' : 'Custom',
+      sub: wasAutoSnapped ? 'Auto-Snapped' : 'Evaluating…',
       isCompliant: null,
-      evaluated: Boolean(dmEval),
+      evaluated: false,
       url: img.src,
       biometrics: {
         bgLum: 240,
@@ -1976,9 +1981,21 @@ export class DecisionVisionPlayground {
         bottomShoulderWidthRatio: 0.85,
         faceInfo: { hasFace: false },
       },
-      rawEg2Vision,
+      rawEg2Vision: {},
     };
-    this.updatePhotoComplianceBadge(this.currentPhotoObj);
+    this.currentPhotoObj = pendingObj;
+    this.renderPresetStrip();
+    this.renderAllPanels();
+
+    const dmEval = await this.evaluateSourceWithDecisionMaker(img);
+    const rawEg2Vision: Record<string, RawRuleVisionScore> = dmEval ? dmEval.rawEg2Vision : {};
+    if (dmEval?.inferenceTime !== undefined) {
+      this.lastInferenceMs = dmEval.inferenceTime;
+    }
+
+    pendingObj.rawEg2Vision = rawEg2Vision;
+    pendingObj.evaluated = Boolean(dmEval);
+    this.updatePhotoComplianceBadge(pendingObj);
     this.renderPresetStrip();
     this.renderAllPanels();
 
