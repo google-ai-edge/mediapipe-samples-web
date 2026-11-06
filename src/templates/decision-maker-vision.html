@@ -14,6 +14,15 @@
         <button type="button" id="dv-webcam-btn" class="dt-btn-sm">
           <span class="material-icons">videocam</span> <span id="dv-webcam-btn-label">Webcam</span>
         </button>
+        <button
+          type="button"
+          id="dv-autosnap-btn"
+          class="dt-btn-sm active"
+          style="display: none"
+          title="Automatically freeze frame when all active rules pass"
+        >
+          <span class="material-icons">hdr_auto</span> Auto-Snap: ON
+        </button>
         <button type="button" id="dv-snap-btn" class="dt-action-btn dt-action-btn-sm" style="display: none">
           <span class="material-icons">photo_camera</span> Freeze Photo
         </button>
@@ -22,6 +31,11 @@
         </label>
         <input id="dv-upload-input" type="file" accept="image/*" style="display: none" />
       </div>
+    </div>
+
+    <div id="dv-autosnap-banner" class="dv-autosnap-banner" style="display: none">
+      <span class="material-icons">verified</span>
+      <span id="dv-autosnap-banner-text">Auto-snapped — all requirements passed!</span>
     </div>
 
     <div id="dv-preset-strip" class="dv-preset-strip"></div>
@@ -33,15 +47,115 @@
       <span class="dt-step-num">2</span>
       <div class="dt-step-title">
         ID &amp; Passport Photo Compliance
-        <span class="dt-step-sub">Click any rule to inspect or customize its reference examples</span>
+        <span class="dt-step-sub">Switch rule packs, toggle or add plain-English requirements, or click any rule</span>
       </div>
-      <span id="dv-result-meta" class="dt-result-meta">9/9 rules</span>
+      <div class="dv-header-actions">
+        <button type="button" id="dv-filter-issues-btn" class="dt-btn-sm" title="Show only failing or borderline rules">
+          <span class="material-icons">filter_list</span> <span id="dv-filter-issues-label">All Rules</span>
+        </button>
+        <button type="button" id="dv-add-rule-btn" class="dt-btn-sm" title="Add a custom plain-English requirement">
+          <span class="material-icons">add_circle_outline</span> + Add Rule
+        </button>
+        <button type="button" id="dv-json-btn" class="dt-btn-sm" title="Inspect DecisionMaker JSON schema and output">
+          <span class="material-icons">data_object</span> JSON
+        </button>
+        <span id="dv-result-meta" class="dt-result-meta">9/9 rules</span>
+      </div>
+    </div>
+
+    <!-- Use-Case Rule Pack Bar & Readiness Meter -->
+    <div class="dv-pack-bar">
+      <div class="dv-pack-left">
+        <span class="dv-pack-label">Rule Pack:</span>
+        <div id="dv-pack-chips" class="dv-pack-chips"></div>
+        <button
+          type="button"
+          id="dv-save-pack-btn"
+          class="dt-btn-sm dv-save-pack-btn"
+          style="display: none"
+          title="Save current rule selection as a reusable preset"
+        >
+          <span class="material-icons">bookmark_add</span> Save Pack
+        </button>
+      </div>
+      <div class="dv-readiness-wrap">
+        <span id="dv-readiness-label" class="dv-readiness-label">Readiness: --</span>
+        <div class="dv-readiness-track">
+          <div id="dv-readiness-fill" class="dv-readiness-fill" style="width: 0%"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Collapsible Custom Requirement Creator / Rule Editor -->
+    <div id="dv-custom-rule-panel" class="dv-drawer-panel" style="display: none">
+      <div class="dv-drawer-header">
+        <div class="dv-drawer-title">
+          <span class="material-icons">auto_fix_high</span>
+          <span id="dv-editor-heading">Add Plain-English Photo Requirement</span>
+        </div>
+        <button type="button" id="dv-cancel-rule-btn" class="dt-btn-sm">Close</button>
+      </div>
+      <p class="dv-drawer-sub">
+        Describe any visual requirement in plain English. Positive &amp; negative multimodal prototypes are synthesized
+        automatically (including negation handling like <code>No headphones</code>).
+      </p>
+      <div id="dv-quick-ideas-row" class="dv-quick-ideas-row">
+        <span class="dv-quick-ideas-label">Quick ideas:</span>
+        <div id="dv-quick-ideas" class="dv-quick-ideas"></div>
+      </div>
+      <div class="dv-form-grid">
+        <label class="dv-form-field">
+          <span>Short Label</span>
+          <input id="dv-rule-label-input" type="text" placeholder="e.g. No Headphones" maxlength="32" />
+        </label>
+        <label class="dv-form-field dv-form-field-wide">
+          <span>Plain-English Requirement Statement</span>
+          <input
+            id="dv-rule-stmt-input"
+            type="text"
+            placeholder="e.g. No headphones, earbuds, or headset worn on the head"
+          />
+        </label>
+      </div>
+      <div class="dv-form-grid dv-anchors-preview-grid">
+        <label class="dv-form-field">
+          <span>Passing Visual Anchor (Auto-generated or Custom)</span>
+          <input id="dv-rule-pass-input" type="text" placeholder="Positive visual prototype description" />
+        </label>
+        <label class="dv-form-field">
+          <span>Failing Visual Anchor (Auto-generated or Custom)</span>
+          <input id="dv-rule-fail-input" type="text" placeholder="Negative visual prototype description" />
+        </label>
+      </div>
+      <div class="dv-drawer-actions">
+        <button type="button" id="dv-save-rule-btn" class="dt-action-btn dt-action-btn-sm">
+          <span class="material-icons">check</span> <span id="dv-save-rule-btn-label">Add &amp; Evaluate Rule</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Collapsible JSON Schema & Output Inspector -->
+    <div id="dv-json-panel" class="dv-drawer-panel dv-json-drawer" style="display: none">
+      <div class="dv-drawer-header">
+        <div class="dv-drawer-title">
+          <span class="material-icons">data_object</span>
+          <span>Multimodal DecisionMaker Schema &amp; Calibrated Output JSON</span>
+        </div>
+        <div class="dv-header-actions">
+          <button type="button" id="dv-copy-json-btn" class="dt-btn-sm">
+            <span class="material-icons">content_copy</span> <span id="dv-copy-json-label">Copy JSON</span>
+          </button>
+          <button type="button" id="dv-close-json-btn" class="dt-btn-sm">Close</button>
+        </div>
+      </div>
+      <pre id="dv-json-pre" class="dv-json-pre"></pre>
     </div>
 
     <div class="dv-stage-grid">
       <!-- Left: Portrait Viewport + Single-Line Verdict Banner -->
       <div class="dv-viewport-col">
         <div class="dv-viewport-frame">
+          <img id="dv-ambient-bg" class="dv-ambient-bg" alt="" aria-hidden="true" />
           <img id="dv-main-img" alt="Selected ID photo" />
           <video id="dv-webcam-video" autoplay playsinline muted></video>
           <svg id="dv-overlay-svg" viewBox="0 0 360 460" preserveAspectRatio="none"></svg>
@@ -56,7 +170,7 @@
         </div>
       </div>
 
-      <!-- Right: 9 Passport & Visa Photo Rules Grid -->
+      <!-- Right: Passport & Visa Photo Rules Grid -->
       <div class="dv-rules-col">
         <div id="dv-rules-list" class="dv-rules-list"></div>
       </div>
@@ -68,13 +182,28 @@
     <div class="dt-step-header">
       <span class="dt-step-num">3</span>
       <div class="dt-step-title">
-        Reference Examples
-        <span id="dv-active-rule-title" class="dt-step-sub">1. Full Face Present</span>
+        Reference Examples &amp; Visual Prototypes
+        <span id="dv-active-rule-title" class="dt-step-sub">1. Head Inside Frame</span>
       </div>
-      <span id="dv-active-rule-badge" class="dv-rule-badge pass">PASS (95%)</span>
+      <div class="dv-header-actions">
+        <button type="button" id="dv-edit-active-rule-btn" class="dt-btn-sm" title="Edit this rule's prompt or anchors">
+          <span class="material-icons">edit</span> Edit Rule
+        </button>
+        <button
+          type="button"
+          id="dv-delete-active-rule-btn"
+          class="dt-btn-sm"
+          style="display: none"
+          title="Delete custom rule"
+        >
+          <span class="material-icons">delete_outline</span> Delete
+        </button>
+        <span id="dv-active-rule-badge" class="dv-rule-badge pass">PASS (95%)</span>
+      </div>
     </div>
 
     <p id="dv-active-rule-prompt" class="dv-rule-prompt"></p>
+    <div id="dv-active-rule-anchors" class="dv-active-rule-anchors"></div>
 
     <div class="dv-exemplar-grid">
       <!-- Passing Examples -->
@@ -150,6 +279,273 @@
     .dv-upload-label {
       margin: 0;
       cursor: pointer;
+    }
+
+    .dv-autosnap-banner {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      margin-bottom: 10px;
+      border-radius: var(--radius-sm);
+      background: #e6f4ea;
+      border: 1px solid #ceead6;
+      color: #137333;
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+
+    .dv-autosnap-banner .material-icons {
+      font-size: 18px;
+    }
+
+    /* ---- Use-Case Rule Pack Bar & Readiness Meter -------------------- */
+    .dv-pack-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      padding: 8px 10px;
+      margin-bottom: 12px;
+      border-radius: var(--radius-sm);
+      background: var(--bg-color, #f8f9fa);
+      border: 1px solid var(--border-color);
+    }
+
+    .dv-pack-left {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .dv-pack-label {
+      font-size: 0.74rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+      margin-right: 2px;
+    }
+
+    .dv-pack-chips {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      flex-wrap: wrap;
+    }
+
+    .dv-pack-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--border-color);
+      background: #fff;
+      color: var(--text-main);
+      font-size: 0.73rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .dv-pack-chip:hover {
+      border-color: var(--primary);
+    }
+
+    .dv-pack-chip.active {
+      background: var(--primary-soft);
+      border-color: var(--primary);
+      color: var(--primary);
+      font-weight: 600;
+    }
+
+    .dv-pack-chip .dv-pack-del {
+      font-size: 13px;
+      opacity: 0.65;
+      margin-left: 2px;
+    }
+
+    .dv-pack-chip .dv-pack-del:hover {
+      opacity: 1;
+      color: #c5221f;
+    }
+
+    .dv-readiness-wrap {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 180px;
+    }
+
+    .dv-readiness-label {
+      font-family: 'Roboto Mono', monospace;
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+      white-space: nowrap;
+    }
+
+    .dv-readiness-track {
+      flex: 1;
+      height: 6px;
+      min-width: 72px;
+      border-radius: 4px;
+      background: #e8eaed;
+      overflow: hidden;
+    }
+
+    .dv-readiness-fill {
+      height: 100%;
+      border-radius: 4px;
+      background: #137333;
+      transition:
+        width 0.2s ease,
+        background 0.2s ease;
+    }
+
+    .dv-readiness-fill.warn {
+      background: #e37400;
+    }
+
+    .dv-readiness-fill.fail {
+      background: #c5221f;
+    }
+
+    /* ---- Custom Rule Creator / JSON Inspector Drawers ---------------- */
+    .dv-drawer-panel {
+      background: #f8fafd;
+      border: 1px solid var(--primary-border, #d2e3fc);
+      border-radius: var(--radius-sm);
+      padding: 12px 14px;
+      margin-bottom: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .dv-drawer-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .dv-drawer-title {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.84rem;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+
+    .dv-drawer-title .material-icons {
+      font-size: 18px;
+      color: var(--primary);
+    }
+
+    .dv-drawer-sub {
+      margin: 0;
+      font-size: 0.76rem;
+      color: var(--text-secondary);
+      line-height: 1.4;
+    }
+
+    .dv-quick-ideas-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .dv-quick-ideas-label {
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+    }
+
+    .dv-quick-ideas {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      flex-wrap: wrap;
+    }
+
+    .dv-idea-chip {
+      padding: 3px 8px;
+      border-radius: 999px;
+      border: 1px dashed var(--primary-border, #aecbfa);
+      background: #fff;
+      color: var(--primary);
+      font-size: 0.71rem;
+      font-weight: 500;
+      cursor: pointer;
+    }
+
+    .dv-idea-chip:hover {
+      background: var(--primary-soft);
+      border-style: solid;
+    }
+
+    .dv-form-grid {
+      display: grid;
+      grid-template-columns: 180px minmax(0, 1fr);
+      gap: 8px;
+    }
+
+    .dv-anchors-preview-grid {
+      grid-template-columns: 1fr 1fr;
+    }
+
+    @media (max-width: 680px) {
+      .dv-form-grid,
+      .dv-anchors-preview-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .dv-form-field {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+    }
+
+    .dv-form-field input {
+      padding: 6px 9px;
+      border-radius: 6px;
+      border: 1px solid var(--border-color);
+      font-size: 0.78rem;
+      color: var(--text-main);
+      background: #fff;
+    }
+
+    .dv-form-field input:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 2px var(--primary-soft);
+    }
+
+    .dv-drawer-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
+    .dv-json-pre {
+      margin: 0;
+      padding: 10px 12px;
+      border-radius: 6px;
+      background: #1e1f22;
+      color: #e8eaed;
+      font-family: 'Roboto Mono', monospace;
+      font-size: 0.72rem;
+      line-height: 1.45;
+      max-height: 260px;
+      overflow: auto;
     }
 
     /* ---- 8-Photo Preset Strip ---------------------------------------- */
@@ -228,7 +624,7 @@
       color: #c5221f;
     }
 
-    /* ---- Main Split: Viewport (Left) + 9 Rules Grid (Right) ---------- */
+    /* ---- Main Split: Viewport (Left) + Rules Grid (Right) ------------ */
     .dv-stage-grid {
       display: grid;
       grid-template-columns: 248px minmax(0, 1fr);
@@ -255,15 +651,28 @@
       aspect-ratio: 360 / 460;
       border-radius: var(--radius-sm);
       overflow: hidden;
-      background: #e8eaed;
+      background: #202124;
       border: 1px solid var(--border-color);
+    }
+
+    .dv-ambient-bg {
+      position: absolute;
+      inset: -12px;
+      width: calc(100% + 24px);
+      height: calc(100% + 24px);
+      object-fit: cover;
+      filter: blur(18px) brightness(0.75);
+      opacity: 0.7;
+      pointer-events: none;
     }
 
     #dv-main-img,
     #dv-webcam-video {
+      position: relative;
+      z-index: 1;
       width: 100%;
       height: 100%;
-      object-fit: cover;
+      object-fit: contain;
       object-position: center center;
       display: block;
     }
@@ -276,6 +685,7 @@
     #dv-overlay-svg {
       position: absolute;
       inset: 0;
+      z-index: 2;
       width: 100%;
       height: 100%;
       pointer-events: none;
@@ -300,6 +710,12 @@
       background: #e6f4ea;
       border-color: #ceead6;
       color: #137333;
+    }
+
+    .dv-verdict-banner.warn {
+      background: #fef7e0;
+      border-color: #fde293;
+      color: #b06000;
     }
 
     .dv-verdict-banner.fail {
@@ -336,7 +752,7 @@
       flex-shrink: 0;
     }
 
-    /* ---- 9 Passport Compliance Rules Grid ---------------------------- */
+    /* ---- Passport Compliance Rules Grid ------------------------------ */
     .dv-rules-col {
       display: flex;
       flex-direction: column;
@@ -375,9 +791,19 @@
       border-left-color: #137333;
     }
 
+    .dv-rule-card.borderline {
+      border-left-color: #e37400;
+      background: #fffdf5;
+    }
+
     .dv-rule-card.fail {
       border-left-color: #c5221f;
       background: #fef7f6;
+    }
+
+    .dv-rule-card.skipped {
+      opacity: 0.55;
+      border-left-color: #9aa0a6;
     }
 
     .dv-rule-card:hover {
@@ -394,7 +820,7 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 6px;
+      gap: 5px;
       min-width: 0;
     }
 
@@ -425,9 +851,28 @@
       color: #c5221f;
     }
 
+    .dv-rule-card.borderline .dv-rule-name .material-icons {
+      color: #e37400;
+    }
+
+    .dv-rule-right {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      flex-shrink: 0;
+    }
+
+    .dv-rule-toggle {
+      margin: 0;
+      width: 13px;
+      height: 13px;
+      accent-color: var(--primary);
+      cursor: pointer;
+    }
+
     .dv-rule-badge {
       font-family: 'Roboto Mono', monospace;
-      font-size: 0.65rem;
+      font-size: 0.63rem;
       font-weight: 700;
       padding: 2px 6px;
       border-radius: 10px;
@@ -440,9 +885,19 @@
       color: #137333;
     }
 
+    .dv-rule-badge.borderline {
+      background: #fef7e0;
+      color: #b06000;
+    }
+
     .dv-rule-badge.fail {
       background: #fce8e6;
       color: #c5221f;
+    }
+
+    .dv-rule-badge.skipped {
+      background: #e8eaed;
+      color: #5f6368;
     }
 
     .dv-rule-reason {
@@ -469,16 +924,56 @@
       background: #137333;
     }
 
+    .dv-rule-bar-fill.borderline {
+      background: #e37400;
+    }
+
     .dv-rule-bar-fill.fail {
       background: #c5221f;
+    }
+
+    .dv-rule-bar-fill.skipped {
+      background: #9aa0a6;
     }
 
     /* ---- Reference Examples & Calibration ---------------------------- */
     .dv-rule-prompt {
       font-size: 0.84rem;
       color: var(--text-secondary);
-      margin: 0 0 12px;
+      margin: 0 0 8px;
       line-height: 1.4;
+    }
+
+    .dv-active-rule-anchors {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+
+    .dv-anchor-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-size: 0.72rem;
+      line-height: 1.3;
+      border: 1px solid var(--border-color);
+      background: var(--bg-color, #f8f9fa);
+      color: var(--text-secondary);
+    }
+
+    .dv-anchor-pill.pass {
+      border-color: #ceead6;
+      background: #f4fbf6;
+      color: #137333;
+    }
+
+    .dv-anchor-pill.fail {
+      border-color: #fad2cf;
+      background: #fdf6f5;
+      color: #c5221f;
     }
 
     .dv-exemplar-grid {

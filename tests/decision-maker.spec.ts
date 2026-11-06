@@ -150,6 +150,25 @@ test.describe('Decision Maker Task', () => {
     // Select a rule card and verify reference examples update
     await page.locator('#dv-rules-list .dv-rule-card[data-rule-id="no_glasses"]').click();
     await expect(page.locator('#dv-active-rule-title')).toContainText('7. No Eyeglasses or Sunglasses');
+
+    // Switch rule packs (Badge / Profile skips no_glasses)
+    await page.locator('#dv-pack-chips .dv-pack-chip[data-pack-id="badge_profile"]').click();
+    await expect(page.locator('#dv-rules-list .dv-rule-card[data-rule-id="no_glasses"]')).toHaveClass(/skipped/);
+    await page.locator('#dv-pack-chips .dv-pack-chip[data-pack-id="full_biometric"]').click();
+    await expect(page.locator('#dv-rules-list .dv-rule-card[data-rule-id="no_glasses"]')).not.toHaveClass(/skipped/);
+
+    // Add a custom plain-English rule using a quick idea chip
+    await page.locator('#dv-add-rule-btn').click();
+    await expect(page.locator('#dv-custom-rule-panel')).toBeVisible();
+    await page.locator('#dv-quick-ideas .dv-idea-chip').first().click();
+    await expect(page.locator('#dv-rule-pass-input')).toHaveValue(/no headphones/i);
+    await page.locator('#dv-save-rule-btn').click();
+    await expect(page.locator('#dv-rules-list .dv-rule-card')).toHaveCount(10);
+
+    // Open and verify JSON schema & output inspector
+    await page.locator('#dv-json-btn').click();
+    await expect(page.locator('#dv-json-panel')).toBeVisible();
+    await expect(page.locator('#dv-json-pre')).toContainText('"requestSchema"');
   });
 
   test('should support Scene Image and Text State input modes in Dino Game', async ({ page }) => {
