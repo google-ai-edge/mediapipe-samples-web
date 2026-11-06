@@ -64,9 +64,9 @@ export abstract class BaseTask {
     this.onInitializeUI();
     this.setupDelegateSelect();
 
-    // Tasks with large models (`autoLoad: false`) wait for "Initialize Task"
-    // (or for the selector to auto-load a model that is already cached).
-    if (this.getModelSelectorConfig().autoLoad === false) {
+    // Large default models wait for "Initialize Task" (or for the selector to
+    // auto-load the model if it is already cached).
+    if (this.modelSelector && !this.modelSelector.isAutoLoad(this.currentModel)) {
       this.updateStatus('Model not loaded');
       return;
     }
@@ -200,9 +200,9 @@ export abstract class BaseTask {
   }
 
   /**
-   * Model selector configuration. The default (auto-load on selection) suits
-   * the small .tflite models; tasks with large models should override this to
-   * return `{ autoLoad: false }` so nothing downloads before "Initialize Task".
+   * Model selector configuration. Whether a model downloads on selection is
+   * decided per model, by download size; `autoLoad` is the fallback for models
+   * of unknown size (see `ModelSelector.isAutoLoad()`).
    */
   protected getModelSelectorConfig(): ModelSelectorConfig {
     return { resolveUrl: (value) => this.resolveModelUrl(value) };

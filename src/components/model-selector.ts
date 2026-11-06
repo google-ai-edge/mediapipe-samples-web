@@ -25,17 +25,29 @@ export interface ModelOption {
   disabled?: boolean;
   /** Download size in bytes (optional; resolved from URL when omitted). */
   size?: number;
+  /**
+   * Whether picking this model downloads and loads it right away. Overrides
+   * the size-based default (see `ModelSelectorConfig.autoLoadMaxBytes`).
+   */
+  autoLoad?: boolean;
 }
 
 export type ModelSelection = { type: 'standard'; value: string } | { type: 'custom'; file: File };
 
 export interface ModelSelectorConfig {
   /**
-   * When true (default) a standard model is loaded as soon as it is picked in
-   * the dropdown. When false a "Initialize Task" button is shown and nothing is
-   * downloaded until the user presses it; use this for large models.
+   * Whether a standard model loads as soon as it is picked, or only after the
+   * user presses "Initialize Task" (models that are already cached always load
+   * right away). Decided per model: `ModelOption.autoLoad` if set, otherwise
+   * by download size (up to `autoLoadMaxBytes`). This setting is the fallback
+   * for models of unknown size. Defaults to true.
    */
   autoLoad?: boolean;
+  /**
+   * Models with a known download size up to this many bytes load as soon as
+   * they are picked; larger ones wait for "Initialize Task". Defaults to 100 MB.
+   */
+  autoLoadMaxBytes?: number;
   /** Accepted file extensions for the Upload tab. */
   accept?: string;
   /** Label of the upload button. */
@@ -55,6 +67,7 @@ export interface ModelSelectorConfig {
 
 const DEFAULT_CONFIG = {
   autoLoad: true,
+  autoLoadMaxBytes: 100 * 1000 * 1000,
   accept: '.tflite,.task',
   uploadLabel: 'Choose .tflite File',
 };
@@ -74,10 +87,10 @@ const RICH_OPTIONS = typeof CSS !== 'undefined' && CSS.supports('appearance', 'b
  * Model picker shared by every task: a "Standard" tab with the built-in models
  * and an "Upload" tab for local files, plus a download progress bar.
  *
- * Standard models are either loaded immediately on selection (`autoLoad`, the
- * default for small models) or only after the user presses "Initialize Task"
- * (`autoLoad: false`, for large models that should not be downloaded until
- * explicitly requested). Uploads always load right away.
+ * Each standard model is either loaded immediately on selection (small models)
+ * or only after the user presses "Initialize Task" (large models that should
+ * not be downloaded until explicitly requested); see `isAutoLoad()`. Uploads
+ * always load right away.
  */
 export class ModelSelector {
   private container: HTMLElement;
@@ -151,24 +164,39 @@ export class ModelSelector {
     }
   }
 
+  /**
+   * Whether picking `value` downloads and loads it right away, or waits for
+   * "Initialize Task": the model's own `autoLoad` if set, otherwise whether its
+   * known download size is within `autoLoadMaxBytes`, otherwise the selector's
+   * `autoLoad` setting.
+   */
+  public isAutoLoad(value: string): boolean {
+    const opt = this.options.find((o) => o.value === value);
+    if (opt?.autoLoad !== undefined) return opt.autoLoad;
+    const size = this.sizeOf(value);
+    if (size !== undefined) return size <= this.config.autoLoadMaxBytes;
+    return this.config.autoLoad;
+  }
+
   /** The last selection the user asked to load, if any. */
   public getLastSelection(): ModelSelection | null {
     return this.lastSelection;
   }
 
   /**
-   * Disables the controls while a model is loading. Only applies to selectors
-   * with an explicit "Initialize Task" button: auto-loading tasks keep the dropdown
-   * live so a different model can be picked at any time.
+   * Disables the controls while a model is loading. Only applies to models
+   * that needed "Initialize Task": while an auto-loading model loads, the
+   * dropdown stays live so a different model can be picked at any time.
    */
   public setBusy(busy: boolean) {
     this.busy = busy;
-    if (this.config.autoLoad) return;
-    this.modelSelect.disabled = busy;
-    this.modelUpload.disabled = busy;
+    const selection = this.lastSelection;
+    const lock = busy && !(selection?.type === 'standard' && this.isAutoLoad(selection.value));
+    this.modelSelect.disabled = lock;
+    this.modelUpload.disabled = lock;
     if (this.loadButton) {
-      this.loadButton.disabled = busy;
-      this.loadButton.textContent = busy ? 'Initializing…' : 'Initialize Task';
+      this.loadButton.disabled = lock;
+      this.loadButton.textContent = lock ? 'Initializing…' : 'Initialize Task';
     }
     this.updateLoadButton();
   }
@@ -215,7 +243,12 @@ export class ModelSelector {
     this.cachedValues = cached;
 
     // Prefer a model that is already on disk over one that still needs a download.
-    if (this.config.preferCached && !this.config.autoLoad && !this.selectionFixed && !this.statusPinned) {
+    if (
+      this.config.preferCached &&
+      !this.isAutoLoad(this.modelSelect.value) &&
+      !this.selectionFixed &&
+      !this.statusPinned
+    ) {
       if (!cached.has(this.modelSelect.value)) {
         const preferred = this.options.find((opt) => cached.has(opt.value) && !opt.disabled);
         if (preferred) this.modelSelect.value = preferred.value;
@@ -228,14 +261,14 @@ export class ModelSelector {
     // tab open / dropdown change – never behind the user's back after an upload,
     // a failed load or while another load is running.
     const value = this.modelSelect.value;
-    const autoLoad = this.autoLoadPending && !this.config.autoLoad;
+    const autoLoad = this.autoLoadPending && !this.isAutoLoad(value);
     this.autoLoadPending = false;
     if (autoLoad && cached.has(value) && !this.busy && !this.statusPinned && this.loadedValue !== value) {
       this.emit({ type: 'standard', value });
       return;
     }
 
-    if (!this.standardStatus || this.busy) return;
+    if (!this.standardStatus || this.busy || this.isAutoLoad(value)) return;
     if (value === this.loadedValue && !cached.has(value)) {
       // The active model was deleted from the cache: it still works, but the
       // task's "loaded" status no longer tells the whole story.
@@ -265,7 +298,6 @@ export class ModelSelector {
 
   private render() {
     const id = this.container.id;
-    const explicitLoad = !this.config.autoLoad;
 
     // 1. Structural HTML
     this.container.innerHTML = `
@@ -286,12 +318,8 @@ export class ModelSelector {
             </span>
           </div>
         </div>
-        ${
-          explicitLoad
-            ? `<button type="button" id="${id}-standard-load-btn" class="action-button secondary load-model-btn">Initialize Task</button>
-               <div id="${id}-standard-status" class="status-text standard-status"></div>`
-            : ''
-        }
+        <button type="button" id="${id}-standard-load-btn" class="action-button secondary load-model-btn">Initialize Task</button>
+        <div id="${id}-standard-status" class="status-text standard-status"></div>
       </div>
 
       <div id="${id}-tab-upload" class="tab-content">
@@ -347,7 +375,7 @@ export class ModelSelector {
       this.selectionFixed = true;
       this.modelUpload.value = ''; // clear any uploaded file
       this.uploadStatus.innerText = 'No file chosen';
-      if (this.config.autoLoad) {
+      if (this.isAutoLoad(this.modelSelect.value)) {
         this.emit({ type: 'standard', value: this.modelSelect.value });
       } else {
         // A different model was picked: show its badge right away, then load it
@@ -542,14 +570,17 @@ export class ModelSelector {
   }
 
   /**
-   * The "Initialize Task" button is only needed when the selected model still has
-   * to be fetched (or a previous load failed); while it is the loaded model –
-   * or a load is running – there is nothing for it to do.
+   * The "Initialize Task" button is only needed when the selected model doesn't
+   * auto-load and still has to be fetched (or a previous load failed); while it
+   * is the loaded model – or a load is running – there is nothing for it to do.
+   * The status line under it is only shown for such models too.
    */
   private updateLoadButton() {
+    const auto = this.isAutoLoad(this.modelSelect.value);
+    if (this.standardStatus) this.standardStatus.hidden = auto;
     if (!this.loadButton) return;
     const loaded = this.stateOf(this.modelSelect.value) === 'loaded';
-    this.loadButton.hidden = loaded && !this.busy;
+    this.loadButton.hidden = auto || (loaded && !this.busy);
   }
 
   private emit(selection: ModelSelection) {
