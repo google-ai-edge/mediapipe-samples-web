@@ -34,10 +34,18 @@ export interface ModelOption {
 
 export type ModelSelection = { type: 'standard'; value: string } | { type: 'custom'; file: File };
 
+/** What a model load is busy with: fetching the file, or creating the task. */
+export type LoadPhase = 'downloading' | 'initializing';
+
+/** Label for a load phase, for status lines and overlays. */
+export function loadPhaseLabel(phase: LoadPhase): string {
+  return phase === 'downloading' ? 'Downloading model…' : 'Initializing model…';
+}
+
 export interface ModelSelectorConfig {
   /**
    * Whether a standard model loads as soon as it is picked, or only after the
-   * user presses "Initialize Task" (models that are already cached always load
+   * user presses "Download and Initialize" (models that are already cached always load
    * right away). Decided per model: `ModelOption.autoLoad` if set, otherwise
    * by download size (up to `autoLoadMaxBytes`). This setting is the fallback
    * for models of unknown size. Defaults to true.
@@ -45,7 +53,7 @@ export interface ModelSelectorConfig {
   autoLoad?: boolean;
   /**
    * Models with a known download size up to this many bytes load as soon as
-   * they are picked; larger ones wait for "Initialize Task". Defaults to 100 MB.
+   * they are picked; larger ones wait for "Download and Initialize". Defaults to 100 MB.
    */
   autoLoadMaxBytes?: number;
   /** Accepted file extensions for the Upload tab. */
@@ -60,7 +68,7 @@ export interface ModelSelectorConfig {
   /**
    * Explicit-load selectors only: if the default model has not been downloaded
    * yet but another one has (e.g. by a different demo), pre-select that one so
-   * "Initialize Task" is instant. Never changes a selection the user already made.
+   * "Download and Initialize" is instant. Never changes a selection the user already made.
    */
   preferCached?: boolean;
 }
@@ -88,7 +96,7 @@ const RICH_OPTIONS = typeof CSS !== 'undefined' && CSS.supports('appearance', 'b
  * and an "Upload" tab for local files, plus a download progress bar.
  *
  * Each standard model is either loaded immediately on selection (small models)
- * or only after the user presses "Initialize Task" (large models that should
+ * or only after the user presses "Download and Initialize" (large models that should
  * not be downloaded until explicitly requested); see `isAutoLoad()`. Uploads
  * always load right away.
  */
@@ -115,6 +123,10 @@ export class ModelSelector {
    * the next cache check loads the selected model if it is already on disk.
    */
   private autoLoadPending = true;
+  /** Phase of the running load (null when idle). */
+  private phase: LoadPhase | null = null;
+  /** Called whenever the load phase changes. */
+  public onPhaseChange: ((phase: LoadPhase | null) => void) | null = null;
 
   private modelSelect!: HTMLSelectElement;
   private badgeContainer!: HTMLElement;
@@ -166,7 +178,7 @@ export class ModelSelector {
 
   /**
    * Whether picking `value` downloads and loads it right away, or waits for
-   * "Initialize Task": the model's own `autoLoad` if set, otherwise whether its
+   * "Download and Initialize": the model's own `autoLoad` if set, otherwise whether its
    * known download size is within `autoLoadMaxBytes`, otherwise the selector's
    * `autoLoad` setting.
    */
@@ -185,7 +197,7 @@ export class ModelSelector {
 
   /**
    * Disables the controls while a model is loading. Only applies to models
-   * that needed "Initialize Task": while an auto-loading model loads, the
+   * that needed "Download and Initialize": while an auto-loading model loads, the
    * dropdown stays live so a different model can be picked at any time.
    */
   public setBusy(busy: boolean) {
@@ -194,11 +206,23 @@ export class ModelSelector {
     const lock = busy && !(selection?.type === 'standard' && this.isAutoLoad(selection.value));
     this.modelSelect.disabled = lock;
     this.modelUpload.disabled = lock;
-    if (this.loadButton) {
-      this.loadButton.disabled = lock;
-      this.loadButton.textContent = lock ? 'Initializing…' : 'Initialize Task';
-    }
+    if (this.loadButton) this.loadButton.disabled = lock;
+    // A standard model that isn't cached is downloaded first; anything else
+    // (cached models, uploads) goes straight to creating the task.
+    const downloading = selection?.type === 'standard' && !this.cachedValues.has(selection.value);
+    this.setPhase(busy ? (downloading ? 'downloading' : 'initializing') : null);
+  }
+
+  /** Phase of the running load, or null when idle. */
+  public getPhase(): LoadPhase | null {
+    return this.phase;
+  }
+
+  private setPhase(phase: LoadPhase | null) {
+    const changed = phase !== this.phase;
+    this.phase = phase;
     this.updateLoadButton();
+    if (changed) this.onPhaseChange?.(phase);
   }
 
   /** Sets the status line under the source (Standard or Upload) that was loaded last. */
@@ -217,12 +241,18 @@ export class ModelSelector {
   public setLoaded(value: string | null) {
     this.loadedValue = value;
     this.renderModelMarks();
+    // A freshly downloaded model is still being written to the cache by the
+    // worker; clear the stale "not downloaded" line until the MODEL_CACHED
+    // refresh reports it.
+    if (value !== null && this.standardStatus && !this.statusPinned && !this.cachedValues.has(value)) {
+      this.standardStatus.textContent = '';
+    }
   }
 
   /**
    * Re-checks which standard models are already in the local cache: tags them
    * in the dropdown, optionally pre-selects one (`preferCached`), loads the
-   * selected one if it is already on disk (the "Initialize Task" button only gates
+   * selected one if it is already on disk (the "Download and Initialize" button only gates
    * downloads) and otherwise updates the hint under the button (unless the task
    * has set its own status for the selected model).
    */
@@ -284,10 +314,12 @@ export class ModelSelector {
     if (total > 0) {
       const percent = Math.min(100, Math.round((loaded / total) * 100));
       this.progressBar.style.width = `${percent}%`;
-      this.progressText.innerText = `Loading Model... ${percent}% (${formatMegabytes(loaded)} / ${formatMegabytes(total)})`;
+      this.progressText.innerText = `${percent}% (${formatMegabytes(loaded)} / ${formatMegabytes(total)})`;
+      // The file is in: what remains is creating the task.
+      if (loaded >= total && this.phase === 'downloading') this.setPhase('initializing');
     } else {
       this.progressBar.style.width = '100%';
-      this.progressText.innerText = `Loading Model... ${formatMegabytes(loaded)}`;
+      this.progressText.innerText = formatMegabytes(loaded);
     }
   }
 
@@ -318,7 +350,7 @@ export class ModelSelector {
             </span>
           </div>
         </div>
-        <button type="button" id="${id}-standard-load-btn" class="action-button secondary load-model-btn">Initialize Task</button>
+        <button type="button" id="${id}-standard-load-btn" class="action-button secondary load-model-btn">Download and Initialize</button>
         <div id="${id}-standard-status" class="status-text standard-status"></div>
       </div>
 
@@ -334,7 +366,7 @@ export class ModelSelector {
         <div class="progress-container">
           <div class="progress-bar"></div>
         </div>
-        <div class="progress-text">Loading Model... 0%</div>
+        <div class="progress-text">0%</div>
       </div>
     `;
 
@@ -570,17 +602,25 @@ export class ModelSelector {
   }
 
   /**
-   * The "Initialize Task" button is only needed when the selected model doesn't
+   * The "Download and Initialize" button is only needed when the selected model doesn't
    * auto-load and still has to be fetched (or a previous load failed); while it
    * is the loaded model – or a load is running – there is nothing for it to do.
    * The status line under it is only shown for such models too.
    */
   private updateLoadButton() {
-    const auto = this.isAutoLoad(this.modelSelect.value);
-    if (this.standardStatus) this.standardStatus.hidden = auto;
+    const value = this.modelSelect.value;
+    const auto = this.isAutoLoad(value);
+    // While a load runs, the button shows its phase; the status line would
+    // only repeat it.
+    if (this.standardStatus) this.standardStatus.hidden = auto || this.busy;
     if (!this.loadButton) return;
-    const loaded = this.stateOf(this.modelSelect.value) === 'loaded';
+    const loaded = this.stateOf(value) === 'loaded';
     this.loadButton.hidden = auto || (loaded && !this.busy);
+    if (this.phase) {
+      this.loadButton.textContent = this.phase === 'downloading' ? 'Downloading…' : 'Initializing…';
+    } else {
+      this.loadButton.textContent = this.cachedValues.has(value) ? 'Initialize' : 'Download and Initialize';
+    }
   }
 
   private emit(selection: ModelSelection) {
@@ -604,7 +644,8 @@ export class ModelSelector {
     status.innerHTML = '';
     if (!url) return;
     if (!cached) {
-      status.textContent = 'Not loaded yet';
+      const size = this.sizeOf(this.modelSelect.value);
+      status.textContent = size ? `Model not downloaded (${formatMegabytes(size)})` : 'Model not downloaded';
       return;
     }
     status.textContent = 'Loaded · cached in this browser';

@@ -51,7 +51,7 @@ test.describe('Audio Transcriber Task', () => {
 
     const initButton = page.locator('#model-selector-container-standard-load-btn');
     await expect(initButton).toBeVisible();
-    await expect(initButton).toHaveText('Initialize Task');
+    await expect(initButton).toHaveText('Download and Initialize');
 
     // 4. Settings
     const interimCheckbox = page.locator('#interim-results');

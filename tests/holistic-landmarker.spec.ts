@@ -58,7 +58,7 @@ test.describe('Holistic Landmarker Task', () => {
     await page.selectOption('#delegate-select', 'CPU');
 
     // Should trigger re-initialization
-    await expect(status).toHaveText(/Loading Model|Ready/, { timeout: 10000 });
+    await expect(status).toHaveText(/Downloading model…|Initializing model…|Ready/, { timeout: 10000 });
     // Eventually Ready again (or processing/done if auto-triggered)
     await expect(status).toHaveText(/Ready|Processing|Done/, { timeout: 60000 });
   });
