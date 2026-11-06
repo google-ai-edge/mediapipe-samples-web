@@ -480,7 +480,8 @@ select:focus {
 }
 
 .model-select-wrapper .model-badge[hidden],
-.load-model-btn[hidden] {
+.load-model-btn[hidden],
+.standard-status[hidden] {
   display: none;
 }
 
