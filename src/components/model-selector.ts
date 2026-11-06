@@ -235,7 +235,14 @@ export class ModelSelector {
       return;
     }
 
-    if (!this.standardStatus || this.statusPinned || this.busy) return;
+    if (!this.standardStatus || this.busy) return;
+    if (value === this.loadedValue && !cached.has(value)) {
+      // The active model was deleted from the cache: it still works, but the
+      // task's "loaded" status no longer tells the whole story.
+      this.standardStatus.textContent = 'Active · not cached, downloads again next time';
+      return;
+    }
+    if (this.statusPinned) return;
     this.renderCacheState(resolveUrl(value), cached.has(value));
   }
 
@@ -364,9 +371,7 @@ export class ModelSelector {
         // Prevent multiple clicks while deleting
         this.deleteBtn.disabled = true;
         try {
-          const url = this.config.resolveUrl ? this.config.resolveUrl(selected) : selected;
-          if (url) await removeCachedModel(url);
-          await this.refreshCacheState();
+          await this.deleteCachedModel(selected);
         } finally {
           this.deleteBtn.disabled = false;
         }
@@ -417,6 +422,24 @@ export class ModelSelector {
     return null;
   }
 
+  /**
+   * Removes a standard model from the shared cache. Deleting the active model
+   * is fine: the task keeps the copy it has in memory, and only the next load
+   * downloads the model again.
+   */
+  private async deleteCachedModel(value: string) {
+    const url = this.config.resolveUrl ? this.config.resolveUrl(value) : value;
+    if (url) await removeCachedModel(url);
+    await this.refreshCacheState();
+  }
+
+  /** Tooltip for the delete control of a model in the given state. */
+  private deleteTitle(state: 'loaded' | 'downloaded'): string {
+    return state === 'loaded'
+      ? 'Delete from cache (stays active until you reload the page or switch models)'
+      : 'Delete from cache';
+  }
+
   /** Known download size in bytes for a standard model, if available. */
   private sizeOf(value: string): number | undefined {
     const opt = this.options.find((o) => o.value === value);
@@ -462,11 +485,12 @@ export class ModelSelector {
               checkIcon.className = 'model-option-icon active-icon material-icons';
               checkIcon.textContent = 'check';
               actions.appendChild(checkIcon);
-            } else if (state === 'downloaded') {
+            }
+            if (this.cachedValues.has(option.value)) {
               const delBtn = document.createElement('span');
               delBtn.className = 'model-option-icon model-option-delete material-icons';
               delBtn.textContent = 'delete_outline';
-              delBtn.title = 'Delete from cache';
+              delBtn.title = this.deleteTitle(state);
 
               const stopEvent = (e: Event) => {
                 e.preventDefault();
@@ -481,9 +505,7 @@ export class ModelSelector {
                 stopEvent(e);
                 delBtn.style.pointerEvents = 'none';
                 delBtn.style.opacity = '0.5';
-                const url = this.config.resolveUrl ? this.config.resolveUrl(option.value) : option.value;
-                if (url) await removeCachedModel(url);
-                await this.refreshCacheState();
+                await this.deleteCachedModel(option.value);
               });
               actions.appendChild(delBtn);
             }
@@ -511,6 +533,7 @@ export class ModelSelector {
     const iconEl = this.badge.querySelector('.model-badge-icon') as HTMLElement;
     if (state === 'loaded') {
       iconEl.style.display = 'inline-block';
+      // Models are deleted from the option list, not from the badge.
       this.deleteBtn.style.display = 'none';
       this.badge.querySelector('.model-badge-text')!.textContent = 'Active';
       this.badge.dataset.state = state;
