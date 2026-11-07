@@ -171,7 +171,7 @@ test.describe('Decision Maker Task', () => {
     await expect(page.locator('#dv-json-pre')).toContainText('"requestSchema"');
   });
 
-  test('should support Scene Image and Text State input modes in Dino Game', async ({ page }) => {
+  test('should support Scene Image, Text State, and interactive play modes in Dino Game', async ({ page }) => {
     await page.goto('/#/decision/dino_game');
     await page.waitForLoadState('domcontentloaded');
 
@@ -185,6 +185,25 @@ test.describe('Decision Maker Task', () => {
     await expect(page.locator('#dm-scene-canvas')).toHaveAttribute('height', '192');
     await expect(page.locator('#dm-proto-grid .dm-proto-card')).toHaveCount(6);
     await expect(page.locator('#dm-prompt')).toBeHidden();
+
+    // Verify Tap Obstacles vs Side-by-Side play mode switching
+    await expect(page.locator('#dm-playmode-tap')).toHaveClass(/active/);
+    await expect(page.locator('#dm-spawn-bar')).toBeVisible();
+    await expect(page.locator('#dm-player-controls')).toBeHidden();
+    await page.locator('#dm-spawn-cactus').click();
+    await page.locator('#dm-spawn-cluster').click();
+    await page.locator('#dm-spawn-drone').click();
+
+    await page.locator('#dm-playmode-versus').click();
+    await expect(page.locator('#dm-playmode-versus')).toHaveClass(/active/);
+    await expect(page.locator('#dm-player-controls')).toBeVisible();
+    await expect(page.locator('#dm-spawn-bar')).toBeHidden();
+    await page.locator('#dm-playmode-tap').click();
+
+    // Open and verify Dino JSON schema & output inspector
+    await page.locator('#dm-json-btn').click();
+    await expect(page.locator('#dm-json-panel')).toBeVisible();
+    await expect(page.locator('#dm-json-pre')).toContainText('vision_scene_tga_768x192');
 
     // Switch to Text State mode
     await page.locator('#dm-mode-text').click();

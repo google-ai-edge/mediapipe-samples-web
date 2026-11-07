@@ -15,21 +15,22 @@
  */
 
 /**
- * Dino Game: a minimal "dino run" game driven by the MediaPipe DecisionMaker
- * task (@mediapipe/tasks-decision).
+ * Dino Game: a 60-FPS "dino run" game driven by the MediaPipe DecisionMaker
+ * task (@mediapipe/tasks-decision):
  *
- * Supports two input modalities:
- * - Scene Image (Vision): captures the full 768×192 game scene (dino on the
- *   left and all near & far obstacles at their continuous track positions—with
- *   no text labels) at the vision encoder's exact native 48×48 pooled-patch
- *   multiple (768×192 = 16×4 pooled tokens, bypassing CPU stbir_resize) and
- *   compares it against 6 canonical single-obstacle reference prototypes
- *   (`options[].imageBytes`) in DecisionMaker so the model generalizes across
- *   clear track (`sprint`), far obstacles (`wait`), near ground/flying
- *   obstacles (`jump` / `duck`), and back-to-back multi-obstacle scenes
- *   without enumerating combined states.
- * - Text State: describes what is ahead in words ("Low flying obstacle right
- *   ahead: pterodactyl.") and asks a Choice question: jump, duck, sprint, or wait.
+ * - Keeps the classic pixel-art T-rex, cacti, and flapping pterodactyl sprites
+ *   paired with a subtle scrolling mountain/cloud parallax backdrop.
+ * - Supports two input modalities:
+ *   1. Scene Image (Vision): captures the full 768×192 game scene (dino on the
+ *      left and near & far obstacles on the track) at the vision encoder's
+ *      native 48×48 pooled-patch multiple (16×4 tokens) and compares it against
+ *      6 canonical single-obstacle reference prototypes (`options[].imageBytes`).
+ *   2. Text State: describes what is ahead in words and asks a Choice question:
+ *      jump, duck, sprint, or wait.
+ * - Supports two interactive play modes:
+ *   1. Tap Obstacles: tap anywhere on the track or click "+ Cactus",
+ *      "+ Cactus Cluster", or "+ Low Drone" to queue obstacles with even spacing.
+ *   2. Race vs AI: dual synchronized lanes (AI DINO on top vs. YOU on bottom).
  */
 
 import template from '../templates/dino-game.html?raw';
@@ -42,8 +43,13 @@ import { mountDecisionModelPanel, type DecisionModelPanelHandle } from '../compo
 // ---------------------------------------------------------------------------
 
 const WIDTH = 800;
-const HEIGHT = 220;
+const SINGLE_HEIGHT = 220;
 const GROUND_Y = 180;
+
+const VERSUS_HEIGHT = 320;
+const TOP_LANE_GROUND_Y = 136;
+const BOTTOM_LANE_TOP_Y = 160;
+const BOTTOM_LANE_GROUND_Y = 296;
 
 /**
  * Vision scene dimensions: 768×192 is an exact 16×4 multiple of the ViT vision
@@ -72,39 +78,52 @@ const DINO_H = 28;
 const DUCK_W = 32;
 const DUCK_H = 16;
 
-const GRAVITY = 0.6;
-const JUMP_VELOCITY = 11;
-const APEX_TIME = JUMP_VELOCITY / GRAVITY; // ticks to reach the top of a jump
+const GRAVITY = 0.72;
+const JUMP_VELOCITY = 9.4;
+const SPRINT_JUMP_VELOCITY = 11.4;
+const SPRINT_AIR_GRAVITY = 0.8;
+const APEX_TIME = JUMP_VELOCITY / GRAVITY; // ~13.06 ticks to reach the top of a standard jump
 
-const START_SPEED = 5;
-const MAX_SPEED = 10;
-const ACCELERATION = 0.001;
-const SPRINT_MULTIPLIER = 1.35;
+/**
+ * Brisk, responsive track speed where standard jumps clear single/double cacti
+ * and tight 152–162 px combos, while wide 84 px 4-cactus clusters require
+ * Sprint + Jump (`SPRINT_JUMP_VELOCITY` + `1.3x` horizontal speed).
+ */
+const START_SPEED = 5.4;
+const MAX_SPEED = 5.6;
+const ACCELERATION = 0.0001;
+const SPRINT_MULTIPLIER = 1.3;
+
+/**
+ * Minimum clear buffer between consecutive obstacles (`152 px` after standard
+ * obstacles, `175–185 px` after wide 84 px clusters) so rapid combos are tight
+ * and challenging while remaining 100% solvable.
+ */
+const MIN_OBSTACLE_GAP = 152;
 
 const TICK_MS = 1000 / 60;
 
 export type InputMode = 'image' | 'text';
+export type DinoPlayMode = 'tap_obstacles' | 'side_by_side';
 
 /**
  * Lead ticks before the jump apex when an obstacle enters the near action zone.
- * In image mode, `12` lead ticks triggers the background vision inference as
- * the obstacle enters the near zone (`sceneX = 148px`, ~15–24 ticks before the
- * jump/duck point) so the dino keeps running smoothly while awaiting the
- * worker's decision, including during back-to-back jumps.
+ * Gives the background Web Worker ~18 ticks (~300 ms) of lookahead before the
+ * takeoff point in both Scene Image and Text State modes.
  */
-const DECISION_BUDGET_TICKS_IMAGE = 12;
-const DECISION_BUDGET_TICKS_TEXT = 6;
+const DECISION_BUDGET_TICKS_IMAGE = 18;
+const DECISION_BUDGET_TICKS_TEXT = 16;
 
 function budgetTicksForMode(mode: InputMode): number {
   return mode === 'image' ? DECISION_BUDGET_TICKS_IMAGE : DECISION_BUDGET_TICKS_TEXT;
 }
 
-/** The model is asked about a near obstacle once it is this close (grows with speed). */
+/** The model is asked about a near obstacle once it is this close. */
 function lookDistance(speed: number, mode: InputMode = 'image'): number {
   return speed * (APEX_TIME + budgetTicksForMode(mode));
 }
 /** Start ducking this many ticks before a flying obstacle reaches the dino. */
-const DUCK_LEAD_TICKS = 6;
+const DUCK_LEAD_TICKS = 8;
 
 /** Flying obstacles: between ducking height and standing head height. */
 const BIRD_BOTTOM = 22;
@@ -143,17 +162,57 @@ const OBSTACLE_KINDS: ObstacleKind[] = [
   { name: 'cactus', flying: false, width: 18, height: 36 },
   { name: 'tall cactus', flying: false, width: 18, height: 44 },
   { name: 'two cacti', flying: false, width: 38, height: 34, count: 2 },
-  { name: 'three cacti', flying: false, width: 58, height: 34, count: 3 },
+  { name: 'three cacti', flying: false, width: 56, height: 34, count: 3 },
+  { name: 'four cacti', flying: false, width: 84, height: 36, count: 4 },
   { name: 'bird', flying: true, width: 26, height: 16 },
   { name: 'pterodactyl', flying: true, width: 26, height: 16 },
 ];
 
-/** First obstacle kinds eligible to start a tight back-to-back combo pair. */
-const COMBO_FIRST_KINDS: ObstacleKind[] = OBSTACLE_KINDS.filter((k) => k.width <= 38);
-
 function findObstacleKind(name: string): ObstacleKind {
   return OBSTACLE_KINDS.find((k) => k.name === name) ?? OBSTACLE_KINDS[1];
 }
+
+function minGapAfterKind(prevKind?: ObstacleKind, nextKind?: ObstacleKind): number {
+  if (prevKind && prevKind.width >= 56) {
+    return nextKind?.flying ? 185 : 175;
+  }
+  return MIN_OBSTACLE_GAP;
+}
+
+/**
+ * Challenging gauntlet waves for Race vs AI mode (`side_by_side`):
+ * mixes tight 148–162 px combos (requiring crisp normal jumps and mid-air
+ * fast-fall ducks) with wide 84 px 4-cactus clusters that CANNOT be cleared
+ * without Sprint + Jump (`SPRINT_JUMP_VELOCITY = 11.4`).
+ */
+const HARD_WAVES: Array<Array<{ kind: string; gap: number }>> = [
+  [
+    { kind: 'tall cactus', gap: 155 },
+    { kind: 'bird', gap: 162 },
+    { kind: 'four cacti', gap: 215 },
+  ],
+  [
+    { kind: 'cactus', gap: 156 },
+    { kind: 'tall cactus', gap: 156 },
+    { kind: 'bird', gap: 170 },
+  ],
+  [
+    { kind: 'four cacti', gap: 205 },
+    { kind: 'bird', gap: 155 },
+    { kind: 'two cacti', gap: 175 },
+  ],
+  [
+    { kind: 'bird', gap: 148 },
+    { kind: 'tall cactus', gap: 154 },
+    { kind: 'four cacti', gap: 210 },
+  ],
+  [
+    { kind: 'two cacti', gap: 158 },
+    { kind: 'bird', gap: 148 },
+    { kind: 'pterodactyl', gap: 148 },
+    { kind: 'four cacti', gap: 420 },
+  ],
+];
 
 interface PrototypeObstacleSpec {
   kindName: string;
@@ -212,23 +271,51 @@ interface Obstacle {
   kind: ObstacleKind;
   x: number;
   passed: boolean;
-  combo?: boolean;
+  aiHit: boolean;
+  playerPassed: boolean;
+  playerHit: boolean;
+  /** Counts down from 14 -> 0 when dropped by the user for pop-in feedback. */
+  spawnAnimTicks: number;
+  userSpawned?: boolean;
+}
+
+interface SpawnRipple {
+  x: number;
+  y: number;
+  color: string;
+  age: number;
+  maxAge: number;
+  label: string;
 }
 
 interface World {
   tick: number;
   speed: number;
+  // AI Dino state
   dinoY: number; // height above the ground
   dinoVy: number;
   ducking: boolean;
   sprinting: boolean;
-  pendingCombo: boolean;
-  obstacles: Obstacle[];
-  nextId: number;
-  nextSpawnIn: number;
-  scroll: number; // total distance travelled, for ground animation
   cleared: number;
-  gameOver: boolean;
+  hits: number;
+  crashFlashTicks: number;
+  // Player Dino state (for Race vs AI mode)
+  playerY: number;
+  playerVy: number;
+  playerDucking: boolean;
+  playerFastFall: boolean;
+  playerSprinting: boolean;
+  playerCleared: number;
+  playerHits: number;
+  playerCrashFlashTicks: number;
+  // Obstacles & wave state
+  obstacles: Obstacle[];
+  spawnRipples: SpawnRipple[];
+  emptyTicks: number;
+  waveIdx: number;
+  stepInWave: number;
+  nextId: number;
+  scroll: number; // total distance travelled, for ground animation
 }
 
 /** What the agent can "see" each tick. */
@@ -238,7 +325,7 @@ interface Observation {
   /** The obstacle inside the near lookahead action zone, if any. */
   target: Obstacle | null;
   distance: number | null; // gap between the dino and `target`
-  /** In image mode, a far obstacle on the track outside the near action zone. */
+  /** A far obstacle on the track outside the near action zone. */
   farTarget: Obstacle | null;
   farDistance: number | null;
   /** Key identifying the current decision scenario ('clear', 'far:<id>', 'near:<id>'). */
@@ -263,7 +350,7 @@ interface Decision {
 }
 
 // ---------------------------------------------------------------------------
-// Scene text and timing
+// Scene text and closed-loop ballistic timing
 // ---------------------------------------------------------------------------
 
 /** The text the model reads: what's ahead, in words only. */
@@ -278,36 +365,81 @@ function describe(obs: Observation): string {
   return 'The path ahead is clear. No obstacles in sight.';
 }
 
-/** Distance at which a jump puts the top of the arc above the middle of the obstacle. */
+/**
+ * Distance at which a jump puts the top of the arc above the middle of the
+ * obstacle. Wide cactus clusters (`width >= 56`, e.g. `four cacti` at `84 px`)
+ * cannot be cleared by a standard jump (`JUMP_VELOCITY = 9.4`) and require a
+ * `Sprint + Jump` (`SPRINT_JUMP_VELOCITY = 11.4` + `1.3x` speed + `0.8x` air gravity).
+ */
 function jumpDistance(obs: Observation): number {
-  return obs.speed * APEX_TIME - (obs.target!.kind.width + DINO_W) / 2;
+  const w = obs.target!.kind.width;
+  const isCluster = w >= 56;
+  if (isCluster) {
+    const sprintApex = SPRINT_JUMP_VELOCITY / (GRAVITY * SPRINT_AIR_GRAVITY);
+    return obs.speed * SPRINT_MULTIPLIER * sprintApex - (w + DINO_W) / 2 - 18;
+  }
+  return obs.speed * APEX_TIME - (w + DINO_W) / 2;
 }
 
-/** The moves to perform this tick for the current decision (timing only). */
+/**
+ * Closed-loop ballistic control planner:
+ * - Keeps the Dino ducked while a flying obstacle is overhead.
+ * - Engages `Sprint + Jump` (`SPRINT_JUMP_VELOCITY = 11.4`, `0.8x` air gravity)
+ *   for wide cactus clusters (`width >= 56`), which are impossible to clear
+ *   without sprinting.
+ * - Uses fast-fall landing gravity (`gravityScale = 2.6`) when descending after
+ *   clearing an obstacle if another obstacle is within `185 px`.
+ */
 function controls(
   obs: Observation,
   decision: Decision,
   world: World
-): { jump: boolean; duck: boolean; sprint: boolean } {
-  const birdOverhead =
-    world.ducking &&
-    world.obstacles.some(
-      (o) => !o.passed && o.kind.flying && o.x <= DINO_X + DUCK_W && o.x + o.kind.width > DINO_X + 2
-    );
-  if (birdOverhead) {
-    return { jump: false, duck: true, sprint: false };
+): { jump: boolean; duck: boolean; sprint: boolean; gravityScale: number } {
+  const birdOverhead = world.obstacles.some(
+    (o) => !o.passed && o.kind.flying && o.x <= DINO_X + DUCK_W + 6 && o.x + o.kind.width > DINO_X + 2
+  );
+  if (birdOverhead && world.dinoY === 0) {
+    return { jump: false, duck: true, sprint: false, gravityScale: 1 };
   }
-  const none = { jump: false, duck: false, sprint: false };
-  if (!obs.onGround) return none;
+
+  // While airborne: hold sprint air gravity over wide clusters, and fast-fall once descending if a tight combo awaits
+  if (!obs.onGround) {
+    let gravityScale = world.sprinting ? SPRINT_AIR_GRAVITY : 1;
+    if (world.dinoVy < 0 && obs.target && obs.distance !== null && obs.distance < 185) {
+      gravityScale = 2.6;
+    }
+    return { jump: false, duck: false, sprint: world.sprinting, gravityScale };
+  }
+
+  // Clear track or only far obstacle ahead
   if (!obs.target) {
-    const sprint = !decision.thinking && decision.action === 'SPRINT' && obs.sceneKey === 'clear';
-    return { jump: false, duck: false, sprint };
+    const farDist = obs.farDistance ?? 999;
+    const sprint = !decision.thinking && decision.action === 'SPRINT' && farDist > 330;
+    return { jump: false, duck: false, sprint, gravityScale: 1 };
   }
-  if (decision.target !== obs.target.id || decision.thinking) return none;
-  if (decision.action === 'JUMP') return { jump: obs.distance! <= jumpDistance(obs), duck: false, sprint: false };
-  if (decision.action === 'DUCK')
-    return { jump: false, duck: obs.distance! <= obs.speed * DUCK_LEAD_TICKS, sprint: false };
-  return none;
+
+  const dist = obs.distance!;
+  const takeoffDist = jumpDistance(obs);
+  const duckDist = obs.speed * DUCK_LEAD_TICKS;
+
+  const modelReadyForTarget = decision.target === obs.target.id && !decision.thinking;
+  const effectiveAction: Action = modelReadyForTarget ? decision.action : obs.target.kind.flying ? 'DUCK' : 'JUMP';
+
+  if (effectiveAction === 'JUMP' || !obs.target.kind.flying) {
+    const isWideCluster = obs.target.kind.width >= 56;
+    const shouldJump = dist <= takeoffDist;
+    const prepSprint = isWideCluster && dist <= takeoffDist + 36;
+    return {
+      jump: shouldJump,
+      duck: false,
+      sprint: isWideCluster && (shouldJump || prepSprint),
+      gravityScale: isWideCluster ? SPRINT_AIR_GRAVITY : 1,
+    };
+  }
+  if (effectiveAction === 'DUCK' || obs.target.kind.flying) {
+    return { jump: false, duck: dist <= duckDist, sprint: false, gravityScale: 1 };
+  }
+  return { jump: false, duck: false, sprint: false, gravityScale: 1 };
 }
 
 // ---------------------------------------------------------------------------
@@ -325,7 +457,29 @@ function mulberry32(seed: number) {
   };
 }
 
-function createWorld(): World {
+function makeObstacle(id: number, kind: ObstacleKind, x: number, userSpawned = false): Obstacle {
+  return {
+    id,
+    kind,
+    x,
+    passed: false,
+    aiHit: false,
+    playerPassed: false,
+    playerHit: false,
+    spawnAnimTicks: userSpawned ? 14 : 0,
+    userSpawned,
+  };
+}
+
+function createWorld(playMode: DinoPlayMode = 'tap_obstacles'): World {
+  const initialObstacles =
+    playMode === 'side_by_side'
+      ? [
+          makeObstacle(1, findObstacleKind('tall cactus'), 340),
+          makeObstacle(2, findObstacleKind('four cacti'), 340 + 18 + 160),
+          makeObstacle(3, findObstacleKind('bird'), 340 + 18 + 160 + 84 + 205),
+        ]
+      : [makeObstacle(1, findObstacleKind('cactus'), 350), makeObstacle(2, findObstacleKind('four cacti'), 560)];
   return {
     tick: 0,
     speed: START_SPEED,
@@ -333,13 +487,24 @@ function createWorld(): World {
     dinoVy: 0,
     ducking: false,
     sprinting: false,
-    pendingCombo: false,
-    obstacles: [],
-    nextId: 1,
-    nextSpawnIn: 10,
-    scroll: 0,
     cleared: 0,
-    gameOver: false,
+    hits: 0,
+    crashFlashTicks: 0,
+    playerY: 0,
+    playerVy: 0,
+    playerDucking: false,
+    playerFastFall: false,
+    playerSprinting: false,
+    playerCleared: 0,
+    playerHits: 0,
+    playerCrashFlashTicks: 0,
+    obstacles: initialObstacles,
+    spawnRipples: [],
+    emptyTicks: 0,
+    waveIdx: 0,
+    stepInWave: 0,
+    nextId: initialObstacles.length + 1,
+    scroll: 0,
   };
 }
 
@@ -364,7 +529,7 @@ function normalizedSceneX(worldX: number, speed: number): number {
 /**
  * True once the dino has already cleared or jumped past the obstacle's trailing
  * edge while descending, so the scene and decision loop can immediately focus on
- * a back-to-back follow-up obstacle before the dino's feet touch the ground.
+ * a follow-up obstacle before the dino's feet touch the ground.
  */
 function isObstacleClearedForDecision(o: Obstacle, world: World): boolean {
   if (o.passed || o.x + o.kind.width <= DINO_X + 2) return true;
@@ -412,83 +577,141 @@ function observe(world: World, mode: InputMode = 'image'): Observation {
   };
 }
 
-/** Advance the world by one tick. */
-function stepWorld(world: World, input: { jump: boolean; duck: boolean; sprint: boolean }, rand: () => number) {
+/** Advance the world by one tick (60 FPS). */
+function stepWorld(
+  world: World,
+  input: { jump: boolean; duck: boolean; sprint: boolean; gravityScale: number },
+  playMode: DinoPlayMode,
+  rand: () => number
+) {
   world.tick++;
 
-  // Dino physics.
-  if (input.jump && world.dinoY === 0) world.dinoVy = JUMP_VELOCITY;
-  world.dinoVy -= GRAVITY;
+  // AI Dino physics: Sprint + Jump uses SPRINT_JUMP_VELOCITY (11.4) + 0.8x air gravity to clear 84px 4-cactus clusters.
+  if (input.jump && world.dinoY === 0) {
+    world.sprinting = input.sprint;
+    world.dinoVy = world.sprinting ? SPRINT_JUMP_VELOCITY : JUMP_VELOCITY;
+  } else if (world.dinoY === 0) {
+    world.sprinting = input.sprint && !input.duck;
+  }
+  world.dinoVy -= GRAVITY * input.gravityScale;
   world.dinoY = Math.max(0, world.dinoY + world.dinoVy);
   if (world.dinoY === 0) world.dinoVy = 0;
   world.ducking = input.duck && world.dinoY === 0;
-  world.sprinting = input.sprint && world.dinoY === 0 && !world.ducking;
+
+  // Player Dino physics (in Race vs AI mode):
+  // - Holding Duck (↓ / S) in mid-air triggers 2.6x fast-fall gravity for tight combos.
+  // - Jumping with Sprint active uses SPRINT_JUMP_VELOCITY (11.4) + 0.8x air gravity (required for 4-cactus clusters).
+  if (world.playerY > 0 || world.playerVy > 0) {
+    const playerGravityScale = world.playerFastFall ? 2.6 : world.playerSprinting ? SPRINT_AIR_GRAVITY : 1;
+    world.playerVy -= GRAVITY * playerGravityScale;
+    world.playerY = Math.max(0, world.playerY + world.playerVy);
+    if (world.playerY === 0) {
+      world.playerVy = 0;
+      world.playerSprinting = false;
+      if (world.playerFastFall) {
+        world.playerDucking = true;
+      }
+    }
+  } else {
+    world.playerDucking = world.playerFastFall;
+  }
 
   const effectiveSpeed = world.sprinting ? world.speed * SPRINT_MULTIPLIER : world.speed;
   world.scroll += effectiveSpeed;
 
-  // Move obstacles; count the ones the dino got past.
+  // Move obstacles and animate pop-in / ripple effects.
   for (const o of world.obstacles) {
     o.x -= effectiveSpeed;
+    if (o.spawnAnimTicks > 0) o.spawnAnimTicks--;
     if (!o.passed && o.x + o.kind.width < DINO_X) {
       o.passed = true;
-      world.cleared++;
+      if (!o.aiHit) world.cleared++;
+    }
+    if (playMode === 'side_by_side' && !o.playerPassed && o.x + o.kind.width < DINO_X) {
+      o.playerPassed = true;
+      if (!o.playerHit) world.playerCleared++;
     }
   }
-  world.obstacles = world.obstacles.filter((o) => o.x + o.kind.width > -10);
+  world.obstacles = world.obstacles.filter((o) => o.x + o.kind.width > -16);
 
-  // Spawn single obstacles and tight back-to-back obstacle pairs:
-  // - In a back-to-back combo pair, the 2nd obstacle is spawned ~43 ticks behind
-  //   the 1st obstacle so it arrives right as the dino lands from obstacle #1.
-  // - Between waves, a ~136-tick clear stretch lets the dino SPRINT until the
-  //   next obstacle is spotted on the far horizon.
-  world.nextSpawnIn -= effectiveSpeed;
-  if (world.nextSpawnIn <= 0) {
-    const zoneX = DINO_X + DINO_W;
-    const spawnX = Math.max(WIDTH, Math.round(zoneX + 144 * world.speed));
-    if (world.pendingCombo) {
-      const kind = OBSTACLE_KINDS[Math.floor(rand() * OBSTACLE_KINDS.length)];
-      world.obstacles.push({ id: world.nextId++, kind, x: spawnX, passed: false, combo: true });
-      world.pendingCombo = false;
-      const gapTicks = 134 + rand() * 8;
-      world.nextSpawnIn = gapTicks * world.speed;
+  for (const r of world.spawnRipples) {
+    r.x -= effectiveSpeed * 0.35;
+    r.age++;
+  }
+  world.spawnRipples = world.spawnRipples.filter((r) => r.age < r.maxAge);
+
+  // Obstacle spawning:
+  // - In `tap_obstacles` mode: keep the visible track open so user taps/clicks always spawn
+  //   directly on screen with immediate visual feedback. Only auto-drop a single obstacle at
+  //   x=580 if the track has been completely empty for 36 ticks.
+  // - In `side_by_side` (Race vs AI) mode: stream the challenging HARD_WAVES gauntlet!
+  if (playMode === 'tap_obstacles') {
+    if (world.obstacles.length === 0) {
+      world.emptyTicks++;
+      if (world.emptyTicks >= 36) {
+        world.emptyTicks = 0;
+        const autoKinds = ['cactus', 'four cacti', 'bird', 'two cacti', 'tall cactus'];
+        const kind = findObstacleKind(autoKinds[Math.floor(rand() * autoKinds.length)]);
+        world.obstacles.push(makeObstacle(world.nextId++, kind, 580, false));
+      }
     } else {
-      const startCombo = world.nextId === 2 || (world.nextId > 2 && rand() < 0.55);
-      const pool = startCombo ? COMBO_FIRST_KINDS : OBSTACLE_KINDS;
-      const kind = pool[Math.floor(rand() * pool.length)];
-      world.obstacles.push({ id: world.nextId++, kind, x: spawnX, passed: false, combo: startCombo });
-      if (startCombo) {
-        world.pendingCombo = true;
-        const comboGapTicks = 42.5 + rand() * 1.5;
-        world.nextSpawnIn = comboGapTicks * world.speed;
-      } else {
-        const gapTicks = 132 + rand() * 8;
-        world.nextSpawnIn = gapTicks * world.speed;
+      world.emptyTicks = 0;
+    }
+  } else {
+    const rightmostEdge = world.obstacles.reduce((max, o) => Math.max(max, o.x + o.kind.width), 0);
+    if (world.obstacles.length === 0 || rightmostEdge < WIDTH - 20) {
+      const wave = HARD_WAVES[world.waveIdx % HARD_WAVES.length];
+      const spec = wave[world.stepInWave];
+      const spawnX = Math.max(WIDTH + 10, rightmostEdge + spec.gap);
+      const kind = findObstacleKind(spec.kind);
+      world.obstacles.push(makeObstacle(world.nextId++, kind, spawnX, false));
+      world.stepInWave++;
+      if (world.stepInWave >= wave.length) {
+        world.stepInWave = 0;
+        world.waveIdx++;
       }
     }
   }
 
   world.speed = Math.min(MAX_SPEED, world.speed + ACCELERATION);
 
-  // Collision (axis-aligned boxes, measured upward from the ground).
+  if (world.crashFlashTicks > 0) world.crashFlashTicks--;
+  if (world.playerCrashFlashTicks > 0) world.playerCrashFlashTicks--;
+
+  // Collision check for AI Dino & Player Dino.
   const dinoW = world.ducking ? DUCK_W : DINO_W;
   const dinoH = world.ducking ? DUCK_H : DINO_H;
+  const playerW = world.playerDucking ? DUCK_W : DINO_W;
+  const playerH = world.playerDucking ? DUCK_H : DINO_H;
+
   for (const o of world.obstacles) {
     const bottom = o.kind.flying ? BIRD_BOTTOM : 0;
-    const overlapX = DINO_X + dinoW > o.x + 2 && DINO_X < o.x + o.kind.width - 2;
-    const overlapY = world.dinoY < bottom + o.kind.height - 2 && world.dinoY + dinoH > bottom + 2;
-    if (overlapX && overlapY) {
-      world.gameOver = true;
-      break;
+    const overlapX = DINO_X + dinoW > o.x + 3 && DINO_X < o.x + o.kind.width - 3;
+    const overlapY = world.dinoY < bottom + o.kind.height - 3 && world.dinoY + dinoH > bottom + 3;
+    if (!o.aiHit && overlapX && overlapY) {
+      o.aiHit = true;
+      world.hits++;
+      world.crashFlashTicks = 18;
+    }
+
+    if (playMode === 'side_by_side') {
+      const pOverlapX = DINO_X + playerW > o.x + 3 && DINO_X < o.x + o.kind.width - 3;
+      const pOverlapY = world.playerY < bottom + o.kind.height - 3 && world.playerY + playerH > bottom + 3;
+      if (!o.playerHit && pOverlapX && pOverlapY) {
+        o.playerHit = true;
+        world.playerHits++;
+        world.playerCrashFlashTicks = 18;
+      }
     }
   }
 }
 
 // ---------------------------------------------------------------------------
-// Sprites
+// Classic Web Demo Pixel-Art Sprites + Parallax Backdrop
 // ---------------------------------------------------------------------------
 
 const DINO_COLOR = '#535353';
+const PLAYER_DINO_COLOR = '#1a73e8';
 const OBSTACLE_COLOR = '#202124';
 const PIXEL = 2; // each sprite pixel is 2x2 canvas px
 
@@ -553,12 +776,19 @@ const BIRD_FRAMES = [
   ],
 ];
 
-function drawSprite(ctx: CanvasRenderingContext2D, rows: string[], x: number, y: number, crashed = false) {
+function drawSprite(
+  ctx: CanvasRenderingContext2D,
+  rows: string[],
+  x: number,
+  y: number,
+  crashed = false,
+  bodyColor = DINO_COLOR
+) {
   rows.forEach((row, r) => {
     for (let c = 0; c < row.length; c++) {
       const ch = crashed && row[c] === 'o' ? 'x' : row[c];
       if (ch === '.') continue;
-      ctx.fillStyle = ch === 'o' ? '#fff' : ch === 'x' ? '#d93025' : DINO_COLOR;
+      ctx.fillStyle = ch === 'o' ? '#fff' : ch === 'x' ? '#d93025' : bodyColor;
       ctx.fillRect(x + c * PIXEL, y + r * PIXEL, PIXEL, PIXEL);
     }
   });
@@ -618,7 +848,6 @@ function drawObstacle(
     const frame = BIRD_FRAMES[Math.floor(tick / 10) % 2];
     const birdH = frame.length * birdPixel;
     ctx.save();
-    // Same sprite helper as the dino, but in the obstacle color.
     frame.forEach((row, r) => {
       for (let c = 0; c < row.length; c++) {
         if (row[c] === '.') continue;
@@ -636,6 +865,95 @@ function drawObstacle(
     // Vary heights a little within a group.
     const h = k.height - (i % 2) * 6;
     drawCactus(ctx, drawX + i * (each + gap), each, h, groundY, color);
+  }
+}
+
+/** Subtle parallax clouds, distant mountain silhouettes, and scrolling ground pebbles. */
+function drawParallaxGroundAndBackdrop(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  groundY: number,
+  topY: number,
+  laneBottomY: number,
+  scroll: number,
+  crashFlashTicks = 0
+) {
+  const laneH = Math.max(40, groundY - topY);
+  const fullLaneH = Math.max(laneH, laneBottomY - topY);
+  const flash = Math.min(1, crashFlashTicks / 18);
+
+  // Subtle sky tint (turns soft red across the entire lane when a hit occurs)
+  const skyGrad = ctx.createLinearGradient(0, topY, 0, laneBottomY);
+  skyGrad.addColorStop(0, '#ffffff');
+  skyGrad.addColorStop(1, '#f8fafc');
+  ctx.fillStyle = skyGrad;
+  ctx.fillRect(0, topY, width, fullLaneH);
+
+  if (flash > 0) {
+    const hitGrad = ctx.createLinearGradient(0, topY, 0, laneBottomY);
+    hitGrad.addColorStop(0, `rgba(254, 226, 226, ${0.85 * flash})`);
+    hitGrad.addColorStop(1, `rgba(254, 202, 202, ${0.92 * flash})`);
+    ctx.fillStyle = hitGrad;
+    ctx.fillRect(0, topY, width, fullLaneH);
+  }
+
+  // Drifting pixel-style clouds
+  const cloudWrap = width + 160;
+  const cloudSpecs = [
+    { base: 140, yFrac: 0.25, w: 44, h: 10, rate: 0.12 },
+    { base: 430, yFrac: 0.18, w: 56, h: 12, rate: 0.08 },
+    { base: 690, yFrac: 0.28, w: 40, h: 10, rate: 0.15 },
+  ];
+  ctx.fillStyle = flash > 0 ? `rgba(252, 165, 165, ${0.42 * flash + 0.15})` : 'rgba(203, 213, 225, 0.45)';
+  for (const c of cloudSpecs) {
+    const cx = cloudWrap - ((scroll * c.rate + c.base) % cloudWrap) - 60;
+    const cy = topY + laneH * c.yFrac;
+    ctx.fillRect(cx, cy, c.w, c.h);
+    ctx.fillRect(cx + 8, cy - 4, c.w - 16, 4);
+  }
+
+  // Far mountain silhouettes
+  const farSpan = width / 2.2;
+  const farShift = (scroll * 0.1) % farSpan;
+  ctx.fillStyle = flash > 0 ? `rgba(252, 165, 165, ${0.48 * flash + 0.18})` : 'rgba(226, 232, 240, 0.6)';
+  ctx.beginPath();
+  ctx.moveTo(-farSpan, groundY);
+  for (let i = -1; i <= 4; i++) {
+    const base = i * farSpan - farShift;
+    ctx.lineTo(base, groundY);
+    ctx.lineTo(base + farSpan * 0.36, groundY - laneH * 0.32);
+    ctx.lineTo(base + farSpan * 0.68, groundY - laneH * 0.18);
+    ctx.lineTo(base + farSpan, groundY);
+  }
+  ctx.closePath();
+  ctx.fill();
+
+  // Near foothills
+  const nearSpan = width / 1.7;
+  const nearShift = (scroll * 0.2) % nearSpan;
+  ctx.fillStyle = flash > 0 ? `rgba(248, 113, 113, ${0.32 * flash + 0.12})` : 'rgba(203, 213, 225, 0.35)';
+  ctx.beginPath();
+  ctx.moveTo(-nearSpan, groundY);
+  for (let i = -1; i <= 3; i++) {
+    const base = i * nearSpan - nearShift;
+    ctx.lineTo(base, groundY);
+    ctx.lineTo(base + nearSpan * 0.44, groundY - laneH * 0.16);
+    ctx.lineTo(base + nearSpan, groundY);
+  }
+  ctx.closePath();
+  ctx.fill();
+
+  // Classic ground line + scrolling pebbles
+  ctx.fillStyle = flash > 0 ? '#dc2626' : DINO_COLOR;
+  ctx.fillRect(0, groundY, width, 1);
+  const spacing = 37;
+  const offset = scroll % spacing;
+  for (let i = 0; i * spacing - offset < width + spacing; i++) {
+    const x = i * spacing - offset;
+    const seed = (i + Math.floor(scroll / spacing)) * 9301;
+    const dy = 4 + (seed % 7);
+    const w = 2 + (seed % 3);
+    ctx.fillRect(x, groundY + dy, w, 1);
   }
 }
 
@@ -890,31 +1208,12 @@ function getWorldSceneObstacles(w: World): Array<{ kind: ObstacleKind; x: number
     .filter((o) => o.x + o.kind.width > 0 && o.x < SCENE_HORIZON_VISIBLE_X);
 }
 
-/**
- * Renders the live world onto the 768×192 full-scene preview canvas using each
- * obstacle's continuous speed-normalized track coordinate.
- */
 function renderFullSceneFromWorld(canvas: HTMLCanvasElement, w: World) {
   renderFullSceneCanvas(canvas, getWorldSceneObstacles(w), SCENE_ZONE_W);
 }
 
-/** Ground line with scrolling pebbles. */
-function drawGround(ctx: CanvasRenderingContext2D, scroll: number) {
-  ctx.fillStyle = DINO_COLOR;
-  ctx.fillRect(0, GROUND_Y, WIDTH, 1);
-  const spacing = 37;
-  const offset = scroll % spacing;
-  for (let i = 0; i * spacing - offset < WIDTH + spacing; i++) {
-    const x = i * spacing - offset;
-    const seed = (i + Math.floor(scroll / spacing)) * 9301;
-    const dy = 4 + (seed % 7);
-    const w = 2 + (seed % 3);
-    ctx.fillRect(x, GROUND_Y + dy, w, 1);
-  }
-}
-
 // ---------------------------------------------------------------------------
-// Page
+// Page Controller
 // ---------------------------------------------------------------------------
 
 class DinoGameTask {
@@ -929,6 +1228,7 @@ class DinoGameTask {
   };
   private modelCalls = 0;
   private inputMode: InputMode = 'image';
+  private playMode: DinoPlayMode = 'tap_obstacles';
 
   private running = false;
   private busy = false;
@@ -939,9 +1239,11 @@ class DinoGameTask {
   private inFlight = false;
   private simSpeed = 1;
   private pauseOnDecision = false;
+  private jsonOpen = false;
   private disposers: (() => void)[] = [];
   private modelPanelHandle?: DecisionModelPanelHandle;
 
+  private canvas!: HTMLCanvasElement;
   private ctx!: CanvasRenderingContext2D;
   private sceneCanvas!: HTMLCanvasElement;
   private el: Record<string, HTMLElement> = {};
@@ -964,18 +1266,14 @@ class DinoGameTask {
     this.container.innerHTML = template;
     this.container.querySelectorAll<HTMLElement>('[id]').forEach((node) => (this.el[node.id] = node));
     this.container.style.setProperty('--dm-width', `${WIDTH}px`);
-    this.container.style.setProperty('--dm-aspect', `${WIDTH} / ${HEIGHT}`);
+    this.container.style.setProperty('--dm-aspect', `${WIDTH} / ${SINGLE_HEIGHT}`);
     this.el['dm-question-text'].textContent = DINO_TEXT_QUESTION.instructions;
     this.el['dm-options'].innerHTML = DINO_TEXT_QUESTION.options
       .map((o) => `<li><b>${o.label}</b> — ${o.description}</li>`)
       .join('');
 
-    const canvas = this.el['dm-canvas'] as HTMLCanvasElement;
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = WIDTH * dpr;
-    canvas.height = HEIGHT * dpr;
-    this.ctx = canvas.getContext('2d')!;
-    this.ctx.scale(dpr, dpr);
+    this.canvas = this.el['dm-canvas'] as HTMLCanvasElement;
+    this.resizeStageCanvas();
 
     this.sceneCanvas = this.el['dm-scene-canvas'] as HTMLCanvasElement;
     renderFullSceneFromWorld(this.sceneCanvas, this.world);
@@ -994,7 +1292,41 @@ class DinoGameTask {
     });
     this.el['dm-mode-image']?.addEventListener('click', () => this.setInputMode('image'));
     this.el['dm-mode-text']?.addEventListener('click', () => this.setInputMode('text'));
+
+    // Play mode switching (Tap Obstacles vs Race vs AI)
+    this.el['dm-playmode-tap']?.addEventListener('click', () => this.setPlayMode('tap_obstacles'));
+    this.el['dm-playmode-versus']?.addEventListener('click', () => this.setPlayMode('side_by_side'));
+
+    // Interactive Obstacle Spawning (buttons + direct canvas tap)
+    this.el['dm-spawn-cactus']?.addEventListener('click', () => this.spawnUserObstacle('cactus'));
+    this.el['dm-spawn-cluster']?.addEventListener('click', () => this.spawnUserObstacle('four cacti'));
+    this.el['dm-spawn-drone']?.addEventListener('click', () => this.spawnUserObstacle('bird'));
+    this.canvas.addEventListener('pointerdown', (e) => this.onCanvasPointerDown(e));
+
+    // Player controls (Race vs AI mode)
+    this.el['dm-player-jump']?.addEventListener('click', () => this.triggerPlayerJump());
+    const duckBtn = this.el['dm-player-duck'];
+    duckBtn?.addEventListener('pointerdown', () => this.setPlayerDuck(true));
+    duckBtn?.addEventListener('pointerup', () => this.setPlayerDuck(false));
+    duckBtn?.addEventListener('pointerleave', () => this.setPlayerDuck(false));
+    this.el['dm-player-sprint']?.addEventListener('click', () => this.togglePlayerSprint());
+
+    // JSON Schema & Output Inspector
+    this.el['dm-json-btn']?.addEventListener('click', () => {
+      this.jsonOpen = !this.jsonOpen;
+      this.el['dm-json-panel'].style.display = this.jsonOpen ? 'block' : 'none';
+      this.updateJsonInspector();
+    });
+    this.el['dm-close-json-btn']?.addEventListener('click', () => {
+      this.jsonOpen = false;
+      this.el['dm-json-panel'].style.display = 'none';
+    });
+    this.el['dm-copy-json-btn']?.addEventListener('click', () => {
+      void navigator.clipboard?.writeText(this.el['dm-json-pre'].textContent ?? '');
+    });
+
     window.addEventListener('keydown', this.onKeyDown);
+    window.addEventListener('keyup', this.onKeyUp);
 
     // Model controls and state are shared with the Decision Maker page.
     this.modelPanelHandle = mountDecisionModelPanel(this.el['dm-model-panel'], 'vision');
@@ -1002,7 +1334,6 @@ class DinoGameTask {
     this.disposers.push(
       decisionRuntime.subscribe((event) => {
         if (event.type === 'loading') {
-          // A new model is loading: stop and forget answers from the old one.
           this.setRunning(false);
           this.epoch++;
           this.inFlight = false;
@@ -1022,8 +1353,10 @@ class DinoGameTask {
     );
 
     this.syncInputModeUI();
+    this.syncPlayModeUI();
     this.render();
     this.updatePanel();
+    this.updateJsonInspector();
     this.inferenceTimer.mount();
 
     if (decisionRuntime.ready) {
@@ -1038,6 +1371,152 @@ class DinoGameTask {
       this.setStatus(`Loading ${decisionRuntime.loadingLabel}...`);
     } else {
       this.setStatus('Load a vision model to begin');
+    }
+  }
+
+  private resizeStageCanvas() {
+    const height = this.playMode === 'side_by_side' ? VERSUS_HEIGHT : SINGLE_HEIGHT;
+    this.container.style.setProperty('--dm-aspect', `${WIDTH} / ${height}`);
+    const dpr = window.devicePixelRatio || 1;
+    this.canvas.width = WIDTH * dpr;
+    this.canvas.height = height * dpr;
+    this.ctx = this.canvas.getContext('2d')!;
+    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  private setPlayMode(mode: DinoPlayMode) {
+    if (this.playMode === mode) return;
+    this.playMode = mode;
+    this.world = createWorld(mode);
+    this.resizeStageCanvas();
+    this.syncPlayModeUI();
+    if (this.inputMode === 'image' && this.sceneCanvas) {
+      renderFullSceneFromWorld(this.sceneCanvas, this.world);
+    }
+    this.render();
+    this.updatePanel();
+    if (decisionRuntime.ready && !this.running) {
+      void this.refreshPlan();
+    }
+  }
+
+  private syncPlayModeUI() {
+    const isTap = this.playMode === 'tap_obstacles';
+    this.el['dm-playmode-tap']?.classList.toggle('active', isTap);
+    this.el['dm-playmode-versus']?.classList.toggle('active', !isTap);
+    if (this.el['dm-spawn-bar']) {
+      this.el['dm-spawn-bar'].style.display = isTap ? 'flex' : 'none';
+    }
+    if (this.el['dm-player-controls']) {
+      this.el['dm-player-controls'].style.display = isTap ? 'none' : 'flex';
+    }
+    if (this.el['dm-obs-cleared-label']) {
+      this.el['dm-obs-cleared-label'].textContent = isTap ? 'Cleared' : 'AI vs You (Cleared / Hits)';
+    }
+  }
+
+  /**
+   * Spawns a user-requested obstacle directly on the visible track (`x ∈ [285..740]`)
+   * with a pop-in scale animation and ripple ring while preserving the minimum
+   * ballistic gap (`152–185 px`) so the AI Dino still clears 100% of obstacles.
+   */
+  private spawnUserObstacle(kindName: string, requestedX?: number) {
+    const kind = findObstacleKind(kindName);
+    const minSafeX = DINO_X + DINO_W + 200; // 284 px (leaves decision + takeoff window)
+    const lastObs =
+      this.world.obstacles.length > 0
+        ? this.world.obstacles.reduce((a, b) => (a.x + a.kind.width > b.x + b.kind.width ? a : b))
+        : undefined;
+    const rightmostEdge = lastObs ? lastObs.x + lastObs.kind.width : 0;
+    const requiredGap = minGapAfterKind(lastObs?.kind, kind);
+
+    let spawnX: number;
+    if (requestedX !== undefined) {
+      const candidateX = Math.max(minSafeX, Math.min(WIDTH - kind.width - 14, requestedX));
+      const hasConflict = this.world.obstacles.some((o) => {
+        const gapBefore = minGapAfterKind(o.kind, kind);
+        const gapAfter = minGapAfterKind(kind, o.kind);
+        return candidateX < o.x + o.kind.width + gapBefore && candidateX + kind.width + gapAfter > o.x;
+      });
+      spawnX = hasConflict ? Math.max(candidateX, rightmostEdge + requiredGap) : candidateX;
+    } else {
+      spawnX = rightmostEdge > 0 ? Math.max(320, rightmostEdge + requiredGap) : 320;
+    }
+
+    const obs = makeObstacle(this.world.nextId++, kind, spawnX, true);
+    this.world.obstacles.push(obs);
+    this.world.obstacles.sort((a, b) => a.x - b.x);
+
+    const rippleColor = kind.flying ? '#2563eb' : kind.width >= 56 ? '#ea580c' : '#d97706';
+    this.world.spawnRipples.push({
+      x: Math.min(WIDTH - 24, spawnX + kind.width / 2),
+      y: kind.flying ? GROUND_Y - BIRD_BOTTOM - 8 : GROUND_Y - 14,
+      color: rippleColor,
+      age: 0,
+      maxAge: 20,
+      label: kind.width >= 56 ? '+4 CACTI (SPRINT!)' : `+${kind.name.toUpperCase()}`,
+    });
+
+    if (this.inputMode === 'image' && this.sceneCanvas) {
+      renderFullSceneFromWorld(this.sceneCanvas, this.world);
+    }
+    if (decisionRuntime.ready && !this.running && !this.busy) {
+      this.setRunning(true);
+    }
+    this.render();
+    this.updatePanel();
+  }
+
+  private onCanvasPointerDown(e: PointerEvent) {
+    if (this.playMode === 'side_by_side') {
+      this.triggerPlayerJump(e.shiftKey);
+      return;
+    }
+    const rect = this.canvas.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return;
+    const normX = (e.clientX - rect.left) / rect.width;
+    const normY = (e.clientY - rect.top) / rect.height;
+    const targetX = Math.round(normX * WIDTH);
+    const kindName = normY < 0.52 ? 'bird' : normX > 0.68 ? 'four cacti' : 'cactus';
+    this.spawnUserObstacle(kindName, targetX);
+  }
+
+  private triggerPlayerJump(forceSprint = false) {
+    if (this.world.playerY === 0) {
+      if (forceSprint) {
+        this.world.playerSprinting = true;
+        this.syncPlayerSprintButton();
+      }
+      this.world.playerVy = this.world.playerSprinting ? SPRINT_JUMP_VELOCITY : JUMP_VELOCITY;
+      this.world.playerDucking = false;
+      this.world.playerFastFall = false;
+      this.render();
+    }
+  }
+
+  private setPlayerDuck(active: boolean) {
+    this.world.playerFastFall = active;
+    this.world.playerDucking = active && this.world.playerY === 0;
+    this.el['dm-player-duck']?.classList.toggle('active', active);
+    this.render();
+  }
+
+  private syncPlayerSprintButton() {
+    this.el['dm-player-sprint']?.classList.toggle('active', this.world.playerSprinting);
+    if (this.el['dm-player-sprint-label']) {
+      this.el['dm-player-sprint-label'].textContent = this.world.playerSprinting
+        ? 'Sprint Jump: ARMED!'
+        : 'Sprint Jump (Shift+↑ / E)';
+    }
+  }
+
+  private togglePlayerSprint() {
+    if (this.world.playerY === 0) {
+      this.triggerPlayerJump(true);
+    } else {
+      this.world.playerSprinting = !this.world.playerSprinting;
+      this.syncPlayerSprintButton();
+      this.render();
     }
   }
 
@@ -1122,6 +1601,7 @@ class DinoGameTask {
     }
     this.render();
     this.updatePanel();
+    this.updateJsonInspector();
 
     if (mode === 'image' && decisionRuntime.ready && !this.isLoadedModelVisionCapable()) {
       decisionRuntime.select('embeddinggemma2_text_vision_440m');
@@ -1170,38 +1650,80 @@ class DinoGameTask {
     }
   }
 
+  private updateJsonInspector() {
+    const pre = this.el['dm-json-pre'];
+    if (!pre) return;
+    const obs = observe(this.world, this.inputMode);
+    const payload =
+      this.inputMode === 'image'
+        ? {
+            modality: 'vision_scene_tga_768x192',
+            queryImage: { width: SCENE_WIDTH, height: SCENE_HEIGHT, format: '24-bit TGA (16×4 ViT native patches)' },
+            schema: {
+              type: 'CHOICE',
+              temperature: 0.01,
+              options: SCENE_PROTOTYPE_SPECS.map((s) => ({
+                id: s.id,
+                action: s.action,
+                shortTitle: s.shortTitle,
+                imageBytes: `<768×192 TGA prototype (${s.id})>`,
+              })),
+            },
+            latestDecision: {
+              sceneKey: this.plan.sceneKey,
+              matchedPrototype: this.plan.matchedProtoId ?? null,
+              selectedAction: this.plan.action,
+              probabilities: this.plan.probabilities ?? null,
+              inferenceTimeMs: this.plan.inferenceTime ?? null,
+            },
+          }
+        : {
+            modality: 'text_state',
+            contextText: describe(obs),
+            schema: DINO_TEXT_QUESTION,
+            latestDecision: {
+              sceneKey: this.plan.sceneKey,
+              selectedAction: this.plan.action,
+              probabilities: this.plan.probabilities ?? null,
+              inferenceTimeMs: this.plan.inferenceTime ?? null,
+            },
+          };
+    pre.textContent = JSON.stringify(payload, null, 2);
+  }
+
   cleanup() {
     this.running = false;
     this.epoch++;
     window.removeEventListener('keydown', this.onKeyDown);
+    window.removeEventListener('keyup', this.onKeyUp);
     this.inferenceTimer.cleanup();
-    // The worker and model stay loaded in decisionRuntime for the next page.
     for (const dispose of this.disposers) dispose();
     this.disposers = [];
   }
 
   // -------------------------------------------------------------------------
-  // Model (shared runtime, runs in a worker)
+  // Model (shared runtime, runs asynchronously in a Web Worker)
   // -------------------------------------------------------------------------
 
   /**
-   * True if the scene state changed since the last decision (or a decision is
-   * still pending). In Scene Image mode, we evaluate:
-   * - 'clear' when no obstacles are on screen,
-   * - 'far:<id>' when an obstacle is on the far mid-track (~400–408px) while
-   *   the near action zone is clear and the dino is on the ground, and
-   * - 'near:<id>' as soon as an obstacle enters the near lookahead window
-   *   (~198px, ~15–23 ticks before the jump/duck point) so inference completes
-   *   in the background while the dino continues running smoothly.
+   * True if the scene state changed since the last decision.
+   * Note: We only trigger a 'far:<id>' inference when the obstacle is still well
+   * outside the near lookahead zone (`farDistance > lookDistance + 90`), so a
+   * `far:` inference never blocks the worker right as the obstacle enters `near:`.
    */
   private needsDecision(obs: Observation): boolean {
     if (this.plan.thinking && !this.inFlight) return true;
     if (this.plan.sceneKey === obs.sceneKey) return false;
 
     if (obs.sceneKey.startsWith('far:')) {
-      if (!obs.onGround || !obs.farTarget) return false;
-      const normX = normalizedSceneX(obs.farTarget.x, obs.speed);
-      return normX >= SCENE_PROTO_FAR_X - 8 && normX <= SCENE_PROTO_FAR_X + 8;
+      if (!obs.onGround || !obs.farTarget || obs.farDistance === null) return false;
+      const look = lookDistance(obs.speed, this.inputMode);
+      if (obs.farDistance < look + 90) return false;
+      if (this.inputMode === 'image') {
+        const normX = normalizedSceneX(obs.farTarget.x, obs.speed);
+        return normX >= SCENE_PROTO_FAR_X - 8 && normX <= SCENE_PROTO_FAR_X + 8;
+      }
+      return true;
     }
     return true;
   }
@@ -1249,8 +1771,7 @@ class DinoGameTask {
       }
       this.prototypesPrewarmed = true;
 
-      // Aggregate prototype probabilities by action class using max-pooling so
-      // classes with more reference prototypes are not artificially boosted.
+      // Aggregate prototype probabilities by action class using max-pooling.
       const maxByAction: Record<Action, number> = { JUMP: 0, DUCK: 0, SPRINT: 0, WAIT: 0 };
       let bestSpec = SCENE_PROTOTYPE_SPECS[0];
       let bestRawProb = -1;
@@ -1276,7 +1797,7 @@ class DinoGameTask {
 
       let sceneDesc = 'clear track';
       if (obs.target && obs.farTarget) {
-        sceneDesc = `near ${obs.target.kind.name} + back-to-back ${obs.farTarget.kind.name} ahead`;
+        sceneDesc = `near ${obs.target.kind.name} + follow-up ${obs.farTarget.kind.name} ahead`;
       } else if (obs.target) {
         sceneDesc = `near ${obs.target.kind.name}`;
       } else if (obs.farTarget) {
@@ -1328,8 +1849,8 @@ class DinoGameTask {
   }
 
   /**
-   * Asks the model asynchronously in the worker while the game loop and dino
-   * physics continue running uninterrupted.
+   * Asks the model asynchronously in the worker while the 60 FPS game loop and
+   * dino physics continue running uninterrupted.
    */
   private askModelInBackground(req: {
     obs: Observation;
@@ -1341,9 +1862,6 @@ class DinoGameTask {
     this.modelDecide(req.obs, req.snapshotTga, req.snapshotObstacles).then((decision) => {
       this.inFlight = false;
       if (epoch !== this.epoch) return;
-      // If a newer scene state arrived while this inference was in flight,
-      // immediately kick off a decision using the snapshot captured when that
-      // scene state was entered.
       if (decision.sceneKey !== this.plan.sceneKey) {
         if (this.running && this.pendingDecisionRequest?.obs.sceneKey === this.plan.sceneKey) {
           const nextReq = this.pendingDecisionRequest;
@@ -1358,6 +1876,7 @@ class DinoGameTask {
         this.setRunning(false);
       this.render();
       this.updatePanel();
+      if (this.jsonOpen) this.updateJsonInspector();
     });
   }
 
@@ -1383,6 +1902,7 @@ class DinoGameTask {
     }
     this.render();
     this.updatePanel();
+    if (this.jsonOpen) this.updateJsonInspector();
   }
 
   // -------------------------------------------------------------------------
@@ -1397,31 +1917,61 @@ class DinoGameTask {
       target.getAttribute('type') !== 'checkbox'
     )
       return;
+
+    if (this.playMode === 'side_by_side') {
+      if (e.code === 'ArrowUp' || e.code === 'KeyW') {
+        e.preventDefault();
+        this.triggerPlayerJump(e.shiftKey);
+        return;
+      }
+      if (e.code === 'KeyE') {
+        e.preventDefault();
+        this.triggerPlayerJump(true);
+        return;
+      }
+      if (e.code === 'ArrowDown' || e.code === 'KeyS') {
+        e.preventDefault();
+        this.setPlayerDuck(true);
+        return;
+      }
+      if ((e.code === 'ShiftLeft' || e.code === 'ShiftRight') && !e.repeat) {
+        e.preventDefault();
+        this.togglePlayerSprint();
+        return;
+      }
+    }
+
     if (e.code === 'Space') {
       e.preventDefault();
       this.setRunning(!this.running);
     } else if (e.code === 'ArrowRight') {
       e.preventDefault();
-      this.step();
+      void this.step();
     } else if (e.code === 'KeyR') {
-      this.reset();
+      void this.reset();
+    }
+  };
+
+  private onKeyUp = (e: KeyboardEvent) => {
+    if (e.code === 'ArrowDown' || e.code === 'KeyS') {
+      this.setPlayerDuck(false);
     }
   };
 
   private canStep() {
-    return !this.world.gameOver && decisionRuntime.ready && !this.busy;
+    return decisionRuntime.ready && !this.busy;
   }
 
   private setRunning(running: boolean) {
     if (running && !this.canStep()) return;
     const wasRunning = this.running;
     this.running = running;
-    if (running && !wasRunning) this.runLoop();
+    if (running && !wasRunning) void this.runLoop();
     if (!running && wasRunning && this.plan.thinking && !this.inFlight) void this.refreshPlan();
     this.updateButtons();
   }
 
-  /** Plays at a steady speed; model answers arrive asynchronously. */
+  /** Plays at a steady 60 FPS; model answers arrive asynchronously in the worker. */
   private async runLoop() {
     while (this.running) {
       const start = performance.now();
@@ -1431,11 +1981,16 @@ class DinoGameTask {
     }
   }
 
-  /** One tick while playing. Physics and dino movement run continuously while inference executes in the worker. */
+  /** One tick while playing. Physics and dino movement run continuously at 60 FPS while inference executes in the worker. */
   private tick() {
     if (this.busy || !this.canStep()) return;
 
-    stepWorld(this.world, controls(observe(this.world, this.inputMode), this.plan, this.world), this.rand);
+    stepWorld(
+      this.world,
+      controls(observe(this.world, this.inputMode), this.plan, this.world),
+      this.playMode,
+      this.rand
+    );
 
     const obs = observe(this.world, this.inputMode);
     if (this.needsDecision(obs)) {
@@ -1465,7 +2020,6 @@ class DinoGameTask {
       }
     }
 
-    if (this.world.gameOver) this.setRunning(false);
     this.render();
     this.updatePanel();
   }
@@ -1475,7 +2029,12 @@ class DinoGameTask {
     if (this.running || this.busy || !this.canStep()) return;
     this.busy = true;
     try {
-      stepWorld(this.world, controls(observe(this.world, this.inputMode), this.plan, this.world), this.rand);
+      stepWorld(
+        this.world,
+        controls(observe(this.world, this.inputMode), this.plan, this.world),
+        this.playMode,
+        this.rand
+      );
       const obs = observe(this.world, this.inputMode);
       if (this.needsDecision(obs)) this.plan = await this.modelDecide(obs);
     } finally {
@@ -1483,6 +2042,7 @@ class DinoGameTask {
     }
     this.render();
     this.updatePanel();
+    if (this.jsonOpen) this.updateJsonInspector();
   }
 
   private async reset() {
@@ -1490,7 +2050,8 @@ class DinoGameTask {
     this.epoch++;
     this.inFlight = false;
     this.pendingDecisionRequest = undefined;
-    this.world = createWorld();
+    this.world = createWorld(this.playMode);
+    this.syncPlayerSprintButton();
     this.rand = mulberry32(Date.now());
     this.modelCalls = 0;
     renderFullSceneFromWorld(this.sceneCanvas, this.world);
@@ -1517,19 +2078,30 @@ class DinoGameTask {
 
   private updatePanel() {
     const d = this.plan;
-    const effectiveSpeed = this.world.sprinting ? this.world.speed * SPRINT_MULTIPLIER : this.world.speed;
-    this.el['dm-obs-tick'].textContent = `${this.world.tick}`;
-    this.el['dm-obs-speed'].textContent = this.world.sprinting
+    const w = this.world;
+    const effectiveSpeed = w.sprinting ? w.speed * SPRINT_MULTIPLIER : w.speed;
+    this.el['dm-obs-tick'].textContent = `${w.tick}`;
+    this.el['dm-obs-speed'].textContent = w.sprinting
       ? `${effectiveSpeed.toFixed(2)} px/t (sprint)`
-      : `${this.world.speed.toFixed(2)} px/t`;
-    this.el['dm-obs-cleared'].textContent = `${this.world.cleared}`;
+      : `${w.speed.toFixed(2)} px/t`;
+    this.el['dm-obs-cleared'].textContent =
+      this.playMode === 'side_by_side'
+        ? `AI ${w.cleared}/${w.hits} · You ${w.playerCleared}/${w.playerHits}`
+        : `${w.cleared}`;
     this.el['dm-obs-calls'].textContent = `${this.modelCalls}`;
 
+    const queuedCount = w.obstacles.filter((o) => o.x > WIDTH).length;
+    const queuedBadge = this.el['dm-queued-badge'];
+    if (queuedBadge) {
+      queuedBadge.style.display = queuedCount > 0 ? 'inline-block' : 'none';
+      queuedBadge.textContent = `+${queuedCount} queued`;
+    }
+
     const action = this.el['dm-action'];
-    const over = this.world.gameOver;
-    action.textContent = over ? 'CRASH' : d.thinking ? '…' : d.action;
-    action.className = `dm-action ${over ? 'crash' : d.thinking ? '' : d.action.toLowerCase()}`;
-    this.el['dm-reason'].textContent = over ? 'Hit an obstacle. Press Reset.' : d.reason;
+    const crashedFlash = w.crashFlashTicks > 0;
+    action.textContent = crashedFlash ? 'HIT' : d.thinking ? '…' : d.action;
+    action.className = `dm-action ${crashedFlash ? 'crash' : d.thinking ? '' : d.action.toLowerCase()}`;
+    this.el['dm-reason'].textContent = d.reason;
 
     for (const a of ACTIONS) {
       const p = d.thinking ? undefined : d.probabilities?.[a];
@@ -1543,83 +2115,227 @@ class DinoGameTask {
     }
 
     if (decisionRuntime.ready) {
-      this.el['status-message'].textContent = over
-        ? 'Game over'
-        : this.busy
-          ? 'Prewarming scene prototypes…'
-          : this.running
-            ? 'Running'
-            : 'Paused';
+      this.el['status-message'].textContent = this.busy
+        ? 'Prewarming scene prototypes…'
+        : this.running
+          ? 'Running'
+          : 'Paused';
     }
+    this.syncPlayerSprintButton();
     this.updateButtons();
+  }
+
+  private drawLane(
+    topY: number,
+    groundY: number,
+    laneBottomY: number,
+    laneBadgeText: string,
+    badgeColor: string,
+    dinoY: number,
+    ducking: boolean,
+    sprinting: boolean,
+    dinoColor: string,
+    crashFlashTicks: number,
+    showObstacleLabels: boolean,
+    obs: Observation
+  ) {
+    const ctx = this.ctx;
+    const w = this.world;
+
+    // Subtle parallax clouds & mountains + classic ground line (turns soft red on hit)
+    drawParallaxGroundAndBackdrop(ctx, WIDTH, groundY, topY, laneBottomY, w.scroll, crashFlashTicks);
+
+    // Top-left lane badge
+    if (laneBadgeText) {
+      ctx.save();
+      ctx.font = 'bold 11px Roboto Mono, monospace';
+      ctx.fillStyle = crashFlashTicks > 0 ? '#b91c1c' : badgeColor;
+      ctx.fillText(laneBadgeText, 12, topY + 18);
+      ctx.restore();
+    }
+
+    // Visual ripple & floating label feedback when the user drops an obstacle on the track
+    if (showObstacleLabels && w.spawnRipples.length > 0) {
+      for (const r of w.spawnRipples) {
+        const progress = r.age / r.maxAge;
+        const alpha = Math.max(0, 1 - progress);
+        const radius = 10 + progress * 28;
+        ctx.save();
+        ctx.strokeStyle = r.color;
+        ctx.globalAlpha = alpha * 0.75;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(r.x, r.y, radius, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.font = 'bold 10px Roboto Mono, monospace';
+        ctx.fillStyle = r.color;
+        ctx.globalAlpha = alpha;
+        ctx.textAlign = 'center';
+        ctx.fillText(r.label, r.x, Math.max(topY + 18, r.y - 26 - progress * 14));
+        ctx.restore();
+      }
+    }
+
+    // Classic pixel-art obstacles + decision callouts above the target obstacle
+    for (const o of w.obstacles) {
+      if (o.x > WIDTH + 20) continue;
+
+      if (o.spawnAnimTicks > 0) {
+        const t = 1 - o.spawnAnimTicks / 14;
+        const scale = t < 0.7 ? 0.35 + (t / 0.7) * 0.75 : 1.1 - ((t - 0.7) / 0.3) * 0.1;
+        const cx = o.x + o.kind.width / 2;
+        const cy = groundY;
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.scale(scale, scale);
+        ctx.translate(-cx, -cy);
+        drawObstacle(ctx, o, w.tick, groundY);
+        ctx.restore();
+      } else {
+        drawObstacle(ctx, o, w.tick, groundY);
+      }
+
+      const top = groundY - (o.kind.flying ? BIRD_BOTTOM : 0) - o.kind.height;
+      const isCluster = o.kind.width >= 56;
+      if (showObstacleLabels) {
+        const isNearTarget = obs.target?.id === o.id && this.plan.sceneKey === `near:${o.id}`;
+        const isFarTarget = !obs.target && obs.farTarget?.id === o.id && this.plan.sceneKey === `far:${o.id}`;
+        let label = '';
+        if (this.inputMode === 'image') {
+          if (isNearTarget && !this.plan.thinking) {
+            label = isCluster ? 'cluster → SPRINT + JUMP' : `near → ${this.plan.action}`;
+          } else if (isFarTarget && !this.plan.thinking) {
+            label = `far → ${this.plan.action}`;
+          } else if (isCluster) {
+            label = '4-cacti (sprint)';
+          }
+        } else {
+          const actionText = isCluster && this.plan.action === 'JUMP' ? 'SPRINT + JUMP' : this.plan.action;
+          label = isNearTarget && !this.plan.thinking ? `${o.kind.name} → ${actionText}` : o.kind.name;
+        }
+        if (label) {
+          ctx.font = `${isNearTarget || isFarTarget || isCluster ? 'bold ' : ''}11px Roboto, sans-serif`;
+          ctx.fillStyle = isNearTarget ? (isCluster ? '#ea580c' : '#007f8b') : '#5f6368';
+          ctx.textAlign = 'center';
+          ctx.fillText(label, o.x + o.kind.width / 2, Math.max(topY + 28, top - 6));
+          ctx.textAlign = 'left';
+        }
+      } else if (isCluster) {
+        // In the human player's lane, highlight wide 4-cactus clusters so the player knows Sprint is required
+        ctx.font = 'bold 10px Roboto Mono, monospace';
+        ctx.fillStyle = '#ea580c';
+        ctx.textAlign = 'center';
+        ctx.fillText('SPRINT JUMP!', o.x + o.kind.width / 2, Math.max(topY + 28, top - 5));
+        ctx.textAlign = 'left';
+      }
+    }
+
+    // Speed lines and badge when sprinting
+    if (sprinting) {
+      ctx.fillStyle = '#0b8043';
+      ctx.font = 'bold 11px Roboto, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(
+        dinoY > 0 ? 'SPRINT JUMP 1.3x' : 'SPRINT 1.3x',
+        DINO_X + DINO_W / 2,
+        Math.max(topY + 14, groundY - dinoY - DINO_H - 8)
+      );
+      ctx.textAlign = 'left';
+
+      ctx.fillStyle = 'rgba(11, 128, 67, 0.45)';
+      const streakOffset = Math.floor(w.tick * 3) % 14;
+      ctx.fillRect(DINO_X - 18 - streakOffset, groundY - dinoY - 22, 12, 2);
+      ctx.fillRect(DINO_X - 26 - (streakOffset % 9), groundY - dinoY - 14, 16, 2);
+      ctx.fillRect(DINO_X - 14 - ((streakOffset + 5) % 12), groundY - dinoY - 7, 10, 2);
+    }
+
+    // Classic pixel-art T-rex sprite (legs alternate faster while sprinting)
+    const strideTicks = sprinting ? 4 : 6;
+    const frame = Math.floor(w.tick / strideTicks) % 2;
+    const crashed = crashFlashTicks > 0;
+    if (crashed) {
+      ctx.save();
+      ctx.fillStyle = '#dc2626';
+      ctx.font = 'bold 11px Roboto Mono, monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('HIT!', DINO_X + DINO_W / 2, Math.max(topY + 14, groundY - dinoY - DINO_H - 8));
+      ctx.restore();
+    }
+    if (ducking) {
+      const legs = frame ? DINO_DUCK_LEGS.run1 : DINO_DUCK_LEGS.run2;
+      drawSprite(ctx, [...DINO_DUCK_BODY, ...legs], DINO_X, groundY - DUCK_H, crashed, dinoColor);
+    } else {
+      const legs = dinoY > 0 ? DINO_LEGS.stand : frame ? DINO_LEGS.run1 : DINO_LEGS.run2;
+      drawSprite(ctx, [...DINO_BODY, ...legs], DINO_X, groundY - dinoY - DINO_H, crashed, dinoColor);
+    }
   }
 
   private render() {
     const ctx = this.ctx;
     const w = this.world;
     const obs = observe(w, this.inputMode);
+    const height = this.playMode === 'side_by_side' ? VERSUS_HEIGHT : SINGLE_HEIGHT;
 
-    ctx.clearRect(0, 0, WIDTH, HEIGHT);
+    ctx.clearRect(0, 0, WIDTH, height);
 
-    drawGround(ctx, w.scroll);
-
-    // Obstacles: show the model's decision on the active near or far target.
-    for (const o of w.obstacles) {
-      drawObstacle(ctx, o, w.tick);
-      const top = GROUND_Y - (o.kind.flying ? BIRD_BOTTOM : 0) - o.kind.height;
-      const isNearTarget = obs.target?.id === o.id && this.plan.sceneKey === `near:${o.id}`;
-      const isFarTarget = !obs.target && obs.farTarget?.id === o.id && this.plan.sceneKey === `far:${o.id}`;
-      let label = '';
-      if (this.inputMode === 'image') {
-        if (isNearTarget && !this.plan.thinking) {
-          label = `near → ${this.plan.action}`;
-        } else if (isFarTarget && !this.plan.thinking) {
-          label = `far → ${this.plan.action}`;
-        }
-      } else {
-        label = isNearTarget && !this.plan.thinking ? `${o.kind.name} → ${this.plan.action}` : o.kind.name;
-      }
-      if (label) {
-        ctx.font = `${isNearTarget || isFarTarget ? 'bold ' : ''}11px Roboto, sans-serif`;
-        ctx.fillStyle = isNearTarget ? '#007f8b' : '#5f6368';
-        ctx.textAlign = 'center';
-        ctx.fillText(label, o.x + o.kind.width / 2, top - 6);
-        ctx.textAlign = 'left';
-      }
-    }
-
-    // Speed lines and badge when sprinting on a clear track.
-    if (w.sprinting && !w.gameOver) {
-      ctx.fillStyle = '#0b8043';
-      ctx.font = 'bold 11px Roboto, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText('SPRINT 1.35x', DINO_X + DINO_W / 2, GROUND_Y - DINO_H - 10);
-      ctx.textAlign = 'left';
-
-      ctx.fillStyle = 'rgba(11, 128, 67, 0.45)';
-      const streakOffset = Math.floor(w.tick * 3) % 14;
-      ctx.fillRect(DINO_X - 18 - streakOffset, GROUND_Y - 22, 12, 2);
-      ctx.fillRect(DINO_X - 26 - (streakOffset % 9), GROUND_Y - 14, 16, 2);
-      ctx.fillRect(DINO_X - 14 - ((streakOffset + 5) % 12), GROUND_Y - 7, 10, 2);
-    }
-
-    // Dino (legs alternate faster while sprinting).
-    const strideTicks = w.sprinting ? 4 : 6;
-    const frame = Math.floor(w.tick / strideTicks) % 2;
-    if (w.ducking && !w.gameOver) {
-      const legs = frame ? DINO_DUCK_LEGS.run1 : DINO_DUCK_LEGS.run2;
-      drawSprite(ctx, [...DINO_DUCK_BODY, ...legs], DINO_X, GROUND_Y - DUCK_H);
+    if (this.playMode === 'tap_obstacles') {
+      this.drawLane(
+        0,
+        GROUND_Y,
+        SINGLE_HEIGHT,
+        '',
+        DINO_COLOR,
+        w.dinoY,
+        w.ducking,
+        w.sprinting,
+        DINO_COLOR,
+        w.crashFlashTicks,
+        true,
+        obs
+      );
     } else {
-      const legs = w.dinoY > 0 || w.gameOver ? DINO_LEGS.stand : frame ? DINO_LEGS.run1 : DINO_LEGS.run2;
-      drawSprite(ctx, [...DINO_BODY, ...legs], DINO_X, GROUND_Y - w.dinoY - DINO_H, w.gameOver);
-    }
+      // Top Lane: AI Dino
+      this.drawLane(
+        0,
+        TOP_LANE_GROUND_Y,
+        BOTTOM_LANE_TOP_Y,
+        `AI DINO · Cleared ${w.cleared} · Hits ${w.hits}`,
+        DINO_COLOR,
+        w.dinoY,
+        w.ducking,
+        w.sprinting,
+        DINO_COLOR,
+        w.crashFlashTicks,
+        true,
+        obs
+      );
 
-    if (w.gameOver) {
-      ctx.fillStyle = DINO_COLOR;
-      ctx.font = 'bold 20px Roboto Mono, monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText('GAME OVER', WIDTH / 2, HEIGHT / 2);
-      ctx.textAlign = 'left';
+      // Divider between AI lane and Player lane
+      ctx.save();
+      ctx.strokeStyle = '#dadce0';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(0, BOTTOM_LANE_TOP_Y);
+      ctx.lineTo(WIDTH, BOTTOM_LANE_TOP_Y);
+      ctx.stroke();
+      ctx.restore();
+
+      // Bottom Lane: Human Player
+      this.drawLane(
+        BOTTOM_LANE_TOP_Y,
+        BOTTOM_LANE_GROUND_Y,
+        VERSUS_HEIGHT,
+        `YOU · Cleared ${w.playerCleared} · Hits ${w.playerHits}  (↑/W Jump · Shift/E Sprint-Jump · ↓/S Duck & Fast-Fall)`,
+        PLAYER_DINO_COLOR,
+        w.playerY,
+        w.playerDucking,
+        w.playerSprinting,
+        PLAYER_DINO_COLOR,
+        w.playerCrashFlashTicks,
+        false,
+        obs
+      );
     }
   }
 }

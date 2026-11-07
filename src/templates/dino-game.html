@@ -16,11 +16,25 @@
         <span class="material-icons">replay</span><span>Reset</span>
       </button>
     </div>
-    <p class="dm-hint">Shortcuts: <b>Space</b> play/pause, <b>→</b> next step, <b>R</b> reset</p>
+    <p id="dm-shortcuts-hint" class="dm-hint">Shortcuts: <b>Space</b> play/pause, <b>→</b> next step, <b>R</b> reset</p>
 
     <div class="divider"></div>
 
     <div class="section-title">Settings</div>
+    <div class="control-group">
+      <div class="control-label">
+        <span>Play Mode</span>
+      </div>
+      <div class="dm-mode-switch" role="group" aria-label="Play mode">
+        <button type="button" id="dm-playmode-tap" class="dm-mode-btn active">
+          <span class="material-icons">touch_app</span><span>Tap Obstacles</span>
+        </button>
+        <button type="button" id="dm-playmode-versus" class="dm-mode-btn">
+          <span class="material-icons">people</span><span>Race vs AI</span>
+        </button>
+      </div>
+    </div>
+
     <div class="control-group">
       <div class="control-label">
         <span>Scene Input Modality</span>
@@ -61,15 +75,91 @@
   <div class="output-panel">
     <div class="output-header">
       <h2>Decision Maker - Dino Game</h2>
+      <div class="dm-header-actions">
+        <button
+          id="dm-json-btn"
+          class="dm-json-toggle-btn"
+          type="button"
+          title="Inspect live DecisionMaker JSON schema and response"
+        >
+          <span class="material-icons">code</span>
+          <span>JSON</span>
+        </button>
+      </div>
     </div>
     <div class="viewport">
       <div id="dm-game-view" class="dm-view">
         <p id="dm-help" class="dm-help">
           The game captures the <b>full 768×192 game scene</b> (dino on the left and all near &amp; far obstacles on the
-          track—with no text labels) and compares those pixels against 6 reference full-scene prototypes in
-          <code>DecisionMaker</code> to choose: <b>jump</b>, <b>duck</b>, <b>sprint</b>, or <b>wait</b>.
+          track—with no text prompt or description) and compares those pixels against 6 reference full-scene prototypes
+          in <code>DecisionMaker</code> to choose: <b>jump</b>, <b>duck</b>, <b>sprint</b>, or <b>wait</b>.
         </p>
-        <canvas id="dm-canvas" class="dm-canvas"></canvas>
+
+        <div class="dm-stage-wrap">
+          <canvas id="dm-canvas" class="dm-canvas"></canvas>
+          <span id="dm-queued-badge" class="dm-queued-badge" style="display: none">+0 queued</span>
+        </div>
+
+        <!-- Interactive Spawn Bar (Tap Obstacles Mode) -->
+        <div id="dm-spawn-bar" class="dm-action-bar">
+          <span class="dm-bar-label">
+            <span class="material-icons">touch_app</span>
+            <span>Tap anywhere on the track or drop an obstacle on screen:</span>
+          </span>
+          <div class="dm-bar-btns">
+            <button id="dm-spawn-cactus" class="dm-chip-btn amber" type="button">+ Cactus</button>
+            <button
+              id="dm-spawn-cluster"
+              class="dm-chip-btn orange"
+              type="button"
+              title="Wide 4-cactus cluster — requires Sprint + Jump!"
+            >
+              + Cactus Cluster (Sprint)
+            </button>
+            <button id="dm-spawn-drone" class="dm-chip-btn blue" type="button">+ Low Drone</button>
+          </div>
+        </div>
+
+        <!-- Player Controls Bar (Side-by-Side Race vs AI Mode) -->
+        <div id="dm-player-controls" class="dm-action-bar player-bar" style="display: none">
+          <span class="dm-bar-label">
+            <span class="material-icons">keyboard</span>
+            <span
+              >Your Lane (<b>↑/W</b> Jump · <b>Shift+↑ / E</b> Sprint-Jump Cluster · <b>↓/S</b> Duck &amp;
+              Fast-Fall):</span
+            >
+          </span>
+          <div class="dm-bar-btns">
+            <button id="dm-player-jump" class="dm-chip-btn primary" type="button">
+              <span class="material-icons">arrow_upward</span><span>Jump (↑/W)</span>
+            </button>
+            <button id="dm-player-duck" class="dm-chip-btn" type="button">
+              <span class="material-icons">arrow_downward</span><span>Duck / Fast-Fall (↓/S)</span>
+            </button>
+            <button
+              id="dm-player-sprint"
+              class="dm-chip-btn orange"
+              type="button"
+              title="Long Sprint-Jump required to clear wide 4-cactus clusters! (Shift+↑ or E)"
+            >
+              <span class="material-icons">bolt</span><span id="dm-player-sprint-label">Sprint Jump (Shift+↑ / E)</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Collapsible JSON Schema & Response Inspector -->
+        <div id="dm-json-panel" class="dm-card dm-json-panel" style="display: none">
+          <div class="dm-input-header">
+            <div class="dm-label">Live DecisionMaker JSON Schema &amp; Calibrated Output</div>
+            <div class="dm-json-actions">
+              <button id="dm-copy-json-btn" class="dm-mini-btn" type="button">
+                <span class="material-icons">content_copy</span><span>Copy JSON</span>
+              </button>
+              <button id="dm-close-json-btn" class="dm-mini-btn" type="button">Close</button>
+            </div>
+          </div>
+          <pre id="dm-json-pre" class="dm-json-pre"></pre>
+        </div>
 
         <div class="dm-panels">
           <div class="dm-card dm-decision">
@@ -102,7 +192,9 @@
           <div class="dm-stats">
             <div class="dm-stat"><span class="dm-label">Tick</span><span id="dm-obs-tick">0</span></div>
             <div class="dm-stat"><span class="dm-label">Speed</span><span id="dm-obs-speed">-</span></div>
-            <div class="dm-stat"><span class="dm-label">Cleared</span><span id="dm-obs-cleared">0</span></div>
+            <div class="dm-stat">
+              <span id="dm-obs-cleared-label" class="dm-label">Cleared</span><span id="dm-obs-cleared">0</span>
+            </div>
             <div class="dm-stat"><span class="dm-label">Model calls</span><span id="dm-obs-calls">0</span></div>
           </div>
 
@@ -139,15 +231,37 @@
   </div>
 
   <style>
-    .dm-cross-link {
-      color: var(--primary);
-      font-size: 0.9rem;
-      font-weight: 500;
-      text-decoration: none;
-      white-space: nowrap;
+    .output-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
     }
-    .dm-cross-link:hover {
-      text-decoration: underline;
+    .dm-header-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .dm-json-toggle-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px 11px;
+      border-radius: 999px;
+      border: 1px solid var(--border-color);
+      background: var(--surface);
+      color: var(--text-main);
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .dm-json-toggle-btn .material-icons {
+      font-size: 16px;
+    }
+    .dm-json-toggle-btn:hover {
+      border-color: var(--primary);
+      color: var(--primary);
     }
     .dm-view {
       width: 100%;
@@ -216,13 +330,150 @@
       line-height: 1.4;
       color: var(--text-secondary);
     }
+    .dm-stage-wrap {
+      position: relative;
+      width: 100%;
+      max-width: var(--dm-width);
+    }
     .dm-canvas {
+      display: block;
       width: 100%;
       max-width: var(--dm-width);
       aspect-ratio: var(--dm-aspect);
       border: 1px solid var(--border-color);
-      border-radius: var(--radius-sm);
+      border-radius: var(--radius-sm) var(--radius-sm) 0 0;
       background: #fff;
+      cursor: crosshair;
+    }
+    .dm-queued-badge {
+      position: absolute;
+      top: 10px;
+      right: 12px;
+      padding: 3px 9px;
+      border-radius: 999px;
+      background: rgba(15, 23, 42, 0.82);
+      color: #fff;
+      font-family: 'Roboto Mono', monospace;
+      font-size: 0.72rem;
+      font-weight: 700;
+      pointer-events: none;
+    }
+    .dm-action-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px;
+      width: 100%;
+      max-width: var(--dm-width);
+      box-sizing: border-box;
+      padding: 8px 12px;
+      background: #f8fafc;
+      border: 1px solid var(--border-color);
+      border-top: none;
+      border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+    }
+    .dm-action-bar.player-bar {
+      background: #eff6ff;
+    }
+    .dm-bar-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 0.78rem;
+      color: var(--text-secondary);
+    }
+    .dm-bar-label .material-icons {
+      font-size: 16px;
+      color: var(--primary);
+    }
+    .dm-bar-btns {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .dm-chip-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 5px 11px;
+      border-radius: 999px;
+      border: 1px solid var(--border-color);
+      background: #fff;
+      color: var(--text-main);
+      font-size: 0.76rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.12s ease;
+    }
+    .dm-chip-btn .material-icons {
+      font-size: 15px;
+    }
+    .dm-chip-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+    }
+    .dm-chip-btn.amber {
+      background: #fef3c7;
+      border-color: #f59e0b;
+      color: #92400e;
+    }
+    .dm-chip-btn.orange {
+      background: #ffedd5;
+      border-color: #f97316;
+      color: #9a3412;
+    }
+    .dm-chip-btn.blue {
+      background: #dbeafe;
+      border-color: #3b82f6;
+      color: #1e40af;
+    }
+    .dm-chip-btn.primary,
+    .dm-chip-btn.active {
+      background: #2563eb;
+      border-color: #1d4ed8;
+      color: #fff;
+    }
+    .dm-json-panel {
+      width: 100%;
+      max-width: var(--dm-width);
+      box-sizing: border-box;
+      margin-top: 12px;
+      background: #f8fafc;
+    }
+    .dm-json-actions {
+      display: flex;
+      gap: 6px;
+    }
+    .dm-mini-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 9px;
+      border-radius: 6px;
+      border: 1px solid var(--border-color);
+      background: #fff;
+      color: var(--text-main);
+      font-size: 0.72rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .dm-mini-btn .material-icons {
+      font-size: 14px;
+    }
+    .dm-json-pre {
+      font-family: 'Roboto Mono', monospace;
+      font-size: 0.73rem;
+      line-height: 1.4;
+      background: #fff;
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 8px 10px;
+      margin: 6px 0 0;
+      max-height: 220px;
+      overflow-y: auto;
+      white-space: pre-wrap;
     }
     .dm-panels {
       display: flex;
@@ -366,18 +617,20 @@
       align-items: center;
       justify-content: center;
       gap: 5px;
-      padding: 7px 10px;
+      padding: 7px 8px;
       border-radius: var(--radius-sm);
       border: 1px solid var(--border-color);
       background: var(--surface);
       color: var(--text-secondary);
-      font-size: 0.82rem;
+      font-size: 0.78rem;
       font-weight: 500;
+      white-space: nowrap;
       cursor: pointer;
       transition: all 0.15s ease;
     }
     .dm-mode-btn .material-icons {
       font-size: 16px;
+      flex-shrink: 0;
     }
     .dm-mode-btn:hover {
       border-color: var(--primary);
