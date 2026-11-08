@@ -29,7 +29,7 @@
  *      jump, duck, sprint, or wait.
  * - Supports two interactive play modes:
  *   1. Tap Obstacles: tap anywhere on the track or click "+ Cactus",
- *      "+ Cactus Cluster", or "+ Low Drone" to queue obstacles with even spacing.
+ *      "+ Cactus Cluster", or "+ Bird" to queue obstacles with even spacing.
  *   2. Race vs AI: dual synchronized lanes (AI DINO on top vs. YOU on bottom).
  */
 
@@ -1300,7 +1300,7 @@ class DinoGameTask {
     // Interactive Obstacle Spawning (buttons + direct canvas tap)
     this.el['dm-spawn-cactus']?.addEventListener('click', () => this.spawnUserObstacle('cactus'));
     this.el['dm-spawn-cluster']?.addEventListener('click', () => this.spawnUserObstacle('four cacti'));
-    this.el['dm-spawn-drone']?.addEventListener('click', () => this.spawnUserObstacle('bird'));
+    this.el['dm-spawn-bird']?.addEventListener('click', () => this.spawnUserObstacle('bird'));
     this.canvas.addEventListener('pointerdown', (e) => this.onCanvasPointerDown(e));
 
     // Player controls (Race vs AI mode)

@@ -192,7 +192,7 @@ test.describe('Decision Maker Task', () => {
     await expect(page.locator('#dm-player-controls')).toBeHidden();
     await page.locator('#dm-spawn-cactus').click();
     await page.locator('#dm-spawn-cluster').click();
-    await page.locator('#dm-spawn-drone').click();
+    await page.locator('#dm-spawn-bird').click();
 
     await page.locator('#dm-playmode-versus').click();
     await expect(page.locator('#dm-playmode-versus')).toHaveClass(/active/);
