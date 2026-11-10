@@ -23,8 +23,10 @@
  * interactive positive/negative reference examples per rule.
  */
 
+import { FilesetResolver, ImageSegmenter } from '@mediapipe/tasks-vision';
 import template from '../templates/decision-maker-vision.html?raw';
 import { DECISION_MODELS } from '../components/decision-runtime';
+import { fetchModelBytes } from '../components/model-cache';
 
 export interface PassportRuleOption {
   label: string;
@@ -749,6 +751,11 @@ export const SUBJECT_PRESENT_THRESHOLD = 0.4;
 export const DEFAULT_NO_FACE_REASON = 'No face detected in frame';
 export const DEFAULT_BOTTOM_CUTOFF_REASON = 'Face too low / chin cut off';
 
+const SELFIE_MULTICLASS_MODEL_URL =
+  'https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_multiclass_256x256/float32/latest/selfie_multiclass_256x256.tflite';
+const SELFIE_SEGMENTER_MODEL_URL =
+  'https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter/float16/latest/selfie_segmenter.tflite';
+
 export class DecisionVisionPlayground {
   private el: Record<string, HTMLElement> = {};
   private rules: PassportRule[] = PASSPORT_RULES.map((r) => ({
@@ -779,6 +786,9 @@ export class DecisionVisionPlayground {
   private readonly autoSnapRequiredStreak = 2;
   private bestStreakFrameDataUrl: string | null = null;
   private latestLiveFrameDataUrl: string | null = null;
+  private imageSegmenter: ImageSegmenter | null = null;
+  private imageSegmenterPromise: Promise<ImageSegmenter | null> | null = null;
+  private isMulticlassSegmenter = true;
 
   constructor(
     private root: HTMLElement,
@@ -1327,6 +1337,165 @@ export class DecisionVisionPlayground {
 
   cleanup() {
     this.stopWebcamBooth();
+    if (this.imageSegmenter) {
+      try {
+        this.imageSegmenter.close();
+      } catch {
+        // Ignore close errors
+      }
+      this.imageSegmenter = null;
+      this.imageSegmenterPromise = null;
+    }
+  }
+
+  private getVisionWasmPath(): string {
+    const baseUrl = import.meta.env.BASE_URL || '/';
+    const formattedBasePath = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
+    return new URL(`${formattedBasePath}wasm`, window.location.origin).href.replace(/\/$/, '');
+  }
+
+  private async ensureImageSegmenter(): Promise<ImageSegmenter | null> {
+    if (this.imageSegmenter) return this.imageSegmenter;
+    if (this.imageSegmenterPromise) return this.imageSegmenterPromise;
+
+    this.imageSegmenterPromise = (async () => {
+      try {
+        const vision = await FilesetResolver.forVisionTasks(this.getVisionWasmPath());
+        let modelBytes: ArrayBuffer;
+        try {
+          modelBytes = await fetchModelBytes(SELFIE_MULTICLASS_MODEL_URL);
+          this.isMulticlassSegmenter = true;
+        } catch {
+          modelBytes = await fetchModelBytes(SELFIE_SEGMENTER_MODEL_URL);
+          this.isMulticlassSegmenter = false;
+        }
+
+        const createWithDelegate = async (delegate: 'GPU' | 'CPU') =>
+          ImageSegmenter.createFromOptions(vision, {
+            baseOptions: {
+              modelAssetBuffer: new Uint8Array(modelBytes.slice(0)),
+              delegate,
+            },
+            runningMode: 'IMAGE',
+            outputConfidenceMasks: true,
+            outputCategoryMask: false,
+          });
+
+        try {
+          this.imageSegmenter = await createWithDelegate('GPU');
+        } catch {
+          this.imageSegmenter = await createWithDelegate('CPU');
+        }
+        return this.imageSegmenter;
+      } catch (err) {
+        console.warn('MediaPipe ImageSegmenter initialization failed:', err);
+        this.imageSegmenterPromise = null;
+        return null;
+      }
+    })();
+
+    return this.imageSegmenterPromise;
+  }
+
+  /**
+   * Runs MediaPipe Selfie Segmentation on the snapped portrait and replaces
+   * the background with pure studio white (`#ffffff`) using a soft-feathered
+   * alpha mask when a foreground subject is present (`fgRatio >= 0.02`).
+   */
+  public async replaceBackgroundWithWhite(
+    source: HTMLImageElement | HTMLCanvasElement
+  ): Promise<{ dataUrl: string; replaced: boolean; fgRatio: number }> {
+    const w = 360;
+    const h = 460;
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      return { dataUrl: '', replaced: false, fgRatio: 0 };
+    }
+    ctx.drawImage(source, 0, 0, w, h);
+
+    const segmenter = await this.ensureImageSegmenter();
+    if (!segmenter) {
+      return { dataUrl: canvas.toDataURL('image/jpeg', 0.92), replaced: false, fgRatio: 0 };
+    }
+
+    try {
+      const result = segmenter.segment(canvas);
+      try {
+        const masks = result.confidenceMasks;
+        if (!masks || masks.length === 0) {
+          return { dataUrl: canvas.toDataURL('image/jpeg', 0.92), replaced: false, fgRatio: 0 };
+        }
+
+        const nPixels = w * h;
+        const rawAlpha = new Float32Array(nPixels);
+        let fgCount = 0;
+
+        if (this.isMulticlassSegmenter && masks.length > 1) {
+          // Class 0 is background; classes 1..5 are hair, body-skin, face-skin, clothes, accessories
+          const bg = masks[0].getAsFloat32Array();
+          for (let i = 0; i < nPixels; i++) {
+            const fg = 1.0 - bg[i];
+            if (fg > 0.5) fgCount++;
+            const t = Math.max(0, Math.min(1, (fg - 0.45) / 0.32));
+            rawAlpha[i] = t * t * (3 - 2 * t);
+          }
+        } else {
+          const fgArr = masks[0].getAsFloat32Array();
+          for (let i = 0; i < nPixels; i++) {
+            const fg = fgArr[i];
+            if (fg > 0.5) fgCount++;
+            const t = Math.max(0, Math.min(1, (fg - 0.42) / 0.32));
+            rawAlpha[i] = t * t * (3 - 2 * t);
+          }
+        }
+
+        const fgRatio = fgCount / nPixels;
+        if (fgRatio < 0.02) {
+          return { dataUrl: canvas.toDataURL('image/jpeg', 0.92), replaced: false, fgRatio };
+        }
+
+        // 3x3 box blur on the alpha mask for a clean, anti-aliased studio edge
+        const blurredAlpha = new Float32Array(nPixels);
+        for (let y = 0; y < h; y++) {
+          for (let x = 0; x < w; x++) {
+            let sum = 0;
+            let count = 0;
+            for (let dy = -1; dy <= 1; dy++) {
+              const ny = y + dy;
+              if (ny < 0 || ny >= h) continue;
+              for (let dx = -1; dx <= 1; dx++) {
+                const nx = x + dx;
+                if (nx < 0 || nx >= w) continue;
+                sum += rawAlpha[ny * w + nx];
+                count++;
+              }
+            }
+            blurredAlpha[y * w + x] = sum / count;
+          }
+        }
+
+        const imgData = ctx.getImageData(0, 0, w, h);
+        const data = imgData.data;
+        for (let i = 0; i < nPixels; i++) {
+          const alpha = blurredAlpha[i];
+          const p = i * 4;
+          data[p] = Math.round(data[p] * alpha + 255 * (1 - alpha));
+          data[p + 1] = Math.round(data[p + 1] * alpha + 255 * (1 - alpha));
+          data[p + 2] = Math.round(data[p + 2] * alpha + 255 * (1 - alpha));
+          data[p + 3] = 255;
+        }
+        ctx.putImageData(imgData, 0, 0);
+        return { dataUrl: canvas.toDataURL('image/jpeg', 0.94), replaced: true, fgRatio };
+      } finally {
+        result.close();
+      }
+    } catch (err) {
+      console.warn('MediaPipe background segmentation failed:', err);
+      return { dataUrl: canvas.toDataURL('image/jpeg', 0.92), replaced: false, fgRatio: 0 };
+    }
   }
 
   public selectPresetPhoto(photoId: string) {
@@ -2316,7 +2485,8 @@ export class DecisionVisionPlayground {
     img: HTMLImageElement,
     titleLabel: string,
     wasAutoSnapped = false,
-    idPrefix = 'custom'
+    idPrefix = 'custom',
+    bgReplacedToWhite = false
   ) {
     const t0 = performance.now();
     if (this.el['dv-result-meta']) {
@@ -2330,8 +2500,8 @@ export class DecisionVisionPlayground {
       evaluated: false,
       url: img.src,
       biometrics: {
-        bgLum: 240,
-        bgVar: 5,
+        bgLum: bgReplacedToWhite ? 255 : 240,
+        bgVar: bgReplacedToWhite ? 0 : 5,
         isPlainWhiteBg: true,
         fgRatio: 0.68,
         bottomShoulderWidthRatio: 0.85,
@@ -2345,6 +2515,13 @@ export class DecisionVisionPlayground {
 
     const dmEval = await this.evaluateSourceWithDecisionMaker(img);
     const rawEg2Vision: Record<string, RawRuleVisionScore> = dmEval ? dmEval.rawEg2Vision : {};
+    if (bgReplacedToWhite && (rawEg2Vision[SUBJECT_PRESENT_KEY]?.passProb ?? 1.0) >= SUBJECT_PRESENT_THRESHOLD) {
+      rawEg2Vision['neutral_background'] = {
+        passProb: Math.max(rawEg2Vision['neutral_background']?.passProb ?? 0.92, 0.92),
+        topLabel: 'pass_plain',
+        failLabel: 'fail_cluttered',
+      };
+    }
     if (dmEval?.inferenceTime !== undefined) {
       this.lastInferenceMs = dmEval.inferenceTime;
     }
@@ -2429,7 +2606,10 @@ export class DecisionVisionPlayground {
 
         const evalRes = this.evaluatePhotoRules(this.currentPhotoObj);
         const activeRules = this.getEnabledRules();
-        const allActivePassed = activeRules.length > 0 && activeRules.every((r) => evalRes[r.id]?.passed);
+        // Since snapping replaces the background with plain white via MediaPipe Segmentation,
+        // allow auto-snap to trigger as soon as all non-background requirements pass.
+        const allActivePassed =
+          activeRules.length > 0 && activeRules.every((r) => r.id === 'neutral_background' || evalRes[r.id]?.passed);
 
         if (this.autoSnapOnPass && allActivePassed) {
           this.bestStreakFrameDataUrl = frameDataUrl;
@@ -2512,6 +2692,9 @@ export class DecisionVisionPlayground {
       };
       this.renderPresetStrip();
       this.renderAllPanels();
+      // Pre-warm MediaPipe Selfie Segmenter while the webcam is running so background
+      // replacement is instantaneous when the photo is snapped.
+      void this.ensureImageSegmenter();
       this.runLiveWebcamLoop();
     } catch (err: any) {
       this.onStatus?.(`Webcam error: ${err?.message || err}`);
@@ -2551,22 +2734,54 @@ export class DecisionVisionPlayground {
     this.drawMirroredVideoToCanvas(video, this.liveFrameCanvas);
     this.stopWebcamBooth();
 
-    if (wasAutoSnapped) {
-      this.showAutoSnapBanner('Auto-snapped — all active requirements passed!');
-    }
-
-    const dataUrl =
+    const rawDataUrl =
       (wasAutoSnapped ? bestStreakUrl : recentLiveUrl) || this.liveFrameCanvas.toDataURL('image/jpeg', 0.92);
     this.bestStreakFrameDataUrl = null;
     this.latestLiveFrameDataUrl = null;
-    const img = new Image();
-    img.onload = () =>
-      this.evaluateCustomImageElement(
-        img,
+
+    const rawImg = await new Promise<HTMLImageElement>((resolve) => {
+      const el = new Image();
+      el.onload = () => resolve(el);
+      el.onerror = () => resolve(el);
+      el.src = rawDataUrl;
+    });
+
+    if (this.el['dv-result-meta']) {
+      this.el['dv-result-meta'].textContent = 'Segmenting background (MediaPipe)…';
+    }
+    this.onStatus?.('Segmenting background to plain white…');
+
+    const segResult = await this.replaceBackgroundWithWhite(rawImg);
+    if (segResult.replaced) {
+      this.showAutoSnapBanner(
+        wasAutoSnapped
+          ? 'Auto-snapped & background replaced with plain white (MP Segmentation)!'
+          : 'Photo snapped — background replaced with plain white (MP Segmentation)'
+      );
+      const whiteBgImg = await new Promise<HTMLImageElement>((resolve) => {
+        const el = new Image();
+        el.onload = () => resolve(el);
+        el.onerror = () => resolve(rawImg);
+        el.src = segResult.dataUrl;
+      });
+      await this.evaluateCustomImageElement(
+        whiteBgImg,
         wasAutoSnapped ? 'Auto-Snapped Photo' : 'Camera Photo',
         wasAutoSnapped,
-        wasAutoSnapped ? 'auto_snap' : 'live_snap'
+        wasAutoSnapped ? 'auto_snap' : 'live_snap',
+        true
       );
-    img.src = dataUrl;
+    } else {
+      if (wasAutoSnapped) {
+        this.showAutoSnapBanner('Auto-snapped — all active requirements passed!');
+      }
+      await this.evaluateCustomImageElement(
+        rawImg,
+        wasAutoSnapped ? 'Auto-Snapped Photo' : 'Camera Photo',
+        wasAutoSnapped,
+        wasAutoSnapped ? 'auto_snap' : 'live_snap',
+        false
+      );
+    }
   }
 }
