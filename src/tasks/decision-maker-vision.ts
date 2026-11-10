@@ -216,7 +216,8 @@ export const PASSPORT_RULES: PassportRule[] = [
     options: [
       {
         label: 'pass_frontal',
-        description: 'Portrait showing the top of the head with hair, the chin, and the shirt or shoulders.',
+        description:
+          'Portrait or webcam selfie showing the top of the head with hair, forehead, both eyes, chin, and shirt or shoulders.',
       },
       {
         label: 'fail_cropped',
@@ -226,11 +227,6 @@ export const PASSPORT_RULES: PassportRule[] = [
         label: 'fail_top_cut',
         description:
           'Half-face crop cut off at the nose with only the lower face, beard or mouth, chin, and shirt visible and no eyes.',
-      },
-      {
-        label: 'fail_bottom_cut',
-        description:
-          'Top of the head, hair, or forehead peeking in at the bottom edge of the frame with the mouth, chin, and shoulders cut off below and empty wall or curtain filling the upper half of the frame.',
       },
     ],
     optionDisplay: {
@@ -249,29 +245,28 @@ export const PASSPORT_RULES: PassportRule[] = [
     title: '2. Eyes Open & Direct',
     statement: 'Eyes open and looking at camera',
     normalizePrior: false,
-    prompt: 'Eye gaze and openness',
+    prompt: "Are the person's eyes open and looking straight ahead?",
     options: [
       {
         label: 'pass_open',
-        description:
-          "Headshot, selfie, or portrait of a person's face with open eyes looking at the camera in indoor or outdoor lighting.",
+        description: 'Front-facing portrait of a person with open eyes looking straight ahead at the camera.',
       },
       {
         label: 'fail_looking_away',
-        description: 'Person tilting head back staring up at the ceiling or turning head to look far away to the side.',
+        description: 'Person with eyes cast downward looking down and away from the camera.',
       },
       {
         label: 'fail_closed',
-        description: 'Person with both eyes closed shut, sleeping or blinking with eyelids closed.',
+        description: 'Woman with both eyes closed shut, sleeping or blinking with eyelids closed.',
       },
       {
         label: 'fail_sunglasses',
-        description: 'Tinted sunglasses shades with opaque lenses hiding the eyes.',
+        description: 'Person wearing dark black sunglasses covering the eyes.',
       },
     ],
     optionDisplay: {
       pass_open: 'Open & looking at camera',
-      fail_looking_away: 'Not looking straight at camera',
+      fail_looking_away: 'Looking away from camera',
       fail_closed: 'Eyes closed / blinking',
       fail_sunglasses: 'Hidden behind dark lenses',
       fail_top_cut: 'Eyes cut off / not in frame',
@@ -317,7 +312,7 @@ export const PASSPORT_RULES: PassportRule[] = [
     options: [
       {
         label: 'pass_white_bg',
-        description: 'Indoor portrait or selfie against a wall, room backdrop, or solid studio background.',
+        description: 'Indoor portrait against a plain wall, simple neutral wall, or solid white studio background.',
       },
       {
         label: 'fail_outdoor_street',
@@ -343,38 +338,35 @@ export const PASSPORT_RULES: PassportRule[] = [
     title: '5. Straight Frontal Pose & Framing',
     statement: 'Head straight and upright with upper shoulders visible',
     normalizePrior: false,
-    prompt: 'Is the camera at eye level with the head straight and shoulders visible?',
+    prompt: 'How is the person positioned and framed in the photo?',
     options: [
       {
         label: 'pass_shoulders',
-        description:
-          'Upright eye-level frontal portrait or headshot of a person with head straight and shirt collar or shoulders visible.',
+        description: 'Level frontal portrait looking straight ahead with neck and upper chest or shoulders visible.',
       },
       {
         label: 'fail_angled_selfie',
-        description: 'Person with head tilted diagonally to one side and raised arm taking a selfie.',
+        description: 'Tilted or high-angle selfie with the head angled and camera held above or to the side.',
       },
       {
         label: 'fail_chin_up',
-        description:
-          'Low-angle selfie looking up from below at the chin, jaw, and nostrils with ceiling in the background.',
+        description: 'Person tilting their head back with chin raised high and looking down at the camera.',
       },
       {
         label: 'fail_turned_away',
-        description: 'Side-turned head in profile looking away from the camera.',
+        description: 'Person with their head turned sideways or looking away from the camera.',
       },
       {
         label: 'fail_bottom_cutoff',
-        description:
-          'Head cropped at the bottom edge at the chin with empty background filling the upper half of the frame.',
+        description: 'Tight face crop cut off right under the chin with no neck, collar, or shoulders visible.',
       },
     ],
     optionDisplay: {
       pass_shoulders: 'Upright & level head pose',
-      fail_angled_selfie: 'Head tilted sideways',
-      fail_chin_up: 'Chin raised / head tilted back',
-      fail_turned_away: 'Head turned to side',
-      fail_bottom_cutoff: 'Face too low / chin cut off',
+      fail_angled_selfie: 'Level the camera (head tilted)',
+      fail_chin_up: 'Lower your chin',
+      fail_turned_away: 'Face straight ahead',
+      fail_bottom_cutoff: 'Show upper shoulders',
     },
     enabled: true,
   },
@@ -411,19 +403,19 @@ export const PASSPORT_RULES: PassportRule[] = [
     title: '7. No Eyeglasses or Sunglasses',
     statement: 'No eyeglasses or dark sunglasses',
     normalizePrior: false,
-    prompt: "Is the person's face natural and bare around the eyes?",
+    prompt: 'Are the eyes bare and unobstructed by lenses?',
     options: [
       {
         label: 'pass_bare_eyes',
-        description: "Headshot, selfie, or portrait of a person's natural face, bare open eyes, eyebrows, and skin.",
+        description: 'Close-up portrait of a person with bare eyes, eyebrows, and nose.',
       },
       {
         label: 'fail_eyeglasses',
-        description: 'Thick plastic or wire eyeglass rims and optical spectacle lenses resting on the nose bridge.',
+        description: 'Eyeglass frames and corrective spectacle lenses worn over the eyes.',
       },
       {
         label: 'fail_sunglasses',
-        description: 'Tinted sunglasses shades and sun-blocking eyewear covering the eyes.',
+        description: 'Dark black sunglasses with opaque tinted lenses worn over the eyes.',
       },
     ],
     optionDisplay: {
@@ -471,16 +463,11 @@ export const PASSPORT_RULES: PassportRule[] = [
     options: [
       {
         label: 'pass_70_pct',
-        description: 'Headshot, selfie, or head-and-shoulders portrait of a single person.',
+        description: "Close-up headshot portrait of a person's face filling the frame.",
       },
       {
         label: 'fail_too_small',
-        description: 'Wide street scene with a distant person standing far away among crowds, trees, and buildings.',
-      },
-      {
-        label: 'fail_bottom_peek',
-        description:
-          'Mostly empty indoor wall or curtain with only the top of a head peeking in at the bottom edge of the frame.',
+        description: 'Distant person standing far away outdoors on a street with trees and buildings.',
       },
     ],
     optionDisplay: {
@@ -966,13 +953,12 @@ export class DecisionVisionPlayground {
         {
           id: SUBJECT_PRESENT_KEY,
           type: 'categorical',
-          prompt: "Is a person's full face clearly visible inside the portrait frame?",
+          prompt: "Is a human person's face or head visible in the photo?",
           normalizePrior: false,
           options: [
             {
               label: SUBJECT_PRESENT_PASS_LABEL,
-              description:
-                "Centered portrait, selfie, or headshot clearly showing a person's full face with eyes, nose, mouth, and chin inside the frame.",
+              description: "Portrait, selfie, headshot, or photo showing a human person's face or head.",
             },
             {
               label: SUBJECT_PRESENT_FAIL_EMPTY,
@@ -986,11 +972,6 @@ export class DecisionVisionPlayground {
             {
               label: SUBJECT_PRESENT_FAIL_HAND,
               description: 'Close-up of only a hand, fingers, fist, or thumb with no face visible.',
-            },
-            {
-              label: SUBJECT_PRESENT_FAIL_PARTIAL,
-              description:
-                'Mostly empty wall, curtain, or ceiling with only the top of a head, hair, or forehead peeking in at the bottom edge and the mouth and chin cut off out of frame.',
             },
           ],
         },
@@ -1779,18 +1760,8 @@ export class DecisionVisionPlayground {
     const subjectEntry = photoObj.rawEg2Vision?.[SUBJECT_PRESENT_KEY];
     const subjectPresentProb = subjectEntry !== undefined ? subjectEntry.passProb : 1.0;
     const isNoFaceScene = subjectPresentProb < SUBJECT_PRESENT_THRESHOLD;
-    const rawFullFace = photoObj.rawEg2Vision?.['full_face'];
-    const rawShoulders = photoObj.rawEg2Vision?.['shoulders_visible'];
-    const isBottomCutoffScene =
-      (isNoFaceScene && subjectEntry?.failLabel === SUBJECT_PRESENT_FAIL_PARTIAL) ||
-      Boolean(rawFullFace && rawFullFace.passProb < 0.5 && rawFullFace.failLabel === 'fail_bottom_cut') ||
-      Boolean(rawShoulders && rawShoulders.passProb < 0.5 && rawShoulders.failLabel === 'fail_bottom_cutoff');
-    const bottomCapProb = Math.min(
-      subjectPresentProb,
-      rawFullFace?.passProb ?? 0.25,
-      rawShoulders?.passProb ?? 0.25,
-      0.25
-    );
+    const isBottomCutoffScene = isNoFaceScene && subjectEntry?.failLabel === SUBJECT_PRESENT_FAIL_PARTIAL;
+    const bottomCapProb = Math.min(subjectPresentProb, 0.25);
 
     for (let rIdx = 0; rIdx < this.rules.length; rIdx++) {
       const rule = this.rules[rIdx];
