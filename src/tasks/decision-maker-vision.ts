@@ -92,17 +92,6 @@ export interface RawRuleVisionScore {
   failLabel: string;
 }
 
-export interface PhotoFrameQualityReport {
-  top10Laplacian: number;
-  acutance: number;
-  combinedSharpness: number;
-  motionDelta: number;
-  isSharp: boolean;
-  isSteady: boolean;
-  qualityRankScore: number;
-  luma32?: Float32Array;
-}
-
 export interface PhotoPreset {
   id: string;
   title: string;
@@ -113,7 +102,6 @@ export interface PhotoPreset {
   groundTruth?: Record<string, boolean>;
   biometrics: PhotoBiometrics;
   rawEg2Vision: Record<string, RawRuleVisionScore>;
-  frameQuality?: PhotoFrameQualityReport;
 }
 
 export interface ExemplarEntry {
@@ -152,211 +140,6 @@ export interface VisionModelState {
   loadedValue?: string | null;
   hasCustomModel?: boolean;
   error?: string;
-}
-
-/**
- * Deterministic portrait sharpness (2nd-order Laplacian acutance) and inter-frame
- * motion-stability evaluator.
- * Guards live Photo ID capture and Auto-Snap against motion blur and camera shake.
- */
-export class PhotoFrameQualityEvaluator {
-  public static readonly LUMA_GRID_SIZE = 128;
-  public static readonly MOTION_GRID_SIZE = 32;
-  private static readonly ROI_Y_START = 19;
-  private static readonly ROI_Y_END = 109;
-  private static readonly ROI_X_START = 25;
-  private static readonly ROI_X_END = 103;
-  private static readonly MOTION_ROI_Y_START = 5;
-  private static readonly MOTION_ROI_Y_END = 27;
-  private static readonly MOTION_ROI_X_START = 6;
-  private static readonly MOTION_ROI_X_END = 26;
-
-  public static readonly MIN_SHARP_ACUTANCE = 0.85;
-  public static readonly MIN_SHARP_TOP10_LAPLACIAN = 10.5;
-  public static readonly MIN_SHARP_COMBINED = 9.5;
-  public static readonly MOTION_SENSITIVE_THRESHOLD = 2.0;
-  public static readonly MIN_MOVING_ACUTANCE = 0.9;
-  public static readonly MIN_MOVING_TOP10_LAPLACIAN = 12.0;
-  public static readonly MIN_MOVING_COMBINED = 11.2;
-  public static readonly MAX_STEADY_MOTION_DELTA = 5.2;
-
-  private static scratch256: HTMLCanvasElement | null = null;
-  private static scratch32: HTMLCanvasElement | null = null;
-
-  private static getScratch256(): CanvasRenderingContext2D | null {
-    if (typeof document === 'undefined') return null;
-    if (!this.scratch256) {
-      this.scratch256 = document.createElement('canvas');
-      this.scratch256.width = this.LUMA_GRID_SIZE * 2;
-      this.scratch256.height = this.LUMA_GRID_SIZE * 2;
-    }
-    return this.scratch256.getContext('2d', { willReadFrequently: true });
-  }
-
-  private static getScratch32(): CanvasRenderingContext2D | null {
-    if (typeof document === 'undefined') return null;
-    if (!this.scratch32) {
-      this.scratch32 = document.createElement('canvas');
-      this.scratch32.width = this.MOTION_GRID_SIZE;
-      this.scratch32.height = this.MOTION_GRID_SIZE;
-    }
-    return this.scratch32.getContext('2d', { willReadFrequently: true });
-  }
-
-  public static extractLuma32(source: HTMLImageElement | HTMLCanvasElement | HTMLVideoElement): Float32Array | null {
-    const ctx = this.getScratch32();
-    if (!ctx) return null;
-    const n = this.MOTION_GRID_SIZE;
-    ctx.drawImage(source, 0, 0, n, n);
-    const data = ctx.getImageData(0, 0, n, n).data;
-    const out = new Float32Array(n * n);
-    for (let i = 0, p = 0; i < out.length; i++, p += 4) {
-      out[i] = 0.299 * data[p] + 0.587 * data[p + 1] + 0.114 * data[p + 2];
-    }
-    return out;
-  }
-
-  public static computeMotionDelta(currentLuma32: Float32Array, previousLuma32?: Float32Array | null): number {
-    const n = this.MOTION_GRID_SIZE;
-    if (!previousLuma32 || currentLuma32.length !== n * n || previousLuma32.length !== n * n) {
-      return 0;
-    }
-    let sumDiff = 0;
-    let count = 0;
-    for (let y = this.MOTION_ROI_Y_START; y < this.MOTION_ROI_Y_END; y++) {
-      const row = y * n;
-      for (let x = this.MOTION_ROI_X_START; x < this.MOTION_ROI_X_END; x++) {
-        const idx = row + x;
-        sumDiff += Math.abs(currentLuma32[idx] - previousLuma32[idx]);
-        count++;
-      }
-    }
-    return count > 0 ? sumDiff / count : 0;
-  }
-
-  public static evaluateSource(
-    source: HTMLImageElement | HTMLCanvasElement,
-    previousLuma32?: Float32Array | null,
-    externalPeakMotionDelta = 0
-  ): PhotoFrameQualityReport {
-    const ctx = this.getScratch256();
-    const g = this.LUMA_GRID_SIZE;
-    const sampleGrid = g * 2;
-    if (!ctx) {
-      return {
-        top10Laplacian: 24,
-        acutance: 1.2,
-        combinedSharpness: 28.8,
-        motionDelta: 0,
-        isSharp: true,
-        isSteady: true,
-        qualityRankScore: 28.8,
-      };
-    }
-
-    ctx.drawImage(source, 0, 0, sampleGrid, sampleGrid);
-    const rgba = ctx.getImageData(0, 0, sampleGrid, sampleGrid).data;
-    const luma128 = new Float32Array(g * g);
-
-    for (let gy = 0; gy < g; gy++) {
-      const row0 = 2 * gy * sampleGrid;
-      const row1 = (2 * gy + 1) * sampleGrid;
-      for (let gx = 0; gx < g; gx++) {
-        const i00 = (row0 + 2 * gx) * 4;
-        const i01 = (row0 + 2 * gx + 1) * 4;
-        const i10 = (row1 + 2 * gx) * 4;
-        const i11 = (row1 + 2 * gx + 1) * 4;
-        const r = (rgba[i00] + rgba[i01] + rgba[i10] + rgba[i11]) * 0.25;
-        const gr = (rgba[i00 + 1] + rgba[i01 + 1] + rgba[i10 + 1] + rgba[i11 + 1]) * 0.25;
-        const b = (rgba[i00 + 2] + rgba[i01 + 2] + rgba[i10 + 2] + rgba[i11 + 2]) * 0.25;
-        luma128[gy * g + gx] = 0.299 * r + 0.587 * gr + 0.114 * b;
-      }
-    }
-
-    const m = this.MOTION_GRID_SIZE;
-    const luma32 = new Float32Array(m * m);
-    for (let my = 0; my < m; my++) {
-      for (let mx = 0; mx < m; mx++) {
-        let blockSum = 0;
-        for (let dy = 0; dy < 4; dy++) {
-          const row = (my * 4 + dy) * g + mx * 4;
-          blockSum += luma128[row] + luma128[row + 1] + luma128[row + 2] + luma128[row + 3];
-        }
-        luma32[my * m + mx] = blockSum * 0.0625;
-      }
-    }
-
-    const directMotionDelta = this.computeMotionDelta(luma32, previousLuma32);
-    const effectiveMotionDelta = Math.max(directMotionDelta, externalPeakMotionDelta);
-
-    const roiCount = (this.ROI_Y_END - this.ROI_Y_START) * (this.ROI_X_END - this.ROI_X_START);
-    const laps = new Float32Array(roiCount);
-    const grads = new Float32Array(roiCount);
-    let idx = 0;
-    for (let y = this.ROI_Y_START; y < this.ROI_Y_END; y++) {
-      const row = y * g;
-      for (let x = this.ROI_X_START; x < this.ROI_X_END; x++) {
-        const c = luma128[row + x];
-        const l = luma128[row + x - 1];
-        const r = luma128[row + x + 1];
-        const u = luma128[row - g + x];
-        const d = luma128[row + g + x];
-        laps[idx] = Math.abs(4 * c - l - r - u - d);
-        const gx = Math.abs(r - l) * 0.5;
-        const gy = Math.abs(d - u) * 0.5;
-        grads[idx] = Math.hypot(gx, gy);
-        idx++;
-      }
-    }
-    laps.sort();
-    grads.sort();
-
-    const idx90 = Math.floor((roiCount * 9) / 10);
-    const tailCount = Math.max(1, roiCount - idx90);
-    let topLapSum = 0;
-    let topGradSum = 0;
-    for (let i = idx90; i < roiCount; i++) {
-      topLapSum += laps[i];
-      topGradSum += grads[i];
-    }
-    const top10Lap = topLapSum / tailCount;
-    const top10Grad = topGradSum / tailCount;
-    if (top10Grad < 1.0) {
-      return {
-        top10Laplacian: 24,
-        acutance: 1.2,
-        combinedSharpness: 28.8,
-        motionDelta: 0,
-        isSharp: true,
-        isSteady: true,
-        qualityRankScore: 28.8,
-        luma32,
-      };
-    }
-
-    const acutance = top10Lap / Math.max(top10Grad, 1.0);
-    const combined = top10Lap * acutance;
-    const isSteady = effectiveMotionDelta <= this.MAX_STEADY_MOTION_DELTA;
-    const isSharp =
-      effectiveMotionDelta > this.MOTION_SENSITIVE_THRESHOLD
-        ? acutance >= this.MIN_MOVING_ACUTANCE &&
-          top10Lap >= this.MIN_MOVING_TOP10_LAPLACIAN &&
-          combined >= this.MIN_MOVING_COMBINED
-        : acutance >= this.MIN_SHARP_ACUTANCE &&
-          top10Lap >= this.MIN_SHARP_TOP10_LAPLACIAN &&
-          combined >= this.MIN_SHARP_COMBINED;
-
-    return {
-      top10Laplacian: top10Lap,
-      acutance,
-      combinedSharpness: combined,
-      motionDelta: effectiveMotionDelta,
-      isSharp,
-      isSteady,
-      qualityRankScore: combined - effectiveMotionDelta * 3.0,
-      luma32,
-    };
-  }
 }
 
 /**
@@ -982,20 +765,13 @@ export class DecisionVisionPlayground {
   private webcamActive = false;
   private webcamStream: MediaStream | null = null;
   private liveLoopTimer: ReturnType<typeof setTimeout> | null = null;
-  private motionSampleTimer: ReturnType<typeof setInterval> | null = null;
   private liveFrameCanvas = document.createElement('canvas');
   private encodeCanvas = document.createElement('canvas');
   private autoSnapOnPass = true;
   private autoSnapStreak = 0;
   private readonly autoSnapRequiredStreak = 2;
-  private previousLiveEvalLuma32: Float32Array | null = null;
-  private previousLiveMotionLuma32: Float32Array | null = null;
-  private peakInterEvalMotionDelta = 0;
   private bestStreakFrameDataUrl: string | null = null;
-  private bestStreakQualityScore = -Infinity;
-  private latestCrispLiveFrameDataUrl: string | null = null;
-  private latestCrispLiveFrameMs = 0;
-  private static readonly CRISP_FRAME_RETENTION_MS = 2500;
+  private latestLiveFrameDataUrl: string | null = null;
 
   constructor(
     private root: HTMLElement,
@@ -1352,11 +1128,9 @@ export class DecisionVisionPlayground {
         el.src = targetPhoto.url;
       });
       if (!sourceImg) return;
-      const staticQuality = PhotoFrameQualityEvaluator.evaluateSource(sourceImg, null, 0);
       const dmEval = await this.evaluateSourceWithDecisionMaker(sourceImg);
       if (!dmEval) return;
       this.lastInferenceMs = dmEval.inferenceTime;
-      targetPhoto.frameQuality = staticQuality;
       targetPhoto.rawEg2Vision = dmEval.rawEg2Vision;
       targetPhoto.evaluated = true;
       this.syncExemplarBankWithLiveScore(targetPhoto);
@@ -1753,7 +1527,6 @@ export class DecisionVisionPlayground {
       activeRules.length > 0
         ? Math.round((activeRules.reduce((s, r) => s + (evalRes[r.id]?.prob ?? 0), 0) / activeRules.length) * 100)
         : 0;
-    const fq = this.currentPhotoObj.frameQuality;
     const subjectEntry = this.currentPhotoObj.rawEg2Vision?.[SUBJECT_PRESENT_KEY];
     const subjectPresentProb = subjectEntry !== undefined ? subjectEntry.passProb : 1.0;
     const subjectDetected = subjectPresentProb >= SUBJECT_PRESENT_THRESHOLD;
@@ -1767,16 +1540,6 @@ export class DecisionVisionPlayground {
       passedRules: `${passedCount}/${activeRules.length}`,
       readinessPercent: readinessPct,
       latencyMs: this.lastInferenceMs !== undefined ? Math.round(this.lastInferenceMs) : null,
-      frameQuality: fq
-        ? {
-            isSharp: fq.isSharp,
-            isSteady: fq.isSteady,
-            top10Laplacian: Number(fq.top10Laplacian.toFixed(2)),
-            acutance: Number(fq.acutance.toFixed(3)),
-            combinedSharpness: Number(fq.combinedSharpness.toFixed(2)),
-            motionDelta: Number(fq.motionDelta.toFixed(2)),
-          }
-        : null,
       requestSchema: this.buildPassportSchema(),
       results: this.rules.map((r) => {
         const res = evalRes[r.id];
@@ -1926,19 +1689,6 @@ export class DecisionVisionPlayground {
       ) {
         finalPassProb = Math.min(finalPassProb, results['full_face'].prob);
         specificFailLabel = 'fail_top_cut';
-      }
-
-      // Frame Quality Guard: reject shaky or out-of-focus frames
-      const fq = photoObj.frameQuality;
-      if (fq && !fq.isSteady && rule.id === 'shoulders_visible') {
-        finalPassProb = Math.min(finalPassProb, 0.24);
-        specificFailLabel = 'fail_camera_shake';
-        overrideReason = 'Camera shake — hold steady';
-      }
-      if (fq && !fq.isSharp && rule.id === 'eyes_open') {
-        finalPassProb = Math.min(finalPassProb, 0.28);
-        specificFailLabel = 'fail_blurry_frame';
-        overrideReason = 'Blurry — hold steady';
       }
 
       // Subject Presence Guard: prevent false positives when no human face is in frame
@@ -2127,30 +1877,8 @@ export class DecisionVisionPlayground {
     svgEl.innerHTML = overlayMarkup;
   }
 
-  private updateQualityBadge(fq?: PhotoFrameQualityReport) {
-    const badge = this.el['dv-quality-badge'];
-    const textEl = this.el['dv-quality-text'];
-    if (!badge || !textEl) return;
-    if (!fq) {
-      badge.style.display = 'none';
-      return;
-    }
-    badge.style.display = 'inline-flex';
-    if (!fq.isSteady) {
-      badge.className = 'dv-quality-badge fail';
-      textEl.textContent = `Camera shake — hold steady (Δ${fq.motionDelta.toFixed(1)})`;
-    } else if (!fq.isSharp) {
-      badge.className = 'dv-quality-badge fail';
-      textEl.textContent = `Blurry — hold steady (Lap ${fq.top10Laplacian.toFixed(1)})`;
-    } else {
-      badge.className = 'dv-quality-badge';
-      textEl.textContent = `Sharp · Steady (Acutance ${fq.acutance.toFixed(2)})`;
-    }
-  }
-
   private renderAllPanels() {
     this.renderActivePhotoView();
-    this.updateQualityBadge(this.currentPhotoObj.frameQuality);
 
     const evalRes = this.evaluatePhotoRules(this.currentPhotoObj);
     const isPending = Boolean(!this.currentPhotoObj.evaluated);
@@ -2446,14 +2174,12 @@ export class DecisionVisionPlayground {
     this.renderPresetStrip();
     this.renderAllPanels();
 
-    const staticQuality = PhotoFrameQualityEvaluator.evaluateSource(img, null, 0);
     const dmEval = await this.evaluateSourceWithDecisionMaker(img);
     const rawEg2Vision: Record<string, RawRuleVisionScore> = dmEval ? dmEval.rawEg2Vision : {};
     if (dmEval?.inferenceTime !== undefined) {
       this.lastInferenceMs = dmEval.inferenceTime;
     }
 
-    pendingObj.frameQuality = staticQuality;
     pendingObj.rawEg2Vision = rawEg2Vision;
     pendingObj.evaluated = Boolean(dmEval);
     this.updatePhotoComplianceBadge(pendingObj);
@@ -2511,51 +2237,14 @@ export class DecisionVisionPlayground {
     sctx.restore();
   }
 
-  private sampleLiveWebcamMotion() {
-    if (!this.webcamActive) return;
-    const video = this.el['dv-webcam-video'] as HTMLVideoElement | undefined;
-    if (!video || video.readyState < 2) return;
-    const luma32 = PhotoFrameQualityEvaluator.extractLuma32(video);
-    if (!luma32) return;
-    const prev = this.previousLiveMotionLuma32;
-    this.previousLiveMotionLuma32 = luma32;
-    if (!prev) return;
-    const delta = PhotoFrameQualityEvaluator.computeMotionDelta(luma32, prev);
-    if (delta > this.peakInterEvalMotionDelta) {
-      this.peakInterEvalMotionDelta = delta;
-    }
-    if (delta > PhotoFrameQualityEvaluator.MAX_STEADY_MOTION_DELTA) {
-      this.autoSnapStreak = 0;
-      this.bestStreakFrameDataUrl = null;
-      this.bestStreakQualityScore = -Infinity;
-      if (this.currentPhotoObj.frameQuality) {
-        this.currentPhotoObj.frameQuality = {
-          ...this.currentPhotoObj.frameQuality,
-          motionDelta: delta,
-          isSteady: false,
-        };
-        this.updateQualityBadge(this.currentPhotoObj.frameQuality);
-      }
-    }
-  }
-
   private async runLiveWebcamLoop() {
     if (!this.webcamActive) return;
     const video = this.el['dv-webcam-video'] as HTMLVideoElement | undefined;
     if (video && video.readyState >= 2) {
       const t0 = performance.now();
       this.drawMirroredVideoToCanvas(video, this.liveFrameCanvas);
-      const peakMotion = this.peakInterEvalMotionDelta;
-      this.peakInterEvalMotionDelta = 0;
-      const quality = PhotoFrameQualityEvaluator.evaluateSource(
-        this.liveFrameCanvas,
-        this.previousLiveEvalLuma32,
-        peakMotion
-      );
-      if (quality.luma32) {
-        this.previousLiveEvalLuma32 = quality.luma32;
-      }
       const frameDataUrl = this.liveFrameCanvas.toDataURL('image/jpeg', 0.92);
+      this.latestLiveFrameDataUrl = frameDataUrl;
 
       const dmEval = await this.evaluateSourceWithDecisionMaker(
         this.liveFrameCanvas,
@@ -2564,34 +2253,17 @@ export class DecisionVisionPlayground {
       if (!this.webcamActive) return;
 
       if (dmEval) {
-        // Also incorporate any camera shake sampled while DecisionMaker was evaluating
-        if (this.peakInterEvalMotionDelta > PhotoFrameQualityEvaluator.MAX_STEADY_MOTION_DELTA) {
-          quality.motionDelta = Math.max(quality.motionDelta, this.peakInterEvalMotionDelta);
-          quality.isSteady = false;
-        }
-        if (quality.isSharp && quality.isSteady) {
-          this.latestCrispLiveFrameDataUrl = frameDataUrl;
-          this.latestCrispLiveFrameMs = performance.now();
-        }
         this.lastInferenceMs = dmEval.inferenceTime;
-        this.currentPhotoObj.frameQuality = quality;
         this.currentPhotoObj.rawEg2Vision = dmEval.rawEg2Vision;
         this.currentPhotoObj.evaluated = true;
         this.renderAllPanels();
 
         const evalRes = this.evaluatePhotoRules(this.currentPhotoObj);
         const activeRules = this.getEnabledRules();
-        const allActivePassed =
-          quality.isSharp &&
-          quality.isSteady &&
-          activeRules.length > 0 &&
-          activeRules.every((r) => evalRes[r.id]?.passed);
+        const allActivePassed = activeRules.length > 0 && activeRules.every((r) => evalRes[r.id]?.passed);
 
         if (this.autoSnapOnPass && allActivePassed) {
-          if (this.bestStreakFrameDataUrl === null || quality.qualityRankScore >= this.bestStreakQualityScore) {
-            this.bestStreakFrameDataUrl = frameDataUrl;
-            this.bestStreakQualityScore = quality.qualityRankScore;
-          }
+          this.bestStreakFrameDataUrl = frameDataUrl;
           this.autoSnapStreak++;
           if (this.autoSnapStreak >= this.autoSnapRequiredStreak) {
             await this.captureWebcamPhoto(true);
@@ -2600,7 +2272,6 @@ export class DecisionVisionPlayground {
         } else {
           this.autoSnapStreak = 0;
           this.bestStreakFrameDataUrl = null;
-          this.bestStreakQualityScore = -Infinity;
         }
 
         const elapsed = Math.max(8, Math.round(dmEval.inferenceTime ?? performance.now() - t0));
@@ -2641,15 +2312,8 @@ export class DecisionVisionPlayground {
       await video.play();
       this.webcamActive = true;
       this.autoSnapStreak = 0;
-      this.previousLiveEvalLuma32 = null;
-      this.previousLiveMotionLuma32 = null;
-      this.peakInterEvalMotionDelta = 0;
       this.bestStreakFrameDataUrl = null;
-      this.bestStreakQualityScore = -Infinity;
-      this.latestCrispLiveFrameDataUrl = null;
-      this.latestCrispLiveFrameMs = 0;
-      if (this.motionSampleTimer) clearInterval(this.motionSampleTimer);
-      this.motionSampleTimer = setInterval(() => this.sampleLiveWebcamMotion(), 80);
+      this.latestLiveFrameDataUrl = null;
 
       imgEl.style.display = 'none';
       video.style.display = 'block';
@@ -2688,13 +2352,6 @@ export class DecisionVisionPlayground {
   public stopWebcamBooth() {
     this.webcamActive = false;
     this.autoSnapStreak = 0;
-    this.previousLiveEvalLuma32 = null;
-    this.previousLiveMotionLuma32 = null;
-    this.peakInterEvalMotionDelta = 0;
-    if (this.motionSampleTimer) {
-      clearInterval(this.motionSampleTimer);
-      this.motionSampleTimer = null;
-    }
     if (this.liveLoopTimer) {
       clearTimeout(this.liveLoopTimer);
       this.liveLoopTimer = null;
@@ -2720,27 +2377,19 @@ export class DecisionVisionPlayground {
   private async captureWebcamPhoto(wasAutoSnapped = false) {
     if (!this.webcamActive) return;
     const bestStreakUrl = wasAutoSnapped ? this.bestStreakFrameDataUrl : null;
-    const now = performance.now();
-    const recentCrispUrl =
-      !wasAutoSnapped &&
-      this.latestCrispLiveFrameDataUrl &&
-      now - this.latestCrispLiveFrameMs <= DecisionVisionPlayground.CRISP_FRAME_RETENTION_MS
-        ? this.latestCrispLiveFrameDataUrl
-        : null;
+    const recentLiveUrl = !wasAutoSnapped ? this.latestLiveFrameDataUrl : null;
     const video = this.el['dv-webcam-video'] as HTMLVideoElement;
     this.drawMirroredVideoToCanvas(video, this.liveFrameCanvas);
     this.stopWebcamBooth();
 
     if (wasAutoSnapped) {
-      this.showAutoSnapBanner('Auto-snapped sharpest steady frame — all active requirements passed!');
+      this.showAutoSnapBanner('Auto-snapped — all active requirements passed!');
     }
 
     const dataUrl =
-      (wasAutoSnapped ? bestStreakUrl : recentCrispUrl) || this.liveFrameCanvas.toDataURL('image/jpeg', 0.92);
+      (wasAutoSnapped ? bestStreakUrl : recentLiveUrl) || this.liveFrameCanvas.toDataURL('image/jpeg', 0.92);
     this.bestStreakFrameDataUrl = null;
-    this.bestStreakQualityScore = -Infinity;
-    this.latestCrispLiveFrameDataUrl = null;
-    this.latestCrispLiveFrameMs = 0;
+    this.latestLiveFrameDataUrl = null;
     const img = new Image();
     img.onload = () =>
       this.evaluateCustomImageElement(
