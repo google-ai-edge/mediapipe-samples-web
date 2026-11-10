@@ -951,6 +951,14 @@ const sigmoid = (z: number): number => 1 / (1 + Math.exp(-z));
 const STORAGE_CUSTOM_PACKS_KEY = 'mp_photocheck_custom_packs_v1';
 const STORAGE_CUSTOM_RULES_KEY = 'mp_photocheck_custom_rules_v1';
 
+export const SUBJECT_PRESENT_KEY = 'subject_present';
+export const SUBJECT_PRESENT_PASS_LABEL = 'pass_human_face';
+export const SUBJECT_PRESENT_FAIL_EMPTY = 'fail_empty_scene';
+export const SUBJECT_PRESENT_FAIL_OBJECT = 'fail_object_animal';
+export const SUBJECT_PRESENT_FAIL_HAND = 'fail_hand_only';
+export const SUBJECT_PRESENT_THRESHOLD = 0.4;
+export const DEFAULT_NO_FACE_REASON = 'No face detected in frame';
+
 export class DecisionVisionPlayground {
   private el: Record<string, HTMLElement> = {};
   private rules: PassportRule[] = PASSPORT_RULES.map((r) => ({
@@ -985,6 +993,9 @@ export class DecisionVisionPlayground {
   private peakInterEvalMotionDelta = 0;
   private bestStreakFrameDataUrl: string | null = null;
   private bestStreakQualityScore = -Infinity;
+  private latestCrispLiveFrameDataUrl: string | null = null;
+  private latestCrispLiveFrameMs = 0;
+  private static readonly CRISP_FRAME_RETENTION_MS = 2500;
 
   constructor(
     private root: HTMLElement,
@@ -1155,16 +1166,42 @@ export class DecisionVisionPlayground {
   private buildPassportSchema() {
     return {
       context: '',
-      questions: this.rules.map((rule) => ({
-        id: rule.id,
-        type: 'categorical',
-        prompt: rule.prompt,
-        normalizePrior: Boolean(rule.normalizePrior),
-        options: rule.options.map((opt) => ({
-          label: opt.label,
-          description: opt.description,
+      questions: [
+        {
+          id: SUBJECT_PRESENT_KEY,
+          type: 'categorical',
+          prompt: "Is a human person's face or head visible in the photo?",
+          normalizePrior: false,
+          options: [
+            {
+              label: SUBJECT_PRESENT_PASS_LABEL,
+              description: "Portrait, selfie, headshot, or photo showing a human person's face or head.",
+            },
+            {
+              label: SUBJECT_PRESENT_FAIL_EMPTY,
+              description: "Empty room, wall, furniture, desk, ceiling, floor, or background with no person's face.",
+            },
+            {
+              label: SUBJECT_PRESENT_FAIL_OBJECT,
+              description: 'Object, animal, pet, cat, dog, food, text, screen, or item with no human face.',
+            },
+            {
+              label: SUBJECT_PRESENT_FAIL_HAND,
+              description: 'Close-up of only a hand, fingers, fist, or thumb with no face visible.',
+            },
+          ],
+        },
+        ...this.rules.map((rule) => ({
+          id: rule.id,
+          type: 'categorical',
+          prompt: rule.prompt,
+          normalizePrior: Boolean(rule.normalizePrior),
+          options: rule.options.map((opt) => ({
+            label: opt.label,
+            description: opt.description,
+          })),
         })),
-      })),
+      ],
     };
   }
 
@@ -1184,6 +1221,38 @@ export class DecisionVisionPlayground {
     fallback?: Record<string, RawRuleVisionScore>
   ): Record<string, RawRuleVisionScore> {
     const out: Record<string, RawRuleVisionScore> = {};
+    const subjDec = schemaRes?.[SUBJECT_PRESENT_KEY];
+    const subjProbs: Array<{ label: string; probability: number }> = subjDec?.probabilities ?? [];
+    if (subjProbs.length > 0) {
+      const passEntry = subjProbs.find((p) => p.label === SUBJECT_PRESENT_PASS_LABEL);
+      const pPass = passEntry ? passEntry.probability : 0;
+      let bestFailLabel = SUBJECT_PRESENT_FAIL_EMPTY;
+      let bestFailProb = -1;
+      for (const p of subjProbs) {
+        if (p.label !== SUBJECT_PRESENT_PASS_LABEL && p.probability > bestFailProb) {
+          bestFailProb = p.probability;
+          bestFailLabel = p.label;
+        }
+      }
+      if (bestFailProb < 0) bestFailProb = Math.max(0, 1 - pPass);
+      const subjectPresentProb = pPass + bestFailProb > 0 ? pPass / (pPass + bestFailProb) : 1.0;
+      out[SUBJECT_PRESENT_KEY] = {
+        passProb: subjectPresentProb,
+        topLabel:
+          subjDec.label ||
+          (subjectPresentProb >= SUBJECT_PRESENT_THRESHOLD ? SUBJECT_PRESENT_PASS_LABEL : bestFailLabel),
+        failLabel: bestFailLabel,
+      };
+    } else if (fallback?.[SUBJECT_PRESENT_KEY]) {
+      out[SUBJECT_PRESENT_KEY] = fallback[SUBJECT_PRESENT_KEY];
+    } else {
+      out[SUBJECT_PRESENT_KEY] = {
+        passProb: 1.0,
+        topLabel: SUBJECT_PRESENT_PASS_LABEL,
+        failLabel: SUBJECT_PRESENT_FAIL_EMPTY,
+      };
+    }
+
     for (const rule of this.rules) {
       const dec = schemaRes?.[rule.id];
       const probsArr: Array<{ label: string; probability: number }> = dec?.probabilities ?? [];
@@ -1315,6 +1384,8 @@ export class DecisionVisionPlayground {
     this.el['dv-webcam-btn']?.addEventListener('click', () => this.toggleWebcamBooth());
     this.el['dv-autosnap-btn']?.addEventListener('click', () => this.toggleAutoSnap());
     this.el['dv-snap-btn']?.addEventListener('click', () => this.captureWebcamPhoto(false));
+    this.el['dv-retake-btn']?.addEventListener('click', () => this.toggleWebcamBooth());
+    this.el['dv-save-photo-btn']?.addEventListener('click', () => this.saveCurrentPhoto());
     this.el['dv-upload-input']?.addEventListener('change', (e) => this.handleCustomPhotoUpload(e));
 
     this.el['dv-filter-issues-btn']?.addEventListener('click', () => this.toggleIssuesFilter());
@@ -1683,10 +1754,16 @@ export class DecisionVisionPlayground {
         ? Math.round((activeRules.reduce((s, r) => s + (evalRes[r.id]?.prob ?? 0), 0) / activeRules.length) * 100)
         : 0;
     const fq = this.currentPhotoObj.frameQuality;
+    const subjectEntry = this.currentPhotoObj.rawEg2Vision?.[SUBJECT_PRESENT_KEY];
+    const subjectPresentProb = subjectEntry !== undefined ? subjectEntry.passProb : 1.0;
+    const subjectDetected = subjectPresentProb >= SUBJECT_PRESENT_THRESHOLD;
     return {
       photoId: this.currentPhotoObj.id,
       activeRulePack: this.activePackId,
-      overallCompliant: passedCount === activeRules.length && Boolean(this.currentPhotoObj.evaluated),
+      subjectDetected,
+      subjectPresentProbability: Number(subjectPresentProb.toFixed(3)),
+      overallCompliant:
+        subjectDetected && passedCount === activeRules.length && Boolean(this.currentPhotoObj.evaluated),
       passedRules: `${passedCount}/${activeRules.length}`,
       readinessPercent: readinessPct,
       latencyMs: this.lastInferenceMs !== undefined ? Math.round(this.lastInferenceMs) : null,
@@ -1780,6 +1857,9 @@ export class DecisionVisionPlayground {
     }
 
     const queryLogitVec = this.computeLogitVector(photoObj.rawEg2Vision);
+    const subjectEntry = photoObj.rawEg2Vision?.[SUBJECT_PRESENT_KEY];
+    const subjectPresentProb = subjectEntry !== undefined ? subjectEntry.passProb : 1.0;
+    const isNoFaceScene = subjectPresentProb < SUBJECT_PRESENT_THRESHOLD;
 
     for (let rIdx = 0; rIdx < this.rules.length; rIdx++) {
       const rule = this.rules[rIdx];
@@ -1861,7 +1941,14 @@ export class DecisionVisionPlayground {
         overrideReason = 'Blurry — hold steady';
       }
 
-      const passed = finalPassProb >= 0.5;
+      // Subject Presence Guard: prevent false positives when no human face is in frame
+      if (isNoFaceScene) {
+        finalPassProb = Math.min(finalPassProb, subjectPresentProb);
+        specificFailLabel = 'fail_no_face';
+        overrideReason = DEFAULT_NO_FACE_REASON;
+      }
+
+      const passed = !isNoFaceScene && finalPassProb >= 0.5;
       const status: RuleStatusTier = !isEnabled ? 'skipped' : passed ? 'pass' : 'fail';
       const chosenOptionLabel = passed ? rule.options[0].label : specificFailLabel;
       const baseReason = overrideReason || rule.optionDisplay[chosenOptionLabel] || chosenOptionLabel;
@@ -1905,6 +1992,51 @@ export class DecisionVisionPlayground {
     }
   }
 
+  private isLiveCapturedPhoto(): boolean {
+    return (
+      !this.webcamActive &&
+      Boolean(this.currentPhotoObj?.id?.startsWith('auto_snap_') || this.currentPhotoObj?.id?.startsWith('live_snap_'))
+    );
+  }
+
+  public saveCurrentPhoto() {
+    if (this.webcamActive || !this.currentPhotoObj?.url) return;
+    let href = this.currentPhotoObj.url;
+    const imgEl = this.el['dv-main-img'] as HTMLImageElement | undefined;
+    if (!href.startsWith('data:') && imgEl && imgEl.complete && imgEl.naturalWidth > 0) {
+      try {
+        const c = document.createElement('canvas');
+        c.width = imgEl.naturalWidth;
+        c.height = imgEl.naturalHeight;
+        const ctx = c.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(imgEl, 0, 0);
+          href = c.toDataURL('image/jpeg', 0.95);
+        }
+      } catch {
+        // Fallback to direct URL if canvas tainting occurs
+      }
+    }
+    const a = document.createElement('a');
+    a.href = href;
+    a.download = `photo_id_${Date.now()}.jpg`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+
+    const iconEl = this.el['dv-save-photo-icon'];
+    const labelEl = this.el['dv-save-photo-label'];
+    if (iconEl && labelEl) {
+      iconEl.textContent = 'check';
+      labelEl.textContent = 'Saved!';
+      setTimeout(() => {
+        iconEl.textContent = 'download';
+        labelEl.textContent = 'Save Photo';
+      }, 1500);
+    }
+    this.onStatus?.('Saved photo');
+  }
+
   private renderActivePhotoView() {
     const imgEl = this.el['dv-main-img'] as HTMLImageElement | undefined;
     const ambientEl = this.el['dv-ambient-bg'] as HTMLImageElement | undefined;
@@ -1919,6 +2051,34 @@ export class DecisionVisionPlayground {
       }
     }
 
+    const stageActions = this.el['dv-stage-actions'];
+    const retakeBtn = this.el['dv-retake-btn'];
+    const savePhotoBtn = this.el['dv-save-photo-btn'];
+    const webcamBtnIcon = this.el['dv-webcam-btn-icon'];
+    const webcamBtnLabel = this.el['dv-webcam-btn-label'];
+    const isLiveCaptured = this.isLiveCapturedPhoto();
+    if (stageActions) {
+      stageActions.style.display = this.webcamActive ? 'none' : 'flex';
+    }
+    if (retakeBtn) {
+      retakeBtn.style.display = isLiveCaptured ? 'inline-flex' : 'none';
+    }
+    if (savePhotoBtn) {
+      savePhotoBtn.style.display = !this.webcamActive && this.currentPhotoObj?.url ? 'inline-flex' : 'none';
+    }
+    if (webcamBtnIcon && webcamBtnLabel) {
+      if (this.webcamActive) {
+        webcamBtnIcon.textContent = 'stop_circle';
+        webcamBtnLabel.textContent = 'Stop Webcam';
+      } else if (isLiveCaptured) {
+        webcamBtnIcon.textContent = 'refresh';
+        webcamBtnLabel.textContent = 'Retake';
+      } else {
+        webcamBtnIcon.textContent = 'videocam';
+        webcamBtnLabel.textContent = 'Webcam';
+      }
+    }
+
     if (!svgEl) return;
     if (!this.showBiometricOverlay) {
       svgEl.innerHTML = '';
@@ -1928,6 +2088,9 @@ export class DecisionVisionPlayground {
     const cw = 360;
     const ch = 460;
     const fi = this.currentPhotoObj.biometrics?.faceInfo;
+    const subjectEntry = this.currentPhotoObj.rawEg2Vision?.[SUBJECT_PRESENT_KEY];
+    const subjectPresentProb = subjectEntry !== undefined ? subjectEntry.passProb : 1.0;
+    const isNoFaceScene = subjectPresentProb < SUBJECT_PRESENT_THRESHOLD;
     let overlayMarkup = `
       <ellipse cx="${cw * 0.5}" cy="${ch * 0.42}" rx="${cw * 0.33}" ry="${ch * 0.3}"
         fill="none" stroke="rgba(0, 127, 139, 0.85)" stroke-width="2.2" stroke-dasharray="7 5" />
@@ -1941,6 +2104,7 @@ export class DecisionVisionPlayground {
 
     if (
       this.currentPhotoObj.evaluated &&
+      !isNoFaceScene &&
       fi &&
       fi.hasFace &&
       fi.minX !== undefined &&
@@ -2251,13 +2415,18 @@ export class DecisionVisionPlayground {
     this.renderAllPanels();
   }
 
-  private async evaluateCustomImageElement(img: HTMLImageElement, titleLabel: string, wasAutoSnapped = false) {
+  private async evaluateCustomImageElement(
+    img: HTMLImageElement,
+    titleLabel: string,
+    wasAutoSnapped = false,
+    idPrefix = 'custom'
+  ) {
     const t0 = performance.now();
     if (this.el['dv-result-meta']) {
       this.el['dv-result-meta'].textContent = 'Evaluating photo…';
     }
     const pendingObj: PhotoPreset = {
-      id: `custom_${Date.now()}`,
+      id: `${idPrefix}_${Date.now()}`,
       title: titleLabel,
       sub: wasAutoSnapped ? 'Auto-Snapped' : 'Evaluating…',
       isCompliant: null,
@@ -2400,6 +2569,10 @@ export class DecisionVisionPlayground {
           quality.motionDelta = Math.max(quality.motionDelta, this.peakInterEvalMotionDelta);
           quality.isSteady = false;
         }
+        if (quality.isSharp && quality.isSteady) {
+          this.latestCrispLiveFrameDataUrl = frameDataUrl;
+          this.latestCrispLiveFrameMs = performance.now();
+        }
         this.lastInferenceMs = dmEval.inferenceTime;
         this.currentPhotoObj.frameQuality = quality;
         this.currentPhotoObj.rawEg2Vision = dmEval.rawEg2Vision;
@@ -2473,11 +2646,14 @@ export class DecisionVisionPlayground {
       this.peakInterEvalMotionDelta = 0;
       this.bestStreakFrameDataUrl = null;
       this.bestStreakQualityScore = -Infinity;
+      this.latestCrispLiveFrameDataUrl = null;
+      this.latestCrispLiveFrameMs = 0;
       if (this.motionSampleTimer) clearInterval(this.motionSampleTimer);
       this.motionSampleTimer = setInterval(() => this.sampleLiveWebcamMotion(), 80);
 
       imgEl.style.display = 'none';
       video.style.display = 'block';
+      if (this.el['dv-webcam-btn-icon']) this.el['dv-webcam-btn-icon'].textContent = 'stop_circle';
       if (this.el['dv-webcam-btn-label']) this.el['dv-webcam-btn-label'].textContent = 'Stop Webcam';
       this.el['dv-webcam-btn']?.classList.add('active');
       if (this.el['dv-autosnap-btn']) this.el['dv-autosnap-btn'].style.display = 'inline-flex';
@@ -2531,6 +2707,7 @@ export class DecisionVisionPlayground {
     const imgEl = this.el['dv-main-img'] as HTMLImageElement | undefined;
     if (video) video.style.display = 'none';
     if (imgEl) imgEl.style.display = 'block';
+    if (this.el['dv-webcam-btn-icon']) this.el['dv-webcam-btn-icon'].textContent = 'videocam';
     if (this.el['dv-webcam-btn-label']) this.el['dv-webcam-btn-label'].textContent = 'Webcam';
     this.el['dv-webcam-btn']?.classList.remove('active');
     if (this.el['dv-autosnap-btn']) this.el['dv-autosnap-btn'].style.display = 'none';
@@ -2543,6 +2720,13 @@ export class DecisionVisionPlayground {
   private async captureWebcamPhoto(wasAutoSnapped = false) {
     if (!this.webcamActive) return;
     const bestStreakUrl = wasAutoSnapped ? this.bestStreakFrameDataUrl : null;
+    const now = performance.now();
+    const recentCrispUrl =
+      !wasAutoSnapped &&
+      this.latestCrispLiveFrameDataUrl &&
+      now - this.latestCrispLiveFrameMs <= DecisionVisionPlayground.CRISP_FRAME_RETENTION_MS
+        ? this.latestCrispLiveFrameDataUrl
+        : null;
     const video = this.el['dv-webcam-video'] as HTMLVideoElement;
     this.drawMirroredVideoToCanvas(video, this.liveFrameCanvas);
     this.stopWebcamBooth();
@@ -2551,12 +2735,20 @@ export class DecisionVisionPlayground {
       this.showAutoSnapBanner('Auto-snapped sharpest steady frame — all active requirements passed!');
     }
 
-    const dataUrl = bestStreakUrl || this.liveFrameCanvas.toDataURL('image/jpeg', 0.92);
+    const dataUrl =
+      (wasAutoSnapped ? bestStreakUrl : recentCrispUrl) || this.liveFrameCanvas.toDataURL('image/jpeg', 0.92);
     this.bestStreakFrameDataUrl = null;
     this.bestStreakQualityScore = -Infinity;
+    this.latestCrispLiveFrameDataUrl = null;
+    this.latestCrispLiveFrameMs = 0;
     const img = new Image();
     img.onload = () =>
-      this.evaluateCustomImageElement(img, wasAutoSnapped ? 'Auto-Snapped Photo' : 'Camera Photo', wasAutoSnapped);
+      this.evaluateCustomImageElement(
+        img,
+        wasAutoSnapped ? 'Auto-Snapped Photo' : 'Camera Photo',
+        wasAutoSnapped,
+        wasAutoSnapped ? 'auto_snap' : 'live_snap'
+      );
     img.src = dataUrl;
   }
 }
