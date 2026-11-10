@@ -12,7 +12,8 @@
           <span class="material-icons">grid_on</span> Guide: ON
         </button>
         <button type="button" id="dv-webcam-btn" class="dt-btn-sm">
-          <span class="material-icons">videocam</span> <span id="dv-webcam-btn-label">Webcam</span>
+          <span id="dv-webcam-btn-icon" class="material-icons">videocam</span>
+          <span id="dv-webcam-btn-label">Webcam</span>
         </button>
         <button
           type="button"
@@ -159,9 +160,21 @@
           <img id="dv-main-img" alt="Selected ID photo" />
           <video id="dv-webcam-video" autoplay playsinline muted></video>
           <svg id="dv-overlay-svg" viewBox="0 0 360 460" preserveAspectRatio="none"></svg>
-          <div id="dv-quality-badge" class="dv-quality-badge" style="display: none">
-            <span id="dv-quality-dot" class="dv-quality-dot"></span>
-            <span id="dv-quality-text">Sharp · Steady</span>
+          <div id="dv-stage-actions" class="dv-stage-actions">
+            <button
+              type="button"
+              id="dv-retake-btn"
+              class="dv-stage-pill-btn"
+              style="display: none"
+              title="Retake photo with live webcam"
+            >
+              <span class="material-icons">refresh</span>
+              <span>Retake</span>
+            </button>
+            <button type="button" id="dv-save-photo-btn" class="dv-stage-pill-btn" title="Save current photo">
+              <span id="dv-save-photo-icon" class="material-icons">download</span>
+              <span id="dv-save-photo-label">Save Photo</span>
+            </button>
           </div>
         </div>
 
@@ -696,44 +709,49 @@
       pointer-events: none;
     }
 
-    .dv-quality-badge {
+    .dv-stage-actions {
       position: absolute;
-      left: 10px;
-      top: 10px;
+      left: 50%;
+      bottom: 10px;
+      transform: translateX(-50%);
       z-index: 3;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      white-space: nowrap;
+    }
+
+    .dv-stage-pill-btn {
       display: inline-flex;
       align-items: center;
-      gap: 6px;
-      padding: 4px 10px;
+      gap: 5px;
+      padding: 6px 13px;
       border-radius: 999px;
-      background: rgba(15, 23, 42, 0.78);
+      background: rgba(0, 0, 0, 0.76);
+      border: 1px solid rgba(255, 255, 255, 0.32);
       backdrop-filter: blur(4px);
       color: #ffffff;
-      font-family: 'Roboto Mono', monospace;
-      font-size: 0.68rem;
+      font-size: 0.74rem;
       font-weight: 600;
-      pointer-events: none;
-      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+      cursor: pointer;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.28);
+      transition:
+        background 0.15s ease,
+        border-color 0.15s ease,
+        transform 0.1s ease;
     }
 
-    .dv-quality-dot {
-      width: 7px;
-      height: 7px;
-      border-radius: 50%;
-      background: #22c55e;
-      flex-shrink: 0;
+    .dv-stage-pill-btn:hover {
+      background: rgba(15, 23, 42, 0.92);
+      border-color: rgba(255, 255, 255, 0.55);
     }
 
-    .dv-quality-badge.warn .dv-quality-dot {
-      background: #f59e0b;
+    .dv-stage-pill-btn:active {
+      transform: scale(0.97);
     }
 
-    .dv-quality-badge.fail {
-      background: rgba(185, 28, 28, 0.9);
-    }
-
-    .dv-quality-badge.fail .dv-quality-dot {
-      background: #fecaca;
+    .dv-stage-pill-btn .material-icons {
+      font-size: 15px;
     }
 
     .dv-verdict-banner {

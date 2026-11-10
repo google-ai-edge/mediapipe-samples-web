@@ -165,10 +165,23 @@ test.describe('Decision Maker Task', () => {
     await page.locator('#dv-save-rule-btn').click();
     await expect(page.locator('#dv-rules-list .dv-rule-card')).toHaveCount(10);
 
-    // Open and verify JSON schema & output inspector
+    // Open and verify JSON schema & output inspector (including subject_present no-face guard)
     await page.locator('#dv-json-btn').click();
     await expect(page.locator('#dv-json-panel')).toBeVisible();
     await expect(page.locator('#dv-json-pre')).toContainText('"requestSchema"');
+    await expect(page.locator('#dv-json-pre')).toContainText('"subject_present"');
+    await expect(page.locator('#dv-json-pre')).toContainText('"fail_empty_scene"');
+    await expect(page.locator('#dv-json-pre')).toContainText('"fail_hand_only"');
+
+    // Verify Save Photo button is visible on the photo stage and provides feedback
+    const savePhotoBtn = page.locator('#dv-save-photo-btn');
+    await expect(savePhotoBtn).toBeVisible();
+    await expect(savePhotoBtn).toContainText('Save Photo');
+    const downloadPromise = page.waitForEvent('download');
+    await savePhotoBtn.click();
+    const download = await downloadPromise;
+    expect(download.suggestedFilename()).toMatch(/^photo_id_\d+\.jpg$/);
+    await expect(page.locator('#dv-save-photo-label')).toHaveText('Saved!');
   });
 
   test('should support Scene Image, Text State, and interactive play modes in Dino Game', async ({ page }) => {

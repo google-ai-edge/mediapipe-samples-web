@@ -92,17 +92,6 @@ export interface RawRuleVisionScore {
   failLabel: string;
 }
 
-export interface PhotoFrameQualityReport {
-  top10Laplacian: number;
-  acutance: number;
-  combinedSharpness: number;
-  motionDelta: number;
-  isSharp: boolean;
-  isSteady: boolean;
-  qualityRankScore: number;
-  luma32?: Float32Array;
-}
-
 export interface PhotoPreset {
   id: string;
   title: string;
@@ -113,7 +102,6 @@ export interface PhotoPreset {
   groundTruth?: Record<string, boolean>;
   biometrics: PhotoBiometrics;
   rawEg2Vision: Record<string, RawRuleVisionScore>;
-  frameQuality?: PhotoFrameQualityReport;
 }
 
 export interface ExemplarEntry {
@@ -152,211 +140,6 @@ export interface VisionModelState {
   loadedValue?: string | null;
   hasCustomModel?: boolean;
   error?: string;
-}
-
-/**
- * Deterministic portrait sharpness (2nd-order Laplacian acutance) and inter-frame
- * motion-stability evaluator.
- * Guards live Photo ID capture and Auto-Snap against motion blur and camera shake.
- */
-export class PhotoFrameQualityEvaluator {
-  public static readonly LUMA_GRID_SIZE = 128;
-  public static readonly MOTION_GRID_SIZE = 32;
-  private static readonly ROI_Y_START = 19;
-  private static readonly ROI_Y_END = 109;
-  private static readonly ROI_X_START = 25;
-  private static readonly ROI_X_END = 103;
-  private static readonly MOTION_ROI_Y_START = 5;
-  private static readonly MOTION_ROI_Y_END = 27;
-  private static readonly MOTION_ROI_X_START = 6;
-  private static readonly MOTION_ROI_X_END = 26;
-
-  public static readonly MIN_SHARP_ACUTANCE = 0.85;
-  public static readonly MIN_SHARP_TOP10_LAPLACIAN = 10.5;
-  public static readonly MIN_SHARP_COMBINED = 9.5;
-  public static readonly MOTION_SENSITIVE_THRESHOLD = 2.0;
-  public static readonly MIN_MOVING_ACUTANCE = 0.9;
-  public static readonly MIN_MOVING_TOP10_LAPLACIAN = 12.0;
-  public static readonly MIN_MOVING_COMBINED = 11.2;
-  public static readonly MAX_STEADY_MOTION_DELTA = 5.2;
-
-  private static scratch256: HTMLCanvasElement | null = null;
-  private static scratch32: HTMLCanvasElement | null = null;
-
-  private static getScratch256(): CanvasRenderingContext2D | null {
-    if (typeof document === 'undefined') return null;
-    if (!this.scratch256) {
-      this.scratch256 = document.createElement('canvas');
-      this.scratch256.width = this.LUMA_GRID_SIZE * 2;
-      this.scratch256.height = this.LUMA_GRID_SIZE * 2;
-    }
-    return this.scratch256.getContext('2d', { willReadFrequently: true });
-  }
-
-  private static getScratch32(): CanvasRenderingContext2D | null {
-    if (typeof document === 'undefined') return null;
-    if (!this.scratch32) {
-      this.scratch32 = document.createElement('canvas');
-      this.scratch32.width = this.MOTION_GRID_SIZE;
-      this.scratch32.height = this.MOTION_GRID_SIZE;
-    }
-    return this.scratch32.getContext('2d', { willReadFrequently: true });
-  }
-
-  public static extractLuma32(source: HTMLImageElement | HTMLCanvasElement | HTMLVideoElement): Float32Array | null {
-    const ctx = this.getScratch32();
-    if (!ctx) return null;
-    const n = this.MOTION_GRID_SIZE;
-    ctx.drawImage(source, 0, 0, n, n);
-    const data = ctx.getImageData(0, 0, n, n).data;
-    const out = new Float32Array(n * n);
-    for (let i = 0, p = 0; i < out.length; i++, p += 4) {
-      out[i] = 0.299 * data[p] + 0.587 * data[p + 1] + 0.114 * data[p + 2];
-    }
-    return out;
-  }
-
-  public static computeMotionDelta(currentLuma32: Float32Array, previousLuma32?: Float32Array | null): number {
-    const n = this.MOTION_GRID_SIZE;
-    if (!previousLuma32 || currentLuma32.length !== n * n || previousLuma32.length !== n * n) {
-      return 0;
-    }
-    let sumDiff = 0;
-    let count = 0;
-    for (let y = this.MOTION_ROI_Y_START; y < this.MOTION_ROI_Y_END; y++) {
-      const row = y * n;
-      for (let x = this.MOTION_ROI_X_START; x < this.MOTION_ROI_X_END; x++) {
-        const idx = row + x;
-        sumDiff += Math.abs(currentLuma32[idx] - previousLuma32[idx]);
-        count++;
-      }
-    }
-    return count > 0 ? sumDiff / count : 0;
-  }
-
-  public static evaluateSource(
-    source: HTMLImageElement | HTMLCanvasElement,
-    previousLuma32?: Float32Array | null,
-    externalPeakMotionDelta = 0
-  ): PhotoFrameQualityReport {
-    const ctx = this.getScratch256();
-    const g = this.LUMA_GRID_SIZE;
-    const sampleGrid = g * 2;
-    if (!ctx) {
-      return {
-        top10Laplacian: 24,
-        acutance: 1.2,
-        combinedSharpness: 28.8,
-        motionDelta: 0,
-        isSharp: true,
-        isSteady: true,
-        qualityRankScore: 28.8,
-      };
-    }
-
-    ctx.drawImage(source, 0, 0, sampleGrid, sampleGrid);
-    const rgba = ctx.getImageData(0, 0, sampleGrid, sampleGrid).data;
-    const luma128 = new Float32Array(g * g);
-
-    for (let gy = 0; gy < g; gy++) {
-      const row0 = 2 * gy * sampleGrid;
-      const row1 = (2 * gy + 1) * sampleGrid;
-      for (let gx = 0; gx < g; gx++) {
-        const i00 = (row0 + 2 * gx) * 4;
-        const i01 = (row0 + 2 * gx + 1) * 4;
-        const i10 = (row1 + 2 * gx) * 4;
-        const i11 = (row1 + 2 * gx + 1) * 4;
-        const r = (rgba[i00] + rgba[i01] + rgba[i10] + rgba[i11]) * 0.25;
-        const gr = (rgba[i00 + 1] + rgba[i01 + 1] + rgba[i10 + 1] + rgba[i11 + 1]) * 0.25;
-        const b = (rgba[i00 + 2] + rgba[i01 + 2] + rgba[i10 + 2] + rgba[i11 + 2]) * 0.25;
-        luma128[gy * g + gx] = 0.299 * r + 0.587 * gr + 0.114 * b;
-      }
-    }
-
-    const m = this.MOTION_GRID_SIZE;
-    const luma32 = new Float32Array(m * m);
-    for (let my = 0; my < m; my++) {
-      for (let mx = 0; mx < m; mx++) {
-        let blockSum = 0;
-        for (let dy = 0; dy < 4; dy++) {
-          const row = (my * 4 + dy) * g + mx * 4;
-          blockSum += luma128[row] + luma128[row + 1] + luma128[row + 2] + luma128[row + 3];
-        }
-        luma32[my * m + mx] = blockSum * 0.0625;
-      }
-    }
-
-    const directMotionDelta = this.computeMotionDelta(luma32, previousLuma32);
-    const effectiveMotionDelta = Math.max(directMotionDelta, externalPeakMotionDelta);
-
-    const roiCount = (this.ROI_Y_END - this.ROI_Y_START) * (this.ROI_X_END - this.ROI_X_START);
-    const laps = new Float32Array(roiCount);
-    const grads = new Float32Array(roiCount);
-    let idx = 0;
-    for (let y = this.ROI_Y_START; y < this.ROI_Y_END; y++) {
-      const row = y * g;
-      for (let x = this.ROI_X_START; x < this.ROI_X_END; x++) {
-        const c = luma128[row + x];
-        const l = luma128[row + x - 1];
-        const r = luma128[row + x + 1];
-        const u = luma128[row - g + x];
-        const d = luma128[row + g + x];
-        laps[idx] = Math.abs(4 * c - l - r - u - d);
-        const gx = Math.abs(r - l) * 0.5;
-        const gy = Math.abs(d - u) * 0.5;
-        grads[idx] = Math.hypot(gx, gy);
-        idx++;
-      }
-    }
-    laps.sort();
-    grads.sort();
-
-    const idx90 = Math.floor((roiCount * 9) / 10);
-    const tailCount = Math.max(1, roiCount - idx90);
-    let topLapSum = 0;
-    let topGradSum = 0;
-    for (let i = idx90; i < roiCount; i++) {
-      topLapSum += laps[i];
-      topGradSum += grads[i];
-    }
-    const top10Lap = topLapSum / tailCount;
-    const top10Grad = topGradSum / tailCount;
-    if (top10Grad < 1.0) {
-      return {
-        top10Laplacian: 24,
-        acutance: 1.2,
-        combinedSharpness: 28.8,
-        motionDelta: 0,
-        isSharp: true,
-        isSteady: true,
-        qualityRankScore: 28.8,
-        luma32,
-      };
-    }
-
-    const acutance = top10Lap / Math.max(top10Grad, 1.0);
-    const combined = top10Lap * acutance;
-    const isSteady = effectiveMotionDelta <= this.MAX_STEADY_MOTION_DELTA;
-    const isSharp =
-      effectiveMotionDelta > this.MOTION_SENSITIVE_THRESHOLD
-        ? acutance >= this.MIN_MOVING_ACUTANCE &&
-          top10Lap >= this.MIN_MOVING_TOP10_LAPLACIAN &&
-          combined >= this.MIN_MOVING_COMBINED
-        : acutance >= this.MIN_SHARP_ACUTANCE &&
-          top10Lap >= this.MIN_SHARP_TOP10_LAPLACIAN &&
-          combined >= this.MIN_SHARP_COMBINED;
-
-    return {
-      top10Laplacian: top10Lap,
-      acutance,
-      combinedSharpness: combined,
-      motionDelta: effectiveMotionDelta,
-      isSharp,
-      isSteady,
-      qualityRankScore: combined - effectiveMotionDelta * 3.0,
-      luma32,
-    };
-  }
 }
 
 /**
@@ -450,6 +233,7 @@ export const PASSPORT_RULES: PassportRule[] = [
       pass_frontal: 'Full head & chin in frame',
       fail_cropped: 'Head/chin clipped at edge',
       fail_top_cut: 'Upper head / eyes cut off at top',
+      fail_bottom_cut: 'Face too low / chin cut off',
     },
     enabled: true,
   },
@@ -486,6 +270,7 @@ export const PASSPORT_RULES: PassportRule[] = [
       fail_closed: 'Eyes closed / blinking',
       fail_sunglasses: 'Hidden behind dark lenses',
       fail_top_cut: 'Eyes cut off / not in frame',
+      fail_bottom_cut: 'Face too low / not in frame',
     },
     enabled: true,
   },
@@ -511,6 +296,7 @@ export const PASSPORT_RULES: PassportRule[] = [
     optionDisplay: {
       pass_neutral: 'Neutral expression, mouth closed',
       fail_smiling: 'Smiling / teeth visible',
+      fail_bottom_cut: 'Mouth & chin cut off at bottom',
     },
     enabled: true,
   },
@@ -661,6 +447,7 @@ export const PASSPORT_RULES: PassportRule[] = [
     optionDisplay: {
       pass_chest_up: 'No mask, cap, or hat',
       fail_mask_hat: 'Mask or cap covering face/head',
+      fail_bottom_cut: 'Lower face cut off at bottom',
     },
     enabled: true,
   },
@@ -686,6 +473,7 @@ export const PASSPORT_RULES: PassportRule[] = [
     optionDisplay: {
       pass_70_pct: 'Good close-up portrait scale',
       fail_too_small: 'Subject too far from camera',
+      fail_bottom_peek: 'Subject not centered in frame',
     },
     enabled: true,
   },
@@ -951,6 +739,16 @@ const sigmoid = (z: number): number => 1 / (1 + Math.exp(-z));
 const STORAGE_CUSTOM_PACKS_KEY = 'mp_photocheck_custom_packs_v1';
 const STORAGE_CUSTOM_RULES_KEY = 'mp_photocheck_custom_rules_v1';
 
+export const SUBJECT_PRESENT_KEY = 'subject_present';
+export const SUBJECT_PRESENT_PASS_LABEL = 'pass_human_face';
+export const SUBJECT_PRESENT_FAIL_EMPTY = 'fail_empty_scene';
+export const SUBJECT_PRESENT_FAIL_OBJECT = 'fail_object_animal';
+export const SUBJECT_PRESENT_FAIL_HAND = 'fail_hand_only';
+export const SUBJECT_PRESENT_FAIL_PARTIAL = 'fail_partial_peek';
+export const SUBJECT_PRESENT_THRESHOLD = 0.4;
+export const DEFAULT_NO_FACE_REASON = 'No face detected in frame';
+export const DEFAULT_BOTTOM_CUTOFF_REASON = 'Face too low / chin cut off';
+
 export class DecisionVisionPlayground {
   private el: Record<string, HTMLElement> = {};
   private rules: PassportRule[] = PASSPORT_RULES.map((r) => ({
@@ -974,17 +772,13 @@ export class DecisionVisionPlayground {
   private webcamActive = false;
   private webcamStream: MediaStream | null = null;
   private liveLoopTimer: ReturnType<typeof setTimeout> | null = null;
-  private motionSampleTimer: ReturnType<typeof setInterval> | null = null;
   private liveFrameCanvas = document.createElement('canvas');
   private encodeCanvas = document.createElement('canvas');
   private autoSnapOnPass = true;
   private autoSnapStreak = 0;
   private readonly autoSnapRequiredStreak = 2;
-  private previousLiveEvalLuma32: Float32Array | null = null;
-  private previousLiveMotionLuma32: Float32Array | null = null;
-  private peakInterEvalMotionDelta = 0;
   private bestStreakFrameDataUrl: string | null = null;
-  private bestStreakQualityScore = -Infinity;
+  private latestLiveFrameDataUrl: string | null = null;
 
   constructor(
     private root: HTMLElement,
@@ -1155,17 +949,171 @@ export class DecisionVisionPlayground {
   private buildPassportSchema() {
     return {
       context: '',
-      questions: this.rules.map((rule) => ({
-        id: rule.id,
-        type: 'categorical',
-        prompt: rule.prompt,
-        normalizePrior: Boolean(rule.normalizePrior),
-        options: rule.options.map((opt) => ({
-          label: opt.label,
-          description: opt.description,
+      questions: [
+        {
+          id: SUBJECT_PRESENT_KEY,
+          type: 'categorical',
+          prompt: "Is a human person's face or head visible in the photo?",
+          normalizePrior: false,
+          options: [
+            {
+              label: SUBJECT_PRESENT_PASS_LABEL,
+              description: "Portrait, selfie, headshot, or photo showing a human person's face or head.",
+            },
+            {
+              label: SUBJECT_PRESENT_FAIL_EMPTY,
+              description:
+                "Empty room, wall, curtain, furniture, desk, ceiling, floor, or background with no person's face.",
+            },
+            {
+              label: SUBJECT_PRESENT_FAIL_OBJECT,
+              description: 'Object, animal, pet, cat, dog, food, text, screen, or item with no human face.',
+            },
+            {
+              label: SUBJECT_PRESENT_FAIL_HAND,
+              description: 'Close-up of only a hand, fingers, fist, or thumb with no face visible.',
+            },
+          ],
+        },
+        ...this.rules.map((rule) => ({
+          id: rule.id,
+          type: 'categorical',
+          prompt: rule.prompt,
+          normalizePrior: Boolean(rule.normalizePrior),
+          options: rule.options.map((opt) => ({
+            label: opt.label,
+            description: opt.description,
+          })),
         })),
-      })),
+      ],
     };
+  }
+
+  /**
+   * Computes a fast spatial framing check on `this.encodeCanvas` to catch
+   * frames where the upper/center head guide zone (`y = 0.18..0.62`) is empty
+   * background/curtain while either no subject is present or only the top of a
+   * head peeks in at the bottom edge (`y = 0.72..0.98`).
+   */
+  public analyzeSpatialFraming(source?: HTMLImageElement | HTMLCanvasElement): {
+    mode: 'normal' | 'empty_scene' | 'bottom_cutoff';
+    upperDy: number;
+    lowerDy: number;
+    upperCd: number;
+    lowerCd: number;
+  } {
+    const W = 90;
+    const H = 115;
+    const c = document.createElement('canvas');
+    c.width = W;
+    c.height = H;
+    const ctx = c.getContext('2d');
+    const target = source ?? this.encodeCanvas;
+    if (!ctx || !target) {
+      return { mode: 'normal', upperDy: 15, lowerDy: 8, upperCd: 110, lowerCd: 150 };
+    }
+    ctx.drawImage(target, 0, 0, W, H);
+    const d = ctx.getImageData(0, 0, W, H).data;
+
+    const x0 = Math.floor(W * 0.22);
+    const x1 = Math.floor(W * 0.78);
+    const colBg: Array<[number, number, number]> = [];
+    const bgY0 = Math.floor(H * 0.04);
+    const bgY1 = Math.floor(H * 0.11);
+    for (let x = 0; x < W; x++) {
+      let r = 0;
+      let g = 0;
+      let b = 0;
+      let n = 0;
+      for (let y = bgY0; y < bgY1; y++) {
+        const i = (y * W + x) * 4;
+        r += d[i];
+        g += d[i + 1];
+        b += d[i + 2];
+        n++;
+      }
+      colBg.push(n > 0 ? [r / n, g / n, b / n] : [200, 200, 200]);
+    }
+
+    const avgBand = (yStart: number, yEnd: number) => {
+      let dySum = 0;
+      let cdSum = 0;
+      let n = 0;
+      const y0 = Math.floor(H * yStart);
+      const y1 = Math.floor(H * yEnd);
+      for (let y = y0; y < y1; y++) {
+        for (let x = x0; x < x1; x++) {
+          const i = (y * W + x) * 4;
+          const iu = (Math.max(0, y - 1) * W + x) * 4;
+          const idn = (Math.min(H - 1, y + 1) * W + x) * 4;
+          const dy =
+            (Math.abs(d[idn] - d[iu]) + Math.abs(d[idn + 1] - d[iu + 1]) + Math.abs(d[idn + 2] - d[iu + 2])) / 3;
+          const [br, bg, bb] = colBg[x];
+          const cd = Math.hypot(d[i] - br, d[i + 1] - bg, d[i + 2] - bb);
+          dySum += dy;
+          cdSum += cd;
+          n++;
+        }
+      }
+      return {
+        dy: n > 0 ? dySum / n : 0,
+        cd: n > 0 ? cdSum / n : 0,
+      };
+    };
+
+    const upper = avgBand(0.18, 0.62);
+    const lower = avgBand(0.72, 0.98);
+
+    if (upper.dy < 4.8 && lower.dy < 4.8 && upper.cd < 85 && lower.cd < 85) {
+      return { mode: 'empty_scene', upperDy: upper.dy, lowerDy: lower.dy, upperCd: upper.cd, lowerCd: lower.cd };
+    }
+    if (upper.dy < 5.5 && lower.dy > 6.0 && lower.dy > upper.dy * 1.8 && lower.cd > upper.cd * 1.25) {
+      return { mode: 'bottom_cutoff', upperDy: upper.dy, lowerDy: lower.dy, upperCd: upper.cd, lowerCd: lower.cd };
+    }
+    return { mode: 'normal', upperDy: upper.dy, lowerDy: lower.dy, upperCd: upper.cd, lowerCd: lower.cd };
+  }
+
+  private applySpatialFramingToRawVision(
+    rawVision: Record<string, RawRuleVisionScore>,
+    spatial: { mode: 'normal' | 'empty_scene' | 'bottom_cutoff' }
+  ): Record<string, RawRuleVisionScore> {
+    if (spatial.mode === 'empty_scene') {
+      const prev = rawVision[SUBJECT_PRESENT_KEY]?.passProb ?? 1.0;
+      rawVision[SUBJECT_PRESENT_KEY] = {
+        passProb: Math.min(prev, 0.12),
+        topLabel: SUBJECT_PRESENT_FAIL_EMPTY,
+        failLabel: SUBJECT_PRESENT_FAIL_EMPTY,
+      };
+    } else if (spatial.mode === 'bottom_cutoff') {
+      const prevSubj = rawVision[SUBJECT_PRESENT_KEY]?.passProb ?? 1.0;
+      rawVision[SUBJECT_PRESENT_KEY] = {
+        passProb: Math.min(prevSubj, 0.18),
+        topLabel: SUBJECT_PRESENT_FAIL_PARTIAL,
+        failLabel: SUBJECT_PRESENT_FAIL_PARTIAL,
+      };
+      if (rawVision['full_face']) {
+        rawVision['full_face'] = {
+          passProb: Math.min(rawVision['full_face'].passProb, 0.18),
+          topLabel: 'fail_bottom_cut',
+          failLabel: 'fail_bottom_cut',
+        };
+      }
+      if (rawVision['shoulders_visible']) {
+        rawVision['shoulders_visible'] = {
+          passProb: Math.min(rawVision['shoulders_visible'].passProb, 0.18),
+          topLabel: 'fail_bottom_cutoff',
+          failLabel: 'fail_bottom_cutoff',
+        };
+      }
+      if (rawVision['occupancy_70_percent']) {
+        rawVision['occupancy_70_percent'] = {
+          passProb: Math.min(rawVision['occupancy_70_percent'].passProb, 0.2),
+          topLabel: 'fail_bottom_peek',
+          failLabel: 'fail_bottom_peek',
+        };
+      }
+    }
+    return rawVision;
   }
 
   private async sourceToImageBytes(source: HTMLImageElement | HTMLCanvasElement): Promise<Uint8Array> {
@@ -1184,6 +1132,38 @@ export class DecisionVisionPlayground {
     fallback?: Record<string, RawRuleVisionScore>
   ): Record<string, RawRuleVisionScore> {
     const out: Record<string, RawRuleVisionScore> = {};
+    const subjDec = schemaRes?.[SUBJECT_PRESENT_KEY];
+    const subjProbs: Array<{ label: string; probability: number }> = subjDec?.probabilities ?? [];
+    if (subjProbs.length > 0) {
+      const passEntry = subjProbs.find((p) => p.label === SUBJECT_PRESENT_PASS_LABEL);
+      const pPass = passEntry ? passEntry.probability : 0;
+      let bestFailLabel = SUBJECT_PRESENT_FAIL_EMPTY;
+      let bestFailProb = -1;
+      for (const p of subjProbs) {
+        if (p.label !== SUBJECT_PRESENT_PASS_LABEL && p.probability > bestFailProb) {
+          bestFailProb = p.probability;
+          bestFailLabel = p.label;
+        }
+      }
+      if (bestFailProb < 0) bestFailProb = Math.max(0, 1 - pPass);
+      const subjectPresentProb = pPass + bestFailProb > 0 ? pPass / (pPass + bestFailProb) : 1.0;
+      out[SUBJECT_PRESENT_KEY] = {
+        passProb: subjectPresentProb,
+        topLabel:
+          subjDec.label ||
+          (subjectPresentProb >= SUBJECT_PRESENT_THRESHOLD ? SUBJECT_PRESENT_PASS_LABEL : bestFailLabel),
+        failLabel: bestFailLabel,
+      };
+    } else if (fallback?.[SUBJECT_PRESENT_KEY]) {
+      out[SUBJECT_PRESENT_KEY] = fallback[SUBJECT_PRESENT_KEY];
+    } else {
+      out[SUBJECT_PRESENT_KEY] = {
+        passProb: 1.0,
+        topLabel: SUBJECT_PRESENT_PASS_LABEL,
+        failLabel: SUBJECT_PRESENT_FAIL_EMPTY,
+      };
+    }
+
     for (const rule of this.rules) {
       const dec = schemaRes?.[rule.id];
       const probsArr: Array<{ label: string; probability: number }> = dec?.probabilities ?? [];
@@ -1231,10 +1211,12 @@ export class DecisionVisionPlayground {
       try {
         const imageBytes = await this.sourceToImageBytes(source);
         if (imageBytes.byteLength === 0) return null;
+        const spatial = this.analyzeSpatialFraming(this.encodeCanvas);
         const msg = await this.ask!({ imageBytes }, 'schema', this.buildPassportSchema());
         if (msg?.type === 'DECIDE_RESULT' && msg.result) {
+          const parsed = this.parseSchemaResultToRawVision(msg.result, fallback);
           return {
-            rawEg2Vision: this.parseSchemaResultToRawVision(msg.result, fallback),
+            rawEg2Vision: this.applySpatialFramingToRawVision(parsed, spatial),
             inferenceTime: msg.inferenceTime,
           };
         }
@@ -1283,11 +1265,9 @@ export class DecisionVisionPlayground {
         el.src = targetPhoto.url;
       });
       if (!sourceImg) return;
-      const staticQuality = PhotoFrameQualityEvaluator.evaluateSource(sourceImg, null, 0);
       const dmEval = await this.evaluateSourceWithDecisionMaker(sourceImg);
       if (!dmEval) return;
       this.lastInferenceMs = dmEval.inferenceTime;
-      targetPhoto.frameQuality = staticQuality;
       targetPhoto.rawEg2Vision = dmEval.rawEg2Vision;
       targetPhoto.evaluated = true;
       this.syncExemplarBankWithLiveScore(targetPhoto);
@@ -1315,6 +1295,8 @@ export class DecisionVisionPlayground {
     this.el['dv-webcam-btn']?.addEventListener('click', () => this.toggleWebcamBooth());
     this.el['dv-autosnap-btn']?.addEventListener('click', () => this.toggleAutoSnap());
     this.el['dv-snap-btn']?.addEventListener('click', () => this.captureWebcamPhoto(false));
+    this.el['dv-retake-btn']?.addEventListener('click', () => this.toggleWebcamBooth());
+    this.el['dv-save-photo-btn']?.addEventListener('click', () => this.saveCurrentPhoto());
     this.el['dv-upload-input']?.addEventListener('change', (e) => this.handleCustomPhotoUpload(e));
 
     this.el['dv-filter-issues-btn']?.addEventListener('click', () => this.toggleIssuesFilter());
@@ -1682,24 +1664,19 @@ export class DecisionVisionPlayground {
       activeRules.length > 0
         ? Math.round((activeRules.reduce((s, r) => s + (evalRes[r.id]?.prob ?? 0), 0) / activeRules.length) * 100)
         : 0;
-    const fq = this.currentPhotoObj.frameQuality;
+    const subjectEntry = this.currentPhotoObj.rawEg2Vision?.[SUBJECT_PRESENT_KEY];
+    const subjectPresentProb = subjectEntry !== undefined ? subjectEntry.passProb : 1.0;
+    const subjectDetected = subjectPresentProb >= SUBJECT_PRESENT_THRESHOLD;
     return {
       photoId: this.currentPhotoObj.id,
       activeRulePack: this.activePackId,
-      overallCompliant: passedCount === activeRules.length && Boolean(this.currentPhotoObj.evaluated),
+      subjectDetected,
+      subjectPresentProbability: Number(subjectPresentProb.toFixed(3)),
+      overallCompliant:
+        subjectDetected && passedCount === activeRules.length && Boolean(this.currentPhotoObj.evaluated),
       passedRules: `${passedCount}/${activeRules.length}`,
       readinessPercent: readinessPct,
       latencyMs: this.lastInferenceMs !== undefined ? Math.round(this.lastInferenceMs) : null,
-      frameQuality: fq
-        ? {
-            isSharp: fq.isSharp,
-            isSteady: fq.isSteady,
-            top10Laplacian: Number(fq.top10Laplacian.toFixed(2)),
-            acutance: Number(fq.acutance.toFixed(3)),
-            combinedSharpness: Number(fq.combinedSharpness.toFixed(2)),
-            motionDelta: Number(fq.motionDelta.toFixed(2)),
-          }
-        : null,
       requestSchema: this.buildPassportSchema(),
       results: this.rules.map((r) => {
         const res = evalRes[r.id];
@@ -1780,6 +1757,11 @@ export class DecisionVisionPlayground {
     }
 
     const queryLogitVec = this.computeLogitVector(photoObj.rawEg2Vision);
+    const subjectEntry = photoObj.rawEg2Vision?.[SUBJECT_PRESENT_KEY];
+    const subjectPresentProb = subjectEntry !== undefined ? subjectEntry.passProb : 1.0;
+    const isNoFaceScene = subjectPresentProb < SUBJECT_PRESENT_THRESHOLD;
+    const isBottomCutoffScene = isNoFaceScene && subjectEntry?.failLabel === SUBJECT_PRESENT_FAIL_PARTIAL;
+    const bottomCapProb = Math.min(subjectPresentProb, 0.25);
 
     for (let rIdx = 0; rIdx < this.rules.length; rIdx++) {
       const rule = this.rules[rIdx];
@@ -1848,20 +1830,44 @@ export class DecisionVisionPlayground {
         specificFailLabel = 'fail_top_cut';
       }
 
-      // Frame Quality Guard: reject shaky or out-of-focus frames
-      const fq = photoObj.frameQuality;
-      if (fq && !fq.isSteady && rule.id === 'shoulders_visible') {
-        finalPassProb = Math.min(finalPassProb, 0.24);
-        specificFailLabel = 'fail_camera_shake';
-        overrideReason = 'Camera shake — hold steady';
-      }
-      if (fq && !fq.isSharp && rule.id === 'eyes_open') {
-        finalPassProb = Math.min(finalPassProb, 0.28);
-        specificFailLabel = 'fail_blurry_frame';
-        overrideReason = 'Blurry — hold steady';
+      // Cross-rule bottom cutoff guard: when the head is cut off at the bottom edge with
+      // the mouth, chin, and shoulders below the frame, dependent rules must also fail.
+      if (isBottomCutoffScene) {
+        if (rule.id === 'full_face') {
+          finalPassProb = Math.min(finalPassProb, bottomCapProb);
+          specificFailLabel = 'fail_bottom_cut';
+        } else if (rule.id === 'shoulders_visible') {
+          finalPassProb = Math.min(finalPassProb, bottomCapProb);
+          specificFailLabel = 'fail_bottom_cutoff';
+        } else if (rule.id === 'neutral_expression' || rule.id === 'framing_chest_up') {
+          finalPassProb = Math.min(finalPassProb, bottomCapProb);
+          specificFailLabel = 'fail_bottom_cut';
+        } else if (rule.id === 'occupancy_70_percent') {
+          finalPassProb = Math.min(finalPassProb, bottomCapProb);
+          specificFailLabel = 'fail_bottom_peek';
+        }
       }
 
-      const passed = finalPassProb >= 0.5;
+      // Subject Presence Guard: prevent false positives when no human face (or only a partial bottom peek) is in frame
+      if (isNoFaceScene) {
+        finalPassProb = Math.min(finalPassProb, subjectPresentProb);
+        if (subjectEntry?.failLabel === SUBJECT_PRESENT_FAIL_PARTIAL) {
+          specificFailLabel =
+            rule.optionDisplay[specificFailLabel] && specificFailLabel.startsWith('fail_bottom')
+              ? specificFailLabel
+              : 'fail_bottom_cut';
+          overrideReason =
+            rule.optionDisplay[specificFailLabel] ||
+            rule.optionDisplay['fail_bottom_cutoff'] ||
+            rule.optionDisplay['fail_bottom_peek'] ||
+            DEFAULT_BOTTOM_CUTOFF_REASON;
+        } else {
+          specificFailLabel = 'fail_no_face';
+          overrideReason = DEFAULT_NO_FACE_REASON;
+        }
+      }
+
+      const passed = !isNoFaceScene && finalPassProb >= 0.5;
       const status: RuleStatusTier = !isEnabled ? 'skipped' : passed ? 'pass' : 'fail';
       const chosenOptionLabel = passed ? rule.options[0].label : specificFailLabel;
       const baseReason = overrideReason || rule.optionDisplay[chosenOptionLabel] || chosenOptionLabel;
@@ -1905,6 +1911,51 @@ export class DecisionVisionPlayground {
     }
   }
 
+  private isLiveCapturedPhoto(): boolean {
+    return (
+      !this.webcamActive &&
+      Boolean(this.currentPhotoObj?.id?.startsWith('auto_snap_') || this.currentPhotoObj?.id?.startsWith('live_snap_'))
+    );
+  }
+
+  public saveCurrentPhoto() {
+    if (this.webcamActive || !this.currentPhotoObj?.url) return;
+    let href = this.currentPhotoObj.url;
+    const imgEl = this.el['dv-main-img'] as HTMLImageElement | undefined;
+    if (!href.startsWith('data:') && imgEl && imgEl.complete && imgEl.naturalWidth > 0) {
+      try {
+        const c = document.createElement('canvas');
+        c.width = imgEl.naturalWidth;
+        c.height = imgEl.naturalHeight;
+        const ctx = c.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(imgEl, 0, 0);
+          href = c.toDataURL('image/jpeg', 0.95);
+        }
+      } catch {
+        // Fallback to direct URL if canvas tainting occurs
+      }
+    }
+    const a = document.createElement('a');
+    a.href = href;
+    a.download = `photo_id_${Date.now()}.jpg`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+
+    const iconEl = this.el['dv-save-photo-icon'];
+    const labelEl = this.el['dv-save-photo-label'];
+    if (iconEl && labelEl) {
+      iconEl.textContent = 'check';
+      labelEl.textContent = 'Saved!';
+      setTimeout(() => {
+        iconEl.textContent = 'download';
+        labelEl.textContent = 'Save Photo';
+      }, 1500);
+    }
+    this.onStatus?.('Saved photo');
+  }
+
   private renderActivePhotoView() {
     const imgEl = this.el['dv-main-img'] as HTMLImageElement | undefined;
     const ambientEl = this.el['dv-ambient-bg'] as HTMLImageElement | undefined;
@@ -1919,6 +1970,34 @@ export class DecisionVisionPlayground {
       }
     }
 
+    const stageActions = this.el['dv-stage-actions'];
+    const retakeBtn = this.el['dv-retake-btn'];
+    const savePhotoBtn = this.el['dv-save-photo-btn'];
+    const webcamBtnIcon = this.el['dv-webcam-btn-icon'];
+    const webcamBtnLabel = this.el['dv-webcam-btn-label'];
+    const isLiveCaptured = this.isLiveCapturedPhoto();
+    if (stageActions) {
+      stageActions.style.display = this.webcamActive ? 'none' : 'flex';
+    }
+    if (retakeBtn) {
+      retakeBtn.style.display = isLiveCaptured ? 'inline-flex' : 'none';
+    }
+    if (savePhotoBtn) {
+      savePhotoBtn.style.display = !this.webcamActive && this.currentPhotoObj?.url ? 'inline-flex' : 'none';
+    }
+    if (webcamBtnIcon && webcamBtnLabel) {
+      if (this.webcamActive) {
+        webcamBtnIcon.textContent = 'stop_circle';
+        webcamBtnLabel.textContent = 'Stop Webcam';
+      } else if (isLiveCaptured) {
+        webcamBtnIcon.textContent = 'refresh';
+        webcamBtnLabel.textContent = 'Retake';
+      } else {
+        webcamBtnIcon.textContent = 'videocam';
+        webcamBtnLabel.textContent = 'Webcam';
+      }
+    }
+
     if (!svgEl) return;
     if (!this.showBiometricOverlay) {
       svgEl.innerHTML = '';
@@ -1928,6 +2007,9 @@ export class DecisionVisionPlayground {
     const cw = 360;
     const ch = 460;
     const fi = this.currentPhotoObj.biometrics?.faceInfo;
+    const subjectEntry = this.currentPhotoObj.rawEg2Vision?.[SUBJECT_PRESENT_KEY];
+    const subjectPresentProb = subjectEntry !== undefined ? subjectEntry.passProb : 1.0;
+    const isNoFaceScene = subjectPresentProb < SUBJECT_PRESENT_THRESHOLD;
     let overlayMarkup = `
       <ellipse cx="${cw * 0.5}" cy="${ch * 0.42}" rx="${cw * 0.33}" ry="${ch * 0.3}"
         fill="none" stroke="rgba(0, 127, 139, 0.85)" stroke-width="2.2" stroke-dasharray="7 5" />
@@ -1941,6 +2023,7 @@ export class DecisionVisionPlayground {
 
     if (
       this.currentPhotoObj.evaluated &&
+      !isNoFaceScene &&
       fi &&
       fi.hasFace &&
       fi.minX !== undefined &&
@@ -1963,30 +2046,8 @@ export class DecisionVisionPlayground {
     svgEl.innerHTML = overlayMarkup;
   }
 
-  private updateQualityBadge(fq?: PhotoFrameQualityReport) {
-    const badge = this.el['dv-quality-badge'];
-    const textEl = this.el['dv-quality-text'];
-    if (!badge || !textEl) return;
-    if (!fq) {
-      badge.style.display = 'none';
-      return;
-    }
-    badge.style.display = 'inline-flex';
-    if (!fq.isSteady) {
-      badge.className = 'dv-quality-badge fail';
-      textEl.textContent = `Camera shake — hold steady (Δ${fq.motionDelta.toFixed(1)})`;
-    } else if (!fq.isSharp) {
-      badge.className = 'dv-quality-badge fail';
-      textEl.textContent = `Blurry — hold steady (Lap ${fq.top10Laplacian.toFixed(1)})`;
-    } else {
-      badge.className = 'dv-quality-badge';
-      textEl.textContent = `Sharp · Steady (Acutance ${fq.acutance.toFixed(2)})`;
-    }
-  }
-
   private renderAllPanels() {
     this.renderActivePhotoView();
-    this.updateQualityBadge(this.currentPhotoObj.frameQuality);
 
     const evalRes = this.evaluatePhotoRules(this.currentPhotoObj);
     const isPending = Boolean(!this.currentPhotoObj.evaluated);
@@ -2251,13 +2312,18 @@ export class DecisionVisionPlayground {
     this.renderAllPanels();
   }
 
-  private async evaluateCustomImageElement(img: HTMLImageElement, titleLabel: string, wasAutoSnapped = false) {
+  private async evaluateCustomImageElement(
+    img: HTMLImageElement,
+    titleLabel: string,
+    wasAutoSnapped = false,
+    idPrefix = 'custom'
+  ) {
     const t0 = performance.now();
     if (this.el['dv-result-meta']) {
       this.el['dv-result-meta'].textContent = 'Evaluating photo…';
     }
     const pendingObj: PhotoPreset = {
-      id: `custom_${Date.now()}`,
+      id: `${idPrefix}_${Date.now()}`,
       title: titleLabel,
       sub: wasAutoSnapped ? 'Auto-Snapped' : 'Evaluating…',
       isCompliant: null,
@@ -2277,14 +2343,12 @@ export class DecisionVisionPlayground {
     this.renderPresetStrip();
     this.renderAllPanels();
 
-    const staticQuality = PhotoFrameQualityEvaluator.evaluateSource(img, null, 0);
     const dmEval = await this.evaluateSourceWithDecisionMaker(img);
     const rawEg2Vision: Record<string, RawRuleVisionScore> = dmEval ? dmEval.rawEg2Vision : {};
     if (dmEval?.inferenceTime !== undefined) {
       this.lastInferenceMs = dmEval.inferenceTime;
     }
 
-    pendingObj.frameQuality = staticQuality;
     pendingObj.rawEg2Vision = rawEg2Vision;
     pendingObj.evaluated = Boolean(dmEval);
     this.updatePhotoComplianceBadge(pendingObj);
@@ -2342,51 +2406,14 @@ export class DecisionVisionPlayground {
     sctx.restore();
   }
 
-  private sampleLiveWebcamMotion() {
-    if (!this.webcamActive) return;
-    const video = this.el['dv-webcam-video'] as HTMLVideoElement | undefined;
-    if (!video || video.readyState < 2) return;
-    const luma32 = PhotoFrameQualityEvaluator.extractLuma32(video);
-    if (!luma32) return;
-    const prev = this.previousLiveMotionLuma32;
-    this.previousLiveMotionLuma32 = luma32;
-    if (!prev) return;
-    const delta = PhotoFrameQualityEvaluator.computeMotionDelta(luma32, prev);
-    if (delta > this.peakInterEvalMotionDelta) {
-      this.peakInterEvalMotionDelta = delta;
-    }
-    if (delta > PhotoFrameQualityEvaluator.MAX_STEADY_MOTION_DELTA) {
-      this.autoSnapStreak = 0;
-      this.bestStreakFrameDataUrl = null;
-      this.bestStreakQualityScore = -Infinity;
-      if (this.currentPhotoObj.frameQuality) {
-        this.currentPhotoObj.frameQuality = {
-          ...this.currentPhotoObj.frameQuality,
-          motionDelta: delta,
-          isSteady: false,
-        };
-        this.updateQualityBadge(this.currentPhotoObj.frameQuality);
-      }
-    }
-  }
-
   private async runLiveWebcamLoop() {
     if (!this.webcamActive) return;
     const video = this.el['dv-webcam-video'] as HTMLVideoElement | undefined;
     if (video && video.readyState >= 2) {
       const t0 = performance.now();
       this.drawMirroredVideoToCanvas(video, this.liveFrameCanvas);
-      const peakMotion = this.peakInterEvalMotionDelta;
-      this.peakInterEvalMotionDelta = 0;
-      const quality = PhotoFrameQualityEvaluator.evaluateSource(
-        this.liveFrameCanvas,
-        this.previousLiveEvalLuma32,
-        peakMotion
-      );
-      if (quality.luma32) {
-        this.previousLiveEvalLuma32 = quality.luma32;
-      }
       const frameDataUrl = this.liveFrameCanvas.toDataURL('image/jpeg', 0.92);
+      this.latestLiveFrameDataUrl = frameDataUrl;
 
       const dmEval = await this.evaluateSourceWithDecisionMaker(
         this.liveFrameCanvas,
@@ -2395,30 +2422,17 @@ export class DecisionVisionPlayground {
       if (!this.webcamActive) return;
 
       if (dmEval) {
-        // Also incorporate any camera shake sampled while DecisionMaker was evaluating
-        if (this.peakInterEvalMotionDelta > PhotoFrameQualityEvaluator.MAX_STEADY_MOTION_DELTA) {
-          quality.motionDelta = Math.max(quality.motionDelta, this.peakInterEvalMotionDelta);
-          quality.isSteady = false;
-        }
         this.lastInferenceMs = dmEval.inferenceTime;
-        this.currentPhotoObj.frameQuality = quality;
         this.currentPhotoObj.rawEg2Vision = dmEval.rawEg2Vision;
         this.currentPhotoObj.evaluated = true;
         this.renderAllPanels();
 
         const evalRes = this.evaluatePhotoRules(this.currentPhotoObj);
         const activeRules = this.getEnabledRules();
-        const allActivePassed =
-          quality.isSharp &&
-          quality.isSteady &&
-          activeRules.length > 0 &&
-          activeRules.every((r) => evalRes[r.id]?.passed);
+        const allActivePassed = activeRules.length > 0 && activeRules.every((r) => evalRes[r.id]?.passed);
 
         if (this.autoSnapOnPass && allActivePassed) {
-          if (this.bestStreakFrameDataUrl === null || quality.qualityRankScore >= this.bestStreakQualityScore) {
-            this.bestStreakFrameDataUrl = frameDataUrl;
-            this.bestStreakQualityScore = quality.qualityRankScore;
-          }
+          this.bestStreakFrameDataUrl = frameDataUrl;
           this.autoSnapStreak++;
           if (this.autoSnapStreak >= this.autoSnapRequiredStreak) {
             await this.captureWebcamPhoto(true);
@@ -2427,7 +2441,6 @@ export class DecisionVisionPlayground {
         } else {
           this.autoSnapStreak = 0;
           this.bestStreakFrameDataUrl = null;
-          this.bestStreakQualityScore = -Infinity;
         }
 
         const elapsed = Math.max(8, Math.round(dmEval.inferenceTime ?? performance.now() - t0));
@@ -2468,16 +2481,12 @@ export class DecisionVisionPlayground {
       await video.play();
       this.webcamActive = true;
       this.autoSnapStreak = 0;
-      this.previousLiveEvalLuma32 = null;
-      this.previousLiveMotionLuma32 = null;
-      this.peakInterEvalMotionDelta = 0;
       this.bestStreakFrameDataUrl = null;
-      this.bestStreakQualityScore = -Infinity;
-      if (this.motionSampleTimer) clearInterval(this.motionSampleTimer);
-      this.motionSampleTimer = setInterval(() => this.sampleLiveWebcamMotion(), 80);
+      this.latestLiveFrameDataUrl = null;
 
       imgEl.style.display = 'none';
       video.style.display = 'block';
+      if (this.el['dv-webcam-btn-icon']) this.el['dv-webcam-btn-icon'].textContent = 'stop_circle';
       if (this.el['dv-webcam-btn-label']) this.el['dv-webcam-btn-label'].textContent = 'Stop Webcam';
       this.el['dv-webcam-btn']?.classList.add('active');
       if (this.el['dv-autosnap-btn']) this.el['dv-autosnap-btn'].style.display = 'inline-flex';
@@ -2512,13 +2521,6 @@ export class DecisionVisionPlayground {
   public stopWebcamBooth() {
     this.webcamActive = false;
     this.autoSnapStreak = 0;
-    this.previousLiveEvalLuma32 = null;
-    this.previousLiveMotionLuma32 = null;
-    this.peakInterEvalMotionDelta = 0;
-    if (this.motionSampleTimer) {
-      clearInterval(this.motionSampleTimer);
-      this.motionSampleTimer = null;
-    }
     if (this.liveLoopTimer) {
       clearTimeout(this.liveLoopTimer);
       this.liveLoopTimer = null;
@@ -2531,6 +2533,7 @@ export class DecisionVisionPlayground {
     const imgEl = this.el['dv-main-img'] as HTMLImageElement | undefined;
     if (video) video.style.display = 'none';
     if (imgEl) imgEl.style.display = 'block';
+    if (this.el['dv-webcam-btn-icon']) this.el['dv-webcam-btn-icon'].textContent = 'videocam';
     if (this.el['dv-webcam-btn-label']) this.el['dv-webcam-btn-label'].textContent = 'Webcam';
     this.el['dv-webcam-btn']?.classList.remove('active');
     if (this.el['dv-autosnap-btn']) this.el['dv-autosnap-btn'].style.display = 'none';
@@ -2543,20 +2546,27 @@ export class DecisionVisionPlayground {
   private async captureWebcamPhoto(wasAutoSnapped = false) {
     if (!this.webcamActive) return;
     const bestStreakUrl = wasAutoSnapped ? this.bestStreakFrameDataUrl : null;
+    const recentLiveUrl = !wasAutoSnapped ? this.latestLiveFrameDataUrl : null;
     const video = this.el['dv-webcam-video'] as HTMLVideoElement;
     this.drawMirroredVideoToCanvas(video, this.liveFrameCanvas);
     this.stopWebcamBooth();
 
     if (wasAutoSnapped) {
-      this.showAutoSnapBanner('Auto-snapped sharpest steady frame — all active requirements passed!');
+      this.showAutoSnapBanner('Auto-snapped — all active requirements passed!');
     }
 
-    const dataUrl = bestStreakUrl || this.liveFrameCanvas.toDataURL('image/jpeg', 0.92);
+    const dataUrl =
+      (wasAutoSnapped ? bestStreakUrl : recentLiveUrl) || this.liveFrameCanvas.toDataURL('image/jpeg', 0.92);
     this.bestStreakFrameDataUrl = null;
-    this.bestStreakQualityScore = -Infinity;
+    this.latestLiveFrameDataUrl = null;
     const img = new Image();
     img.onload = () =>
-      this.evaluateCustomImageElement(img, wasAutoSnapped ? 'Auto-Snapped Photo' : 'Camera Photo', wasAutoSnapped);
+      this.evaluateCustomImageElement(
+        img,
+        wasAutoSnapped ? 'Auto-Snapped Photo' : 'Camera Photo',
+        wasAutoSnapped,
+        wasAutoSnapped ? 'auto_snap' : 'live_snap'
+      );
     img.src = dataUrl;
   }
 }
