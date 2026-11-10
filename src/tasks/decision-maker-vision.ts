@@ -216,8 +216,7 @@ export const PASSPORT_RULES: PassportRule[] = [
     options: [
       {
         label: 'pass_frontal',
-        description:
-          'Portrait or webcam selfie showing the top of the head with hair, forehead, both eyes, chin, and shirt or shoulders.',
+        description: 'Portrait showing the top of the head with hair, the chin, and the shirt or shoulders.',
       },
       {
         label: 'fail_cropped',
@@ -228,11 +227,17 @@ export const PASSPORT_RULES: PassportRule[] = [
         description:
           'Half-face crop cut off at the nose with only the lower face, beard or mouth, chin, and shirt visible and no eyes.',
       },
+      {
+        label: 'fail_bottom_cut',
+        description:
+          'Top of the head, hair, or forehead peeking in at the bottom edge of the frame with the mouth, chin, and shoulders cut off below and empty wall or curtain filling the upper half of the frame.',
+      },
     ],
     optionDisplay: {
       pass_frontal: 'Full head & chin in frame',
       fail_cropped: 'Head/chin clipped at edge',
       fail_top_cut: 'Upper head / eyes cut off at top',
+      fail_bottom_cut: 'Face too low / chin cut off',
     },
     enabled: true,
   },
@@ -244,31 +249,33 @@ export const PASSPORT_RULES: PassportRule[] = [
     title: '2. Eyes Open & Direct',
     statement: 'Eyes open and looking at camera',
     normalizePrior: false,
-    prompt: "Are the person's eyes open and looking straight ahead?",
+    prompt: 'Eye gaze and openness',
     options: [
       {
         label: 'pass_open',
-        description: 'Front-facing portrait of a person with open eyes looking straight ahead at the camera.',
+        description:
+          "Headshot, selfie, or portrait of a person's face with open eyes looking at the camera in indoor or outdoor lighting.",
       },
       {
         label: 'fail_looking_away',
-        description: 'Person with eyes cast downward looking down and away from the camera.',
+        description: 'Person tilting head back staring up at the ceiling or turning head to look far away to the side.',
       },
       {
         label: 'fail_closed',
-        description: 'Woman with both eyes closed shut, sleeping or blinking with eyelids closed.',
+        description: 'Person with both eyes closed shut, sleeping or blinking with eyelids closed.',
       },
       {
         label: 'fail_sunglasses',
-        description: 'Person wearing dark black sunglasses covering the eyes.',
+        description: 'Tinted sunglasses shades with opaque lenses hiding the eyes.',
       },
     ],
     optionDisplay: {
       pass_open: 'Open & looking at camera',
-      fail_looking_away: 'Looking away from camera',
+      fail_looking_away: 'Not looking straight at camera',
       fail_closed: 'Eyes closed / blinking',
       fail_sunglasses: 'Hidden behind dark lenses',
       fail_top_cut: 'Eyes cut off / not in frame',
+      fail_bottom_cut: 'Face too low / not in frame',
     },
     enabled: true,
   },
@@ -294,6 +301,7 @@ export const PASSPORT_RULES: PassportRule[] = [
     optionDisplay: {
       pass_neutral: 'Neutral expression, mouth closed',
       fail_smiling: 'Smiling / teeth visible',
+      fail_bottom_cut: 'Mouth & chin cut off at bottom',
     },
     enabled: true,
   },
@@ -309,7 +317,7 @@ export const PASSPORT_RULES: PassportRule[] = [
     options: [
       {
         label: 'pass_white_bg',
-        description: 'Indoor portrait against a plain wall, simple neutral wall, or solid white studio background.',
+        description: 'Indoor portrait or selfie against a wall, room backdrop, or solid studio background.',
       },
       {
         label: 'fail_outdoor_street',
@@ -335,35 +343,38 @@ export const PASSPORT_RULES: PassportRule[] = [
     title: '5. Straight Frontal Pose & Framing',
     statement: 'Head straight and upright with upper shoulders visible',
     normalizePrior: false,
-    prompt: 'How is the person positioned and framed in the photo?',
+    prompt: 'Is the camera at eye level with the head straight and shoulders visible?',
     options: [
       {
         label: 'pass_shoulders',
-        description: 'Level frontal portrait looking straight ahead with neck and upper chest or shoulders visible.',
+        description:
+          'Upright eye-level frontal portrait or headshot of a person with head straight and shirt collar or shoulders visible.',
       },
       {
         label: 'fail_angled_selfie',
-        description: 'Tilted or high-angle selfie with the head angled and camera held above or to the side.',
+        description: 'Person with head tilted diagonally to one side and raised arm taking a selfie.',
       },
       {
         label: 'fail_chin_up',
-        description: 'Person tilting their head back with chin raised high and looking down at the camera.',
+        description:
+          'Low-angle selfie looking up from below at the chin, jaw, and nostrils with ceiling in the background.',
       },
       {
         label: 'fail_turned_away',
-        description: 'Person with their head turned sideways or looking away from the camera.',
+        description: 'Side-turned head in profile looking away from the camera.',
       },
       {
         label: 'fail_bottom_cutoff',
-        description: 'Tight face crop cut off right under the chin with no neck, collar, or shoulders visible.',
+        description:
+          'Head cropped at the bottom edge at the chin with empty background filling the upper half of the frame.',
       },
     ],
     optionDisplay: {
       pass_shoulders: 'Upright & level head pose',
-      fail_angled_selfie: 'Level the camera (head tilted)',
-      fail_chin_up: 'Lower your chin',
-      fail_turned_away: 'Face straight ahead',
-      fail_bottom_cutoff: 'Show upper shoulders',
+      fail_angled_selfie: 'Head tilted sideways',
+      fail_chin_up: 'Chin raised / head tilted back',
+      fail_turned_away: 'Head turned to side',
+      fail_bottom_cutoff: 'Face too low / chin cut off',
     },
     enabled: true,
   },
@@ -400,19 +411,19 @@ export const PASSPORT_RULES: PassportRule[] = [
     title: '7. No Eyeglasses or Sunglasses',
     statement: 'No eyeglasses or dark sunglasses',
     normalizePrior: false,
-    prompt: 'Are the eyes bare and unobstructed by lenses?',
+    prompt: "Is the person's face natural and bare around the eyes?",
     options: [
       {
         label: 'pass_bare_eyes',
-        description: 'Close-up portrait of a person with bare eyes, eyebrows, and nose.',
+        description: "Headshot, selfie, or portrait of a person's natural face, bare open eyes, eyebrows, and skin.",
       },
       {
         label: 'fail_eyeglasses',
-        description: 'Eyeglass frames and corrective spectacle lenses worn over the eyes.',
+        description: 'Thick plastic or wire eyeglass rims and optical spectacle lenses resting on the nose bridge.',
       },
       {
         label: 'fail_sunglasses',
-        description: 'Dark black sunglasses with opaque tinted lenses worn over the eyes.',
+        description: 'Tinted sunglasses shades and sun-blocking eyewear covering the eyes.',
       },
     ],
     optionDisplay: {
@@ -444,6 +455,7 @@ export const PASSPORT_RULES: PassportRule[] = [
     optionDisplay: {
       pass_chest_up: 'No mask, cap, or hat',
       fail_mask_hat: 'Mask or cap covering face/head',
+      fail_bottom_cut: 'Lower face cut off at bottom',
     },
     enabled: true,
   },
@@ -459,16 +471,22 @@ export const PASSPORT_RULES: PassportRule[] = [
     options: [
       {
         label: 'pass_70_pct',
-        description: "Close-up headshot portrait of a person's face filling the frame.",
+        description: 'Headshot, selfie, or head-and-shoulders portrait of a single person.',
       },
       {
         label: 'fail_too_small',
-        description: 'Distant person standing far away outdoors on a street with trees and buildings.',
+        description: 'Wide street scene with a distant person standing far away among crowds, trees, and buildings.',
+      },
+      {
+        label: 'fail_bottom_peek',
+        description:
+          'Mostly empty indoor wall or curtain with only the top of a head peeking in at the bottom edge of the frame.',
       },
     ],
     optionDisplay: {
       pass_70_pct: 'Good close-up portrait scale',
       fail_too_small: 'Subject too far from camera',
+      fail_bottom_peek: 'Subject not centered in frame',
     },
     enabled: true,
   },
@@ -739,8 +757,10 @@ export const SUBJECT_PRESENT_PASS_LABEL = 'pass_human_face';
 export const SUBJECT_PRESENT_FAIL_EMPTY = 'fail_empty_scene';
 export const SUBJECT_PRESENT_FAIL_OBJECT = 'fail_object_animal';
 export const SUBJECT_PRESENT_FAIL_HAND = 'fail_hand_only';
+export const SUBJECT_PRESENT_FAIL_PARTIAL = 'fail_partial_peek';
 export const SUBJECT_PRESENT_THRESHOLD = 0.4;
 export const DEFAULT_NO_FACE_REASON = 'No face detected in frame';
+export const DEFAULT_BOTTOM_CUTOFF_REASON = 'Face too low / chin cut off';
 
 export class DecisionVisionPlayground {
   private el: Record<string, HTMLElement> = {};
@@ -946,16 +966,18 @@ export class DecisionVisionPlayground {
         {
           id: SUBJECT_PRESENT_KEY,
           type: 'categorical',
-          prompt: "Is a human person's face or head visible in the photo?",
+          prompt: "Is a person's full face clearly visible inside the portrait frame?",
           normalizePrior: false,
           options: [
             {
               label: SUBJECT_PRESENT_PASS_LABEL,
-              description: "Portrait, selfie, headshot, or photo showing a human person's face or head.",
+              description:
+                "Centered portrait, selfie, or headshot clearly showing a person's full face with eyes, nose, mouth, and chin inside the frame.",
             },
             {
               label: SUBJECT_PRESENT_FAIL_EMPTY,
-              description: "Empty room, wall, furniture, desk, ceiling, floor, or background with no person's face.",
+              description:
+                "Empty room, wall, curtain, furniture, desk, ceiling, floor, or background with no person's face.",
             },
             {
               label: SUBJECT_PRESENT_FAIL_OBJECT,
@@ -964,6 +986,11 @@ export class DecisionVisionPlayground {
             {
               label: SUBJECT_PRESENT_FAIL_HAND,
               description: 'Close-up of only a hand, fingers, fist, or thumb with no face visible.',
+            },
+            {
+              label: SUBJECT_PRESENT_FAIL_PARTIAL,
+              description:
+                'Mostly empty wall, curtain, or ceiling with only the top of a head, hair, or forehead peeking in at the bottom edge and the mouth and chin cut off out of frame.',
             },
           ],
         },
@@ -979,6 +1006,133 @@ export class DecisionVisionPlayground {
         })),
       ],
     };
+  }
+
+  /**
+   * Computes a fast spatial framing check on `this.encodeCanvas` to catch
+   * frames where the upper/center head guide zone (`y = 0.18..0.62`) is empty
+   * background/curtain while either no subject is present or only the top of a
+   * head peeks in at the bottom edge (`y = 0.72..0.98`).
+   */
+  public analyzeSpatialFraming(source?: HTMLImageElement | HTMLCanvasElement): {
+    mode: 'normal' | 'empty_scene' | 'bottom_cutoff';
+    upperDy: number;
+    lowerDy: number;
+    upperCd: number;
+    lowerCd: number;
+  } {
+    const W = 90;
+    const H = 115;
+    const c = document.createElement('canvas');
+    c.width = W;
+    c.height = H;
+    const ctx = c.getContext('2d');
+    const target = source ?? this.encodeCanvas;
+    if (!ctx || !target) {
+      return { mode: 'normal', upperDy: 15, lowerDy: 8, upperCd: 110, lowerCd: 150 };
+    }
+    ctx.drawImage(target, 0, 0, W, H);
+    const d = ctx.getImageData(0, 0, W, H).data;
+
+    const x0 = Math.floor(W * 0.22);
+    const x1 = Math.floor(W * 0.78);
+    const colBg: Array<[number, number, number]> = [];
+    const bgY0 = Math.floor(H * 0.04);
+    const bgY1 = Math.floor(H * 0.11);
+    for (let x = 0; x < W; x++) {
+      let r = 0;
+      let g = 0;
+      let b = 0;
+      let n = 0;
+      for (let y = bgY0; y < bgY1; y++) {
+        const i = (y * W + x) * 4;
+        r += d[i];
+        g += d[i + 1];
+        b += d[i + 2];
+        n++;
+      }
+      colBg.push(n > 0 ? [r / n, g / n, b / n] : [200, 200, 200]);
+    }
+
+    const avgBand = (yStart: number, yEnd: number) => {
+      let dySum = 0;
+      let cdSum = 0;
+      let n = 0;
+      const y0 = Math.floor(H * yStart);
+      const y1 = Math.floor(H * yEnd);
+      for (let y = y0; y < y1; y++) {
+        for (let x = x0; x < x1; x++) {
+          const i = (y * W + x) * 4;
+          const iu = (Math.max(0, y - 1) * W + x) * 4;
+          const idn = (Math.min(H - 1, y + 1) * W + x) * 4;
+          const dy =
+            (Math.abs(d[idn] - d[iu]) + Math.abs(d[idn + 1] - d[iu + 1]) + Math.abs(d[idn + 2] - d[iu + 2])) / 3;
+          const [br, bg, bb] = colBg[x];
+          const cd = Math.hypot(d[i] - br, d[i + 1] - bg, d[i + 2] - bb);
+          dySum += dy;
+          cdSum += cd;
+          n++;
+        }
+      }
+      return {
+        dy: n > 0 ? dySum / n : 0,
+        cd: n > 0 ? cdSum / n : 0,
+      };
+    };
+
+    const upper = avgBand(0.18, 0.62);
+    const lower = avgBand(0.72, 0.98);
+
+    if (upper.dy < 4.8 && lower.dy < 4.8 && upper.cd < 85 && lower.cd < 85) {
+      return { mode: 'empty_scene', upperDy: upper.dy, lowerDy: lower.dy, upperCd: upper.cd, lowerCd: lower.cd };
+    }
+    if (upper.dy < 5.5 && lower.dy > 6.0 && lower.dy > upper.dy * 1.8 && lower.cd > upper.cd * 1.25) {
+      return { mode: 'bottom_cutoff', upperDy: upper.dy, lowerDy: lower.dy, upperCd: upper.cd, lowerCd: lower.cd };
+    }
+    return { mode: 'normal', upperDy: upper.dy, lowerDy: lower.dy, upperCd: upper.cd, lowerCd: lower.cd };
+  }
+
+  private applySpatialFramingToRawVision(
+    rawVision: Record<string, RawRuleVisionScore>,
+    spatial: { mode: 'normal' | 'empty_scene' | 'bottom_cutoff' }
+  ): Record<string, RawRuleVisionScore> {
+    if (spatial.mode === 'empty_scene') {
+      const prev = rawVision[SUBJECT_PRESENT_KEY]?.passProb ?? 1.0;
+      rawVision[SUBJECT_PRESENT_KEY] = {
+        passProb: Math.min(prev, 0.12),
+        topLabel: SUBJECT_PRESENT_FAIL_EMPTY,
+        failLabel: SUBJECT_PRESENT_FAIL_EMPTY,
+      };
+    } else if (spatial.mode === 'bottom_cutoff') {
+      const prevSubj = rawVision[SUBJECT_PRESENT_KEY]?.passProb ?? 1.0;
+      rawVision[SUBJECT_PRESENT_KEY] = {
+        passProb: Math.min(prevSubj, 0.18),
+        topLabel: SUBJECT_PRESENT_FAIL_PARTIAL,
+        failLabel: SUBJECT_PRESENT_FAIL_PARTIAL,
+      };
+      if (rawVision['full_face']) {
+        rawVision['full_face'] = {
+          passProb: Math.min(rawVision['full_face'].passProb, 0.18),
+          topLabel: 'fail_bottom_cut',
+          failLabel: 'fail_bottom_cut',
+        };
+      }
+      if (rawVision['shoulders_visible']) {
+        rawVision['shoulders_visible'] = {
+          passProb: Math.min(rawVision['shoulders_visible'].passProb, 0.18),
+          topLabel: 'fail_bottom_cutoff',
+          failLabel: 'fail_bottom_cutoff',
+        };
+      }
+      if (rawVision['occupancy_70_percent']) {
+        rawVision['occupancy_70_percent'] = {
+          passProb: Math.min(rawVision['occupancy_70_percent'].passProb, 0.2),
+          topLabel: 'fail_bottom_peek',
+          failLabel: 'fail_bottom_peek',
+        };
+      }
+    }
+    return rawVision;
   }
 
   private async sourceToImageBytes(source: HTMLImageElement | HTMLCanvasElement): Promise<Uint8Array> {
@@ -1076,10 +1230,12 @@ export class DecisionVisionPlayground {
       try {
         const imageBytes = await this.sourceToImageBytes(source);
         if (imageBytes.byteLength === 0) return null;
+        const spatial = this.analyzeSpatialFraming(this.encodeCanvas);
         const msg = await this.ask!({ imageBytes }, 'schema', this.buildPassportSchema());
         if (msg?.type === 'DECIDE_RESULT' && msg.result) {
+          const parsed = this.parseSchemaResultToRawVision(msg.result, fallback);
           return {
-            rawEg2Vision: this.parseSchemaResultToRawVision(msg.result, fallback),
+            rawEg2Vision: this.applySpatialFramingToRawVision(parsed, spatial),
             inferenceTime: msg.inferenceTime,
           };
         }
@@ -1623,6 +1779,18 @@ export class DecisionVisionPlayground {
     const subjectEntry = photoObj.rawEg2Vision?.[SUBJECT_PRESENT_KEY];
     const subjectPresentProb = subjectEntry !== undefined ? subjectEntry.passProb : 1.0;
     const isNoFaceScene = subjectPresentProb < SUBJECT_PRESENT_THRESHOLD;
+    const rawFullFace = photoObj.rawEg2Vision?.['full_face'];
+    const rawShoulders = photoObj.rawEg2Vision?.['shoulders_visible'];
+    const isBottomCutoffScene =
+      (isNoFaceScene && subjectEntry?.failLabel === SUBJECT_PRESENT_FAIL_PARTIAL) ||
+      Boolean(rawFullFace && rawFullFace.passProb < 0.5 && rawFullFace.failLabel === 'fail_bottom_cut') ||
+      Boolean(rawShoulders && rawShoulders.passProb < 0.5 && rawShoulders.failLabel === 'fail_bottom_cutoff');
+    const bottomCapProb = Math.min(
+      subjectPresentProb,
+      rawFullFace?.passProb ?? 0.25,
+      rawShoulders?.passProb ?? 0.25,
+      0.25
+    );
 
     for (let rIdx = 0; rIdx < this.rules.length; rIdx++) {
       const rule = this.rules[rIdx];
@@ -1691,11 +1859,41 @@ export class DecisionVisionPlayground {
         specificFailLabel = 'fail_top_cut';
       }
 
-      // Subject Presence Guard: prevent false positives when no human face is in frame
+      // Cross-rule bottom cutoff guard: when the head is cut off at the bottom edge with
+      // the mouth, chin, and shoulders below the frame, dependent rules must also fail.
+      if (isBottomCutoffScene) {
+        if (rule.id === 'full_face') {
+          finalPassProb = Math.min(finalPassProb, bottomCapProb);
+          specificFailLabel = 'fail_bottom_cut';
+        } else if (rule.id === 'shoulders_visible') {
+          finalPassProb = Math.min(finalPassProb, bottomCapProb);
+          specificFailLabel = 'fail_bottom_cutoff';
+        } else if (rule.id === 'neutral_expression' || rule.id === 'framing_chest_up') {
+          finalPassProb = Math.min(finalPassProb, bottomCapProb);
+          specificFailLabel = 'fail_bottom_cut';
+        } else if (rule.id === 'occupancy_70_percent') {
+          finalPassProb = Math.min(finalPassProb, bottomCapProb);
+          specificFailLabel = 'fail_bottom_peek';
+        }
+      }
+
+      // Subject Presence Guard: prevent false positives when no human face (or only a partial bottom peek) is in frame
       if (isNoFaceScene) {
         finalPassProb = Math.min(finalPassProb, subjectPresentProb);
-        specificFailLabel = 'fail_no_face';
-        overrideReason = DEFAULT_NO_FACE_REASON;
+        if (subjectEntry?.failLabel === SUBJECT_PRESENT_FAIL_PARTIAL) {
+          specificFailLabel =
+            rule.optionDisplay[specificFailLabel] && specificFailLabel.startsWith('fail_bottom')
+              ? specificFailLabel
+              : 'fail_bottom_cut';
+          overrideReason =
+            rule.optionDisplay[specificFailLabel] ||
+            rule.optionDisplay['fail_bottom_cutoff'] ||
+            rule.optionDisplay['fail_bottom_peek'] ||
+            DEFAULT_BOTTOM_CUTOFF_REASON;
+        } else {
+          specificFailLabel = 'fail_no_face';
+          overrideReason = DEFAULT_NO_FACE_REASON;
+        }
       }
 
       const passed = !isNoFaceScene && finalPassProb >= 0.5;

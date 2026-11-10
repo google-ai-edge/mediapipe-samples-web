@@ -165,13 +165,15 @@ test.describe('Decision Maker Task', () => {
     await page.locator('#dv-save-rule-btn').click();
     await expect(page.locator('#dv-rules-list .dv-rule-card')).toHaveCount(10);
 
-    // Open and verify JSON schema & output inspector (including subject_present no-face guard)
+    // Open and verify JSON schema & output inspector (including subject_present no-face & bottom-peek guards)
     await page.locator('#dv-json-btn').click();
     await expect(page.locator('#dv-json-panel')).toBeVisible();
     await expect(page.locator('#dv-json-pre')).toContainText('"requestSchema"');
     await expect(page.locator('#dv-json-pre')).toContainText('"subject_present"');
     await expect(page.locator('#dv-json-pre')).toContainText('"fail_empty_scene"');
     await expect(page.locator('#dv-json-pre')).toContainText('"fail_hand_only"');
+    await expect(page.locator('#dv-json-pre')).toContainText('"fail_partial_peek"');
+    await expect(page.locator('#dv-json-pre')).toContainText('"fail_bottom_cut"');
 
     // Verify Save Photo button is visible on the photo stage and provides feedback
     const savePhotoBtn = page.locator('#dv-save-photo-btn');
