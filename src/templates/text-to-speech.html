@@ -60,9 +60,10 @@
       <div class="tts-card">
         <div class="preset-bar" id="tts-samples">
           <span class="preset-bar-label">Samples</span>
-          <button class="sample-chip" data-sample="welcome">Welcome</button>
+          <button class="sample-chip active" data-sample="welcome">Welcome</button>
           <button class="sample-chip" data-sample="story">Story</button>
           <button class="sample-chip" data-sample="numbers">Numbers &amp; Dates</button>
+          <button class="sample-chip" data-sample="article">Multi-Line Article</button>
           <button class="sample-chip" data-sample="voice-language">In voice language</button>
         </div>
 
@@ -120,6 +121,24 @@
           <div class="tts-metric">
             <span class="tts-metric-label">Real-time factor</span>
             <span id="tts-metric-rtf" class="tts-metric-value">-</span>
+          </div>
+        </div>
+
+        <div class="tts-reader-bar">
+          <div class="tts-reader-hint">
+            <span class="material-icons" style="font-size: 16px">touch_app</span>
+            <span>Click any sentence below to stream from that line</span>
+          </div>
+          <div class="tts-reader-controls">
+            <span id="tts-sentence-badge" class="tts-sentence-badge"></span>
+            <button id="tts-prev-sent-btn" type="button" class="tts-nav-btn" title="Previous sentence" disabled>
+              <span class="material-icons" style="font-size: 16px">skip_previous</span>
+              <span>Prev</span>
+            </button>
+            <button id="tts-next-sent-btn" type="button" class="tts-nav-btn" title="Next sentence" disabled>
+              <span>Next</span>
+              <span class="material-icons" style="font-size: 16px">skip_next</span>
+            </button>
           </div>
         </div>
 
@@ -193,17 +212,84 @@
       margin-top: 2px;
     }
 
-    .tts-transcript {
-      margin-top: 12px;
-      padding: 12px 14px;
-      min-height: 48px;
+    .tts-reader-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 14px;
+      padding: 6px 10px;
+      background: #f8fafc;
       border: 1px solid var(--border-color);
-      border-radius: var(--radius-sm);
+      border-bottom: none;
+      border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+    }
+
+    .tts-reader-hint {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.78rem;
+      color: var(--text-secondary);
+    }
+
+    .tts-reader-controls {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .tts-sentence-badge {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--primary, #00796b);
+      padding: 2px 8px;
+      background: rgba(0, 151, 167, 0.1);
+      border-radius: 999px;
+    }
+
+    .tts-sentence-badge:empty {
+      display: none;
+    }
+
+    .tts-nav-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 2px;
+      padding: 3px 8px;
+      font-size: 0.76rem;
+      font-weight: 500;
+      color: var(--text-main);
+      background: #ffffff;
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      cursor: pointer;
+      transition:
+        background-color 0.12s ease,
+        border-color 0.12s ease;
+    }
+
+    .tts-nav-btn:hover:not(:disabled) {
+      background: #f1f5f9;
+      border-color: var(--primary, #00796b);
+    }
+
+    .tts-nav-btn:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    .tts-transcript {
+      margin-top: 0;
+      padding: 14px 16px;
+      min-height: 64px;
+      border: 1px solid var(--border-color);
+      border-radius: 0 0 var(--radius-sm) var(--radius-sm);
       background: #ffffff;
       font-size: 1rem;
-      line-height: 1.7;
+      line-height: 1.75;
       color: var(--text-secondary);
-      white-space: pre-wrap;
     }
 
     .tts-transcript:empty::before {
@@ -212,9 +298,46 @@
       font-style: italic;
     }
 
+    .tts-paragraph {
+      margin: 0 0 10px 0;
+    }
+
+    .tts-paragraph:last-child {
+      margin-bottom: 0;
+    }
+
+    .tts-sentence {
+      border-radius: 4px;
+      padding: 2px 3px;
+      margin: 0 -2px;
+      cursor: pointer;
+      transition:
+        background-color 0.12s ease,
+        color 0.12s ease;
+    }
+
+    .tts-sentence:hover {
+      background: rgba(0, 151, 167, 0.08);
+      color: var(--text-main);
+    }
+
+    .tts-sentence.active {
+      background: rgba(0, 151, 167, 0.11);
+      color: var(--text-main);
+    }
+
+    .tts-sentence.synthesizing {
+      background: rgba(245, 158, 11, 0.14);
+      color: var(--text-main);
+    }
+
+    .tts-sentence.spoken {
+      color: var(--text-main);
+    }
+
     .tts-transcript .tts-word {
       border-radius: 4px;
-      padding: 0 1px;
+      padding: 1px 2px;
       transition: background-color 0.08s ease;
     }
 
@@ -223,9 +346,9 @@
     }
 
     .tts-transcript .tts-word.active {
-      background: var(--primary-soft, #e0f2f1);
-      color: var(--primary);
-      font-weight: 500;
+      background: var(--primary-soft, #b2dfdb);
+      color: #004d40;
+      font-weight: 600;
     }
 
     .control-hint {

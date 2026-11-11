@@ -74,7 +74,7 @@ test.describe('Text to Speech Task', () => {
 
     // 5. Text Input & Sample Presets
     const sampleButtons = page.locator('#tts-samples .sample-chip');
-    await expect(sampleButtons).toHaveCount(4);
+    await expect(sampleButtons).toHaveCount(5);
 
     const textInput = page.locator('#tts-text-input');
     await expect(textInput).toBeVisible();
@@ -97,7 +97,7 @@ test.describe('Text to Speech Task', () => {
     await expect(downloadBtn).toBeVisible();
     await expect(downloadBtn).toBeDisabled();
 
-    // 7. Output Panel (Waveform, Metrics, Transcript)
+    // 7. Output Panel (Waveform, Metrics, Interactive Sentence Transcript)
     await expect(page.locator('#tts-waveform')).toBeVisible();
     await expect(page.locator('#tts-metric-first')).toHaveText('-');
     await expect(page.locator('#tts-metric-total')).toHaveText('-');
@@ -106,7 +106,11 @@ test.describe('Text to Speech Task', () => {
 
     const transcript = page.locator('#tts-transcript');
     await expect(transcript).toBeVisible();
-    await expect(transcript).toBeEmpty();
+    await expect(transcript.locator('.tts-paragraph')).toHaveCount(3);
+    await expect(transcript.locator('.tts-sentence')).toHaveCount(4);
+    await expect(page.locator('#tts-sentence-badge')).toHaveText('4 sentences');
+    await expect(page.locator('#tts-prev-sent-btn')).toBeDisabled();
+    await expect(page.locator('#tts-next-sent-btn')).toBeEnabled();
   });
 
   test('should handle model selector tabs between standard and upload', async ({ page }) => {
@@ -126,17 +130,29 @@ test.describe('Text to Speech Task', () => {
     await expect(page.locator(`#${containerId}-standard-select`)).toBeVisible();
   });
 
-  test('should update text input when sample chips are clicked', async ({ page }) => {
+  test('should update text input and interactive sentence reader when sample chips are clicked', async ({ page }) => {
     const textInput = page.locator('#tts-text-input');
+    const transcript = page.locator('#tts-transcript');
 
     await page.click('#tts-samples button[data-sample="story"]');
     await expect(textInput).toHaveValue(/The lighthouse keeper climbed the spiral stairs/);
+    await expect(transcript.locator('.tts-paragraph')).toHaveCount(3);
+    await expect(transcript.locator('.tts-sentence')).toHaveCount(5);
 
     await page.click('#tts-samples button[data-sample="numbers"]');
     await expect(textInput).toHaveValue(/Your flight to Zurich departs on March 3rd/);
+    // "Dr." and "1.5" and "$249.99" must not split sentences prematurely
+    await expect(transcript.locator('.tts-paragraph')).toHaveCount(3);
+    await expect(transcript.locator('.tts-sentence')).toHaveCount(4);
+
+    await page.click('#tts-samples button[data-sample="article"]');
+    await expect(textInput).toHaveValue(/On-device speech synthesis brings natural/);
+    await expect(transcript.locator('.tts-paragraph')).toHaveCount(3);
+    await expect(transcript.locator('.tts-sentence')).toHaveCount(3);
 
     await page.click('#tts-samples button[data-sample="welcome"]');
     await expect(textInput).toHaveValue(/Welcome to MediaPipe Text to Speech/);
+    await expect(transcript.locator('.tts-sentence')).toHaveCount(4);
   });
 
   test('should support speaking rate adjustment and delegate switching', async ({ page }) => {
