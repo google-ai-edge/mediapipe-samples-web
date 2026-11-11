@@ -26,16 +26,24 @@ jobs:
   validate:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    env:
-      STAGED_NPM_DIR: ${{ runner.temp }}/staged-npm-${{ github.run_id }}-${{ github.run_attempt }}
-      VALIDATION_LOGS_DIR: ${{ runner.temp }}/logs-${{ github.run_id }}-${{ github.run_attempt }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Prepare validation log directory
-        run: mkdir -p "${VALIDATION_LOGS_DIR}/smoke-failures"
+      - name: Prepare validation directories
+        env:
+          BASE_TEMP: ${{ runner.temp }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          STAGED_NPM_DIR="${BASE_TEMP}/staged-npm-${RUN_ID}-${RUN_ATTEMPT}"
+          VALIDATION_LOGS_DIR="${BASE_TEMP}/logs-${RUN_ID}-${RUN_ATTEMPT}"
+          {
+            echo "STAGED_NPM_DIR=${STAGED_NPM_DIR}"
+            echo "VALIDATION_LOGS_DIR=${VALIDATION_LOGS_DIR}"
+          } >> "${GITHUB_ENV}"
+          mkdir -p "${VALIDATION_LOGS_DIR}/smoke-failures"
 
       - name: Validate GCS path input
         if: github.event_name != 'pull_request'
@@ -177,4 +185,7 @@ jobs:
 
       - name: Clean up staged tarball temp directory
         if: always()
-        run: rm -rf "${STAGED_NPM_DIR}"
+        run: |
+          if [[ -n "${STAGED_NPM_DIR:-}" ]]; then
+            rm -rf "${STAGED_NPM_DIR}"
+          fi
