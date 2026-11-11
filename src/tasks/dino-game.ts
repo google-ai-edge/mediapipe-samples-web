@@ -108,10 +108,10 @@ export type DinoPlayMode = 'tap_obstacles' | 'side_by_side';
 
 /**
  * Lead ticks before the jump apex when an obstacle enters the near action zone.
- * Gives the background Web Worker ~18 ticks (~300 ms) of lookahead before the
- * takeoff point in both Scene Image and Text State modes.
+ * Gives the background Web Worker ~22 ticks (~366 ms) of lookahead before the
+ * takeoff point in Scene Image mode (~16 ticks in Text State mode).
  */
-const DECISION_BUDGET_TICKS_IMAGE = 18;
+const DECISION_BUDGET_TICKS_IMAGE = 22;
 const DECISION_BUDGET_TICKS_TEXT = 16;
 
 function budgetTicksForMode(mode: InputMode): number {
@@ -398,7 +398,7 @@ function controls(
   const birdOverhead = world.obstacles.some(
     (o) => !o.passed && o.kind.flying && o.x <= DINO_X + DUCK_W + 6 && o.x + o.kind.width > DINO_X + 2
   );
-  if (birdOverhead && world.dinoY === 0) {
+  if (birdOverhead && world.dinoY === 0 && world.ducking) {
     return { jump: false, duck: true, sprint: false, gravityScale: 1 };
   }
 
@@ -423,9 +423,9 @@ function controls(
   const duckDist = obs.speed * DUCK_LEAD_TICKS;
 
   const modelReadyForTarget = decision.target === obs.target.id && !decision.thinking;
-  const effectiveAction: Action = modelReadyForTarget ? decision.action : obs.target.kind.flying ? 'DUCK' : 'JUMP';
+  const effectiveAction: Action = modelReadyForTarget ? decision.action : 'WAIT';
 
-  if (effectiveAction === 'JUMP' || !obs.target.kind.flying) {
+  if (effectiveAction === 'JUMP') {
     const isWideCluster = obs.target.kind.width >= 56;
     const shouldJump = dist <= takeoffDist;
     const prepSprint = isWideCluster && dist <= takeoffDist + 36;
@@ -436,8 +436,11 @@ function controls(
       gravityScale: isWideCluster ? SPRINT_AIR_GRAVITY : 1,
     };
   }
-  if (effectiveAction === 'DUCK' || obs.target.kind.flying) {
+  if (effectiveAction === 'DUCK') {
     return { jump: false, duck: dist <= duckDist, sprint: false, gravityScale: 1 };
+  }
+  if (effectiveAction === 'SPRINT') {
+    return { jump: false, duck: false, sprint: true, gravityScale: 1 };
   }
   return { jump: false, duck: false, sprint: false, gravityScale: 1 };
 }
@@ -532,8 +535,8 @@ function normalizedSceneX(worldX: number, speed: number): number {
  * a follow-up obstacle before the dino's feet touch the ground.
  */
 function isObstacleClearedForDecision(o: Obstacle, world: World): boolean {
-  if (o.passed || o.x + o.kind.width <= DINO_X + 2) return true;
-  if (!o.kind.flying && world.dinoY > 0 && world.dinoVy <= 0 && o.x + o.kind.width <= DINO_X + DINO_W) {
+  if (o.passed || o.aiHit || o.x + o.kind.width <= DINO_X + 8) return true;
+  if (!o.kind.flying && world.dinoY > 0 && world.dinoVy <= 1.2 && o.x + o.kind.width <= DINO_X + DINO_W + 10) {
     return true;
   }
   return false;
@@ -1202,10 +1205,19 @@ function renderFullSceneCanvas(
 }
 
 function getWorldSceneObstacles(w: World): Array<{ kind: ObstacleKind; x: number }> {
-  return w.obstacles
-    .filter((o) => !isObstacleClearedForDecision(o, w))
-    .map((o) => ({ kind: o.kind, x: normalizedSceneX(o.x, w.speed) }))
-    .filter((o) => o.x + o.kind.width > 0 && o.x < SCENE_HORIZON_VISIBLE_X);
+  const unpassed = w.obstacles.filter(
+    (o) => !isObstacleClearedForDecision(o, w) && normalizedSceneX(o.x, w.speed) < SCENE_HORIZON_VISIBLE_X
+  );
+  if (unpassed.length === 0) return [];
+  const first = unpassed[0];
+  const zoneX = DINO_X + DINO_W;
+  const dist = first.x - zoneX;
+  const look = lookDistance(w.speed, 'image');
+  if (dist <= look) {
+    const sceneX = dist >= 32 ? SCENE_PROTO_NEAR_X : normalizedSceneX(first.x, w.speed);
+    return [{ kind: first.kind, x: sceneX }];
+  }
+  return [{ kind: first.kind, x: normalizedSceneX(first.x, w.speed) }];
 }
 
 function renderFullSceneFromWorld(canvas: HTMLCanvasElement, w: World) {
@@ -1370,7 +1382,9 @@ class DinoGameTask {
     } else if (decisionRuntime.loading) {
       this.setStatus(`Loading ${decisionRuntime.loadingLabel}...`);
     } else {
-      this.setStatus('Load a vision model to begin');
+      decisionRuntime.select('embeddinggemma2_text_vision_440m');
+      this.modelPanelHandle?.setModality('vision');
+      void decisionRuntime.load();
     }
   }
 
@@ -1718,7 +1732,7 @@ class DinoGameTask {
     if (obs.sceneKey.startsWith('far:')) {
       if (!obs.onGround || !obs.farTarget || obs.farDistance === null) return false;
       const look = lookDistance(obs.speed, this.inputMode);
-      if (obs.farDistance < look + 90) return false;
+      if (obs.farDistance < look + 120) return false;
       if (this.inputMode === 'image') {
         const normX = normalizedSceneX(obs.farTarget.x, obs.speed);
         return normX >= SCENE_PROTO_FAR_X - 8 && normX <= SCENE_PROTO_FAR_X + 8;
@@ -2204,7 +2218,7 @@ class DinoGameTask {
         let label = '';
         if (this.inputMode === 'image') {
           if (isNearTarget && !this.plan.thinking) {
-            label = isCluster ? 'cluster → SPRINT + JUMP' : `near → ${this.plan.action}`;
+            label = isCluster && this.plan.action === 'JUMP' ? 'cluster → SPRINT + JUMP' : `near → ${this.plan.action}`;
           } else if (isFarTarget && !this.plan.thinking) {
             label = `far → ${this.plan.action}`;
           } else if (isCluster) {
