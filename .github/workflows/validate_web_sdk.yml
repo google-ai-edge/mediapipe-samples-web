@@ -1,0 +1,180 @@
+name: Validate Web SDK
+
+on:
+  workflow_dispatch:
+    inputs:
+      gcs_path:
+        description: >-
+          GCS directory URI containing staged .tgz npm release tarballs
+          (e.g. gs://mediapipe-assets/sdk_validation_staging/web/<candidate_name>)
+        required: true
+        type: string
+  pull_request:
+    branches: ["main"]
+
+permissions:
+  contents: read
+  id-token: write
+
+# Isolate concurrent manual dispatches by run_id (never cancel another candidate run),
+# while deduplicating superseded commits on the same pull request.
+concurrency:
+  group: "${{ github.workflow }}-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || format('dispatch-{0}', github.run_id) }}"
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      STAGED_NPM_DIR: ${{ runner.temp }}/staged-npm-${{ github.run_id }}-${{ github.run_attempt }}
+      VALIDATION_LOGS_DIR: ${{ runner.temp }}/logs-${{ github.run_id }}-${{ github.run_attempt }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Prepare validation log directory
+        run: mkdir -p "${VALIDATION_LOGS_DIR}/smoke-failures"
+
+      - name: Validate GCS path input
+        if: github.event_name != 'pull_request'
+        env:
+          GCS_PATH: ${{ inputs.gcs_path }}
+        run: |
+          set -euo pipefail
+          node .github/scripts/validate_web_sdk.mjs validate-gcs-path 2>&1 | tee "${VALIDATION_LOGS_DIR}/validate-gcs-path.log"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Run validation script self-tests
+        run: |
+          set -euo pipefail
+          node .github/scripts/validate_web_sdk.mjs self-test 2>&1 | tee "${VALIDATION_LOGS_DIR}/self-test.log"
+
+      # Use Workload Identity Federation or a service account key if configured in the
+      # repository; otherwise fall back to public-read HTTPS for gs://mediapipe-assets/.
+      - name: Check optional GCP authentication configuration
+        id: gcp-auth-check
+        if: github.event_name != 'pull_request'
+        env:
+          WIF_PROVIDER: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER || secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          GCP_CREDS: ${{ secrets.GCP_CREDENTIALS || secrets.GCP_SA_KEY }}
+        run: |
+          if [[ -n "${WIF_PROVIDER}" ]]; then
+            echo "auth_mode=wif" >> "${GITHUB_OUTPUT}"
+          elif [[ -n "${GCP_CREDS}" ]]; then
+            echo "auth_mode=credentials_json" >> "${GITHUB_OUTPUT}"
+          else
+            echo "auth_mode=public" >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: Authenticate to Google Cloud (Workload Identity Federation)
+        id: auth-wif
+        if: github.event_name != 'pull_request' && steps.gcp-auth-check.outputs.auth_mode == 'wif'
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER || secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT || secrets.GCP_SERVICE_ACCOUNT }}
+          token_format: access_token
+
+      - name: Authenticate to Google Cloud (Service Account Key)
+        id: auth-sa
+        if: github.event_name != 'pull_request' && steps.gcp-auth-check.outputs.auth_mode == 'credentials_json'
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_CREDENTIALS || secrets.GCP_SA_KEY }}
+          token_format: access_token
+
+      - name: Download and inspect staged NPM tarballs from GCS
+        if: github.event_name != 'pull_request'
+        env:
+          GCS_PATH: ${{ inputs.gcs_path }}
+          GCP_ACCESS_TOKEN: ${{ steps.auth-wif.outputs.access_token || steps.auth-sa.outputs.access_token }}
+        run: |
+          set -euo pipefail
+          node .github/scripts/validate_web_sdk.mjs download-tarballs \
+            --out-dir "${STAGED_NPM_DIR}" 2>&1 | tee "${VALIDATION_LOGS_DIR}/download-tarballs.log"
+
+      - name: Install project dependencies
+        run: |
+          set -euo pipefail
+          pnpm install --frozen-lockfile 2>&1 | tee "${VALIDATION_LOGS_DIR}/install-locked.log"
+
+      - name: Override @mediapipe/tasks-* packages with staged tarballs
+        if: github.event_name != 'pull_request'
+        run: |
+          set -euo pipefail
+          {
+            node .github/scripts/validate_web_sdk.mjs apply-overrides --staged-dir "${STAGED_NPM_DIR}"
+            git diff -- package.json
+            pnpm install --no-frozen-lockfile
+            pnpm prune
+          } 2>&1 | tee "${VALIDATION_LOGS_DIR}/install-staged.log"
+
+      - name: Verify installed @mediapipe/tasks-* versions
+        if: github.event_name != 'pull_request'
+        run: |
+          set -euo pipefail
+          {
+            pnpm list "@mediapipe/*" --depth=Infinity
+            node .github/scripts/validate_web_sdk.mjs verify-installed --staged-dir "${STAGED_NPM_DIR}"
+          } 2>&1 | tee "${VALIDATION_LOGS_DIR}/verify-installed.log"
+
+      - name: Prepare and verify WASM static assets
+        run: |
+          set -euo pipefail
+          {
+            rm -rf public/wasm dist
+            node copy-wasm.js
+            node .github/scripts/validate_web_sdk.mjs verify-wasm
+          } 2>&1 | tee "${VALIDATION_LOGS_DIR}/wasm-assets.log"
+
+      - name: Build sample web app
+        run: |
+          set -euo pipefail
+          {
+            pnpm run build
+            node .github/scripts/validate_web_sdk.mjs verify-wasm --check-dist
+          } 2>&1 | tee "${VALIDATION_LOGS_DIR}/build.log"
+
+      - name: Install Playwright Browsers
+        run: |
+          set -euo pipefail
+          pnpm exec playwright install chromium --with-deps 2>&1 | tee "${VALIDATION_LOGS_DIR}/playwright-install.log"
+
+      - name: Run Playwright E2E tests
+        timeout-minutes: 20
+        run: |
+          set -euo pipefail
+          pnpm run test 2>&1 | tee "${VALIDATION_LOGS_DIR}/playwright-test.log"
+
+      - name: Run production dist/ headless smoke test
+        timeout-minutes: 5
+        run: |
+          set -euo pipefail
+          node .github/scripts/smoke_dist.mjs \
+            --failure-dir "${VALIDATION_LOGS_DIR}/smoke-failures" 2>&1 | tee "${VALIDATION_LOGS_DIR}/smoke-dist.log"
+
+      - name: Upload validation logs and failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: validate-web-sdk-failure-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/logs-${{ github.run_id }}-${{ github.run_attempt }}
+            playwright-report
+            test-results
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Clean up staged tarball temp directory
+        if: always()
+        run: rm -rf "${STAGED_NPM_DIR}"
