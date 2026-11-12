@@ -496,10 +496,10 @@ async function selectDelegateAndLoadModel(page, targetDelegate, selectValue, tim
     const currentDelegate = await delegateSelect.inputValue();
     // The page tries GPU by default. Where its own load already fell back to
     // CPU (the warning is shown and the select went back to CPU), GPU is not
-    // asked for again: the outcome is known, and on a browser without WebGPU
-    // the Audio Transcriber and Text to Speech pages never finish the load
-    // that follows a second failed GPU attempt. The case is then reported as a
-    // CPU fallback, like any other GPU request that ended on CPU.
+    // asked for again: the outcome is known, and the Audio Transcriber and
+    // Text to Speech pages never finish the load that follows a second failed
+    // GPU attempt (issue #99). The case is then reported as a CPU fallback,
+    // like any other GPU request that ended on CPU.
     const alreadyFellBack =
       targetDelegate === 'GPU' && currentDelegate === 'CPU' && Boolean(await readText(page, '#fallback-warning'));
     if (currentDelegate !== targetDelegate && !alreadyFellBack) {
