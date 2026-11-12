@@ -415,45 +415,96 @@ async function drawGesture(page, box, gesture) {
   }
 }
 
-async function waitForViewportIdle(page, timeoutMs) {
+const LOADING_STATUS = /^(Downloading|Initializing|Loading|Setting image)\b/i;
+
+/** What the page and its model selector report about loading, for `selectValue` (or the selected model). */
+async function readLoadState(page, selectValue = null) {
+  return page
+    .evaluate((value) => {
+      const shown = (el) => Boolean(el && !el.hidden && el.getClientRects().length > 0);
+      const select = document.getElementById('model-selector-container-standard-select');
+      const option = select ? Array.from(select.options).find((o) => o.value === (value ?? select.value)) : null;
+      const loadBtn = document.getElementById('model-selector-container-standard-load-btn');
+      const hint = document.querySelector('#model-selector-container .standard-status');
+      return {
+        overlay: document.querySelector('.viewport')?.classList.contains('loading-model') ?? false,
+        status: (document.getElementById('status-message')?.textContent || '').replace(/\s+/g, ' ').trim(),
+        optionState: option?.dataset.state || '',
+        loadButtonShown: shown(loadBtn),
+        loadButtonEnabled: shown(loadBtn) && !loadBtn.disabled,
+        cacheHint: (hint?.textContent || '').trim(),
+      };
+    }, selectValue)
+    .catch(() => null);
+}
+
+/**
+ * True while a model load is running: the overlay is up, the status line says
+ * so, or the load button is locked (it shows the load phase while disabled).
+ */
+function isLoadInFlight(state) {
+  return state.overlay || LOADING_STATUS.test(state.status) || (state.loadButtonShown && !state.loadButtonEnabled);
+}
+
+async function waitForNoLoadInFlight(page, timeoutMs) {
   await waitForCondition(
     async () => {
       const errMsg = await readStatusError(page);
       if (errMsg) throw new Error(errMsg);
-      const isLoading = await page
-        .evaluate(() => document.querySelector('.viewport')?.classList.contains('loading-model') ?? false)
-        .catch(() => false);
-      const statusTxt = await readText(page, '#status-message');
-      if (!isLoading && !/^(Downloading|Initializing|Loading|Setting image)\b/i.test(statusTxt)) {
-        return true;
-      }
-      return false;
+      const state = await readLoadState(page);
+      return Boolean(state && !isLoadInFlight(state));
     },
-    { timeoutMs, description: 'viewport idle and model settled' }
+    { timeoutMs, description: 'the running model load to finish' }
   );
+}
+
+/**
+ * Waits until the model selector has decided what to do with the model that is
+ * selected when the page opens. Small models load right away. Large ones wait
+ * for the load button, except that the selector first looks the model up in
+ * the browser cache (asynchronously) and loads it by itself when it is there.
+ * Until that lookup is done the page looks idle although a load may be about
+ * to start. Does not fail: a page that shows none of these signs is used as is.
+ */
+async function waitForModelSelectorSettled(page, timeoutMs) {
+  await waitForCondition(
+    async () => {
+      const state = await readLoadState(page);
+      if (!state) return false;
+      return isLoadInFlight(state) || state.optionState === 'loaded' || !state.loadButtonShown || state.cacheHint !== '';
+    },
+    { timeoutMs, description: 'the model selector to finish its cache lookup' }
+  ).catch(() => {});
 }
 
 async function selectDelegateAndLoadModel(page, targetDelegate, selectValue, timeoutMs) {
   const select = page.locator('#model-selector-container-standard-select');
   await select.waitFor({ state: 'visible', timeout: 20000 });
-
   const loadBtn = page.locator('#model-selector-container-standard-load-btn');
-  const waitingForManualLoad = await loadBtn.isVisible().catch(() => false);
 
-  // If the page auto-loads its default model on open, wait for that initial load
-  // to finish first so BaseTask.initQueue never races two INITs for the same model.
-  if (!waitingForManualLoad) {
-    await waitForViewportIdle(page, timeoutMs);
-  }
+  // Only one load may be in flight at a time. Changing the delegate (or the
+  // model) while the page is still loading queues a second INIT behind the
+  // first; the page reports ready after the first one and a request sent then
+  // is lost while the worker is busy with the second. So the load the page
+  // starts by itself is awaited before anything is changed, and every change
+  // is followed by a wait for the load it triggers.
+  await waitForModelSelectorSettled(page, Math.min(timeoutMs, 30000));
+  await waitForNoLoadInFlight(page, timeoutMs);
 
   const delegateSelect = page.locator('#delegate-select');
   if ((await delegateSelect.count()) > 0 && (await delegateSelect.isEnabled().catch(() => false))) {
     const currentDelegate = await delegateSelect.inputValue();
-    if (currentDelegate !== targetDelegate) {
+    // The page tries GPU by default. Where its own load already fell back to
+    // CPU (the warning is shown and the select went back to CPU), GPU is not
+    // asked for again: the outcome is known, and on a browser without WebGPU
+    // the Audio Transcriber and Text to Speech pages never finish the load
+    // that follows a second failed GPU attempt. The case is then reported as a
+    // CPU fallback, like any other GPU request that ended on CPU.
+    const alreadyFellBack =
+      targetDelegate === 'GPU' && currentDelegate === 'CPU' && Boolean(await readText(page, '#fallback-warning'));
+    if (currentDelegate !== targetDelegate && !alreadyFellBack) {
       await delegateSelect.selectOption(targetDelegate);
-      if (!(await loadBtn.isVisible().catch(() => false))) {
-        await waitForViewportIdle(page, timeoutMs);
-      }
+      await waitForNoLoadInFlight(page, timeoutMs);
     }
   }
 
@@ -462,32 +513,19 @@ async function selectDelegateAndLoadModel(page, targetDelegate, selectValue, tim
     await select.selectOption(selectValue);
   }
 
-  if (await loadBtn.isVisible().catch(() => false)) {
-    const enabled = await loadBtn.isEnabled().catch(() => false);
-    if (enabled) {
-      await loadBtn.click();
-    }
-  }
-
-  // Wait until the chosen option reports loaded OR an error status appears.
+  // Wait until the chosen option reports loaded OR an error status appears. A
+  // large model that is not loaded yet waits for the load button; the page may
+  // also start loading by itself (cached model), which locks the button, so the
+  // click is only attempted while the button is enabled and is allowed to fail.
   await waitForCondition(
     async () => {
       const errMsg = await readStatusError(page);
       if (errMsg) throw new Error(errMsg);
 
-      const state = await select
-        .evaluate((el, val) => {
-          const opt = Array.from(el.options).find((o) => o.value === val);
-          return opt ? opt.dataset.state || '' : '';
-        }, selectValue)
-        .catch(() => '');
-      const statusTxt = await readText(page, '#status-message');
-      const isLoading = await page
-        .evaluate(() => document.querySelector('.viewport')?.classList.contains('loading-model') ?? false)
-        .catch(() => false);
-      if (state === 'loaded' && !isLoading && !/^(Downloading|Initializing|Loading|Setting image)\b/i.test(statusTxt)) {
-        return true;
-      }
+      const state = await readLoadState(page, selectValue);
+      if (!state || isLoadInFlight(state)) return false;
+      if (state.optionState === 'loaded') return true;
+      if (state.loadButtonEnabled) await loadBtn.click({ timeout: 2000 }).catch(() => {});
       return false;
     },
     { timeoutMs, description: `model ${selectValue} (${targetDelegate}) to finish loading` }
