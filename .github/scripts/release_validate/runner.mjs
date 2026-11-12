@@ -21,7 +21,7 @@ import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import { chromium } from '@playwright/test';
-import { TASK_DEFINITIONS, buildValidationMatrix } from './cases.mjs';
+import { TASK_DEFINITIONS, buildValidationMatrix, unknownTaskFilters } from './cases.mjs';
 import {
   DECISION_TICKETS,
   DINO_SCENE_ACTIONS,
@@ -1240,6 +1240,10 @@ async function cmdInit(args) {
   const taskFilter = process.env.TASK_FILTER || '';
   const includeLargeModels = (process.env.INCLUDE_LARGE_MODELS ?? 'true') !== 'false';
 
+  const unknownFilters = unknownTaskFilters(taskFilter);
+  if (unknownFilters.length > 0) {
+    throw new Error(`Unknown task or domain in the task filter: ${unknownFilters.join(', ')}`);
+  }
   const allCases = buildValidationMatrix({ taskFilter, includeLargeModels });
   if (allCases.length === 0) {
     throw new Error(`No validation cases matched filter="${taskFilter}" includeLargeModels=${includeLargeModels}`);
@@ -1577,7 +1581,7 @@ async function cmdFinalize(args) {
       `- **Unverified (ran, output not checked):** ${counts.unverified}`,
       `- **Skipped:** ${counts.skip}`,
       '',
-      'Download the `release-validation-report` workflow artifact for `index.html`, `report.md`, `status.json`, and all screenshots.',
+      'The report directory holds `index.html`, `report.md`, `status.json`, and all screenshots.',
     ].join('\n')
   );
 
@@ -2069,6 +2073,20 @@ function cmdSelfTest() {
   const ids = new Set(allCases.map((c) => c.id));
   assert.equal(ids.size, allCases.length, 'Case IDs must be unique');
   assert.ok(allCases.length >= 150, `Expected comprehensive matrix, got ${allCases.length}`);
+
+  // A filter entry is a domain, a task or domain/task, matched exactly.
+  const tasksFor = (taskFilter) => [
+    ...new Set(buildValidationMatrix({ taskFilter }).map((c) => `${c.domain}/${c.task}`)),
+  ];
+  assert.deepEqual(new Set(buildValidationMatrix({ taskFilter: 'text' }).map((c) => c.domain)), new Set(['text']));
+  assert.deepEqual(tasksFor('text_to_speech'), ['audio/text_to_speech']);
+  assert.deepEqual(tasksFor('audio/text_to_speech, text/language_detector').sort(), [
+    'audio/text_to_speech',
+    'text/language_detector',
+  ]);
+  assert.deepEqual(tasksFor('embedder'), []);
+  assert.deepEqual(unknownTaskFilters('vision, embedder,audio/nope'), ['embedder', 'audio/nope']);
+  assert.deepEqual(unknownTaskFilters(''), []);
 
   selfTestVerifiers(allCases);
 

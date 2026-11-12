@@ -310,22 +310,39 @@ export const TASK_DEFINITIONS = [
   },
 ];
 
+function parseTaskFilter(taskFilter) {
+  return taskFilter
+    .split(',')
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+/**
+ * Whether one filter entry selects a task. An entry is a domain ("text"), a
+ * task ("text_to_speech") or both ("audio/text_to_speech"), matched exactly:
+ * "text" is the text domain and does not also select audio/text_to_speech.
+ */
+function filterSelects(entry, def) {
+  return entry === def.domain || entry === def.task || entry === `${def.domain}/${def.task}`;
+}
+
+/** The entries of a task filter that select nothing (typos, removed tasks). */
+export function unknownTaskFilters(taskFilter = '') {
+  return parseTaskFilter(taskFilter).filter((entry) => !TASK_DEFINITIONS.some((def) => filterSelects(entry, def)));
+}
+
 /**
  * Expands TASK_DEFINITIONS into individual runnable matrix test cases, ordered
  * so modes for the same (task, model, delegate) execute consecutively and
  * share the cached model cleanly.
  */
 export function buildValidationMatrix({ domain = '', taskFilter = '', includeLargeModels = true } = {}) {
-  const filters = taskFilter
-    .split(',')
-    .map((s) => s.trim().toLowerCase())
-    .filter(Boolean);
+  const filters = parseTaskFilter(taskFilter);
 
   const cases = [];
   for (const def of TASK_DEFINITIONS) {
     if (domain && def.domain !== domain) continue;
-    const taskSlug = `${def.domain}/${def.task}`.toLowerCase();
-    if (filters.length > 0 && !filters.some((f) => taskSlug.includes(f) || def.domain === f)) {
+    if (filters.length > 0 && !filters.some((entry) => filterSelects(entry, def))) {
       continue;
     }
 
