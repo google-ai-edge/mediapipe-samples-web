@@ -124,9 +124,9 @@
         </div>
 
         <div class="tts-reader-bar">
-          <div class="tts-reader-hint">
-            <span class="material-icons" style="font-size: 16px">touch_app</span>
-            <span>Click any sentence below to stream from that line</span>
+          <div class="tts-reader-hint" title="Click any sentence to stream from there">
+            <span class="material-icons" style="font-size: 16px; flex-shrink: 0">touch_app</span>
+            <span class="tts-reader-hint-text">Click any sentence to stream from there</span>
           </div>
           <div class="tts-reader-controls">
             <span id="tts-sentence-badge" class="tts-sentence-badge"></span>
@@ -230,11 +230,16 @@
       align-items: center;
       gap: 6px;
       min-width: 0;
+      flex: 1 1 auto;
+      font-size: 0.78rem;
+      color: var(--text-secondary);
+    }
+
+    .tts-reader-hint-text {
+      min-width: 0;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
-      font-size: 0.78rem;
-      color: var(--text-secondary);
     }
 
     .tts-reader-controls {

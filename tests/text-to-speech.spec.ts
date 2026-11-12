@@ -136,23 +136,41 @@ test.describe('Text to Speech Task', () => {
 
     await page.click('#tts-samples button[data-sample="story"]');
     await expect(textInput).toHaveValue(/The lighthouse keeper climbed the spiral stairs/);
+    await expect(page.locator('#tts-samples button[data-sample="story"]')).toHaveClass(/\bactive\b/);
+    await expect(page.locator('#tts-samples button[data-sample="welcome"]')).not.toHaveClass(/\bactive\b/);
     await expect(transcript.locator('.tts-paragraph')).toHaveCount(3);
     await expect(transcript.locator('.tts-sentence')).toHaveCount(5);
 
     await page.click('#tts-samples button[data-sample="numbers"]');
     await expect(textInput).toHaveValue(/Your flight to Zurich departs on March 3rd/);
+    await expect(page.locator('#tts-samples button[data-sample="numbers"]')).toHaveClass(/\bactive\b/);
     // "Dr." and "1.5" and "$249.99" must not split sentences prematurely
     await expect(transcript.locator('.tts-paragraph')).toHaveCount(3);
     await expect(transcript.locator('.tts-sentence')).toHaveCount(4);
 
     await page.click('#tts-samples button[data-sample="article"]');
     await expect(textInput).toHaveValue(/On-device speech synthesis brings natural/);
+    await expect(page.locator('#tts-samples button[data-sample="article"]')).toHaveClass(/\bactive\b/);
     await expect(transcript.locator('.tts-paragraph')).toHaveCount(3);
     await expect(transcript.locator('.tts-sentence')).toHaveCount(3);
 
     await page.click('#tts-samples button[data-sample="welcome"]');
     await expect(textInput).toHaveValue(/Welcome to MediaPipe Text to Speech/);
+    await expect(page.locator('#tts-samples button[data-sample="welcome"]')).toHaveClass(/\bactive\b/);
     await expect(transcript.locator('.tts-sentence')).toHaveCount(4);
+
+    // Active chip has distinct background styling and clears on custom edits.
+    const activeBg = await page
+      .locator('#tts-samples button[data-sample="welcome"]')
+      .evaluate((el) => getComputedStyle(el).backgroundColor);
+    const inactiveBg = await page
+      .locator('#tts-samples button[data-sample="story"]')
+      .evaluate((el) => getComputedStyle(el).backgroundColor);
+    expect(activeBg).not.toBe(inactiveBg);
+
+    await textInput.fill('Custom user utterance.');
+    await expect(page.locator('#tts-samples .sample-chip.active')).toHaveCount(0);
+    await expect(transcript.locator('.tts-sentence')).toHaveCount(1);
   });
 
   test('should support speaking rate adjustment and delegate switching', async ({ page }) => {
@@ -221,5 +239,180 @@ test.describe('Text to Speech Task', () => {
 
     const select = page.locator('#mobile-task-select');
     await expect(select).toHaveValue('#/audio/text_to_speech');
+
+    // Reader hint text truncates with ellipsis rather than clipping raw flex items.
+    const hintStyle = await page.locator('.tts-reader-hint-text').evaluate((el) => {
+      const s = getComputedStyle(el);
+      return { textOverflow: s.textOverflow, overflow: s.overflow, whiteSpace: s.whiteSpace };
+    });
+    expect(hintStyle).toEqual({ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' });
+  });
+});
+
+test.describe('Text to Speech Interactive Flows', () => {
+  test('should download the selected model and auto-stream the clicked sentence on pre-load click', async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      const messages: any[] = [];
+      (window as any).__ttsWorkerMessages = messages;
+      const OrigWorker = window.Worker;
+      class MockTtsWorker {
+        onmessage: ((e: MessageEvent) => void) | null = null;
+        onerror: ((e: ErrorEvent) => void) | null = null;
+        constructor(url: string | URL, opts?: WorkerOptions) {
+          if (!String(url).includes('text-to-speech')) {
+            return new OrigWorker(url, opts) as any;
+          }
+          (window as any).__ttsWorkerInstance = this;
+        }
+        postMessage(data: any) {
+          messages.push(data);
+        }
+        terminate() {}
+        addEventListener() {}
+        removeEventListener() {}
+        dispatchEvent() {
+          return true;
+        }
+      }
+      (window as any).Worker = MockTtsWorker;
+    });
+
+    await page.goto('/#/audio/text_to_speech');
+    await page.waitForLoadState('domcontentloaded');
+
+    // Pick a non-default model before clicking a sentence.
+    await page.selectOption('#model-selector-container-standard-select', 'phonon_31m_en');
+    await page.locator('#tts-transcript .tts-sentence').nth(2).click();
+
+    // Status should report Downloading model… (not Initializing model…) for the selected model.
+    await expect(page.locator('#status-message')).toHaveText('Downloading model…');
+    const initMsg = await page.evaluate(() => (window as any).__ttsWorkerMessages.find((m: any) => m.type === 'INIT'));
+    expect(initMsg?.modelName).toBe('phonon_31m_en');
+
+    // Finish initialization from the mock worker and verify auto-stream of sentence 3.
+    await page.evaluate(() => {
+      (window as any).__ttsWorkerInstance.onmessage({
+        data: {
+          type: 'INIT_DONE',
+          modelName: 'phonon_31m_en',
+          voices: [
+            { voiceId: 'af_heart', displayName: 'Heart', locale: 'en-US', sampleRateHz: 24000, isDownloaded: true },
+            { voiceId: 'bf_emma', displayName: 'Emma', locale: 'en-GB', sampleRateHz: 24000, isDownloaded: true },
+            { voiceId: 'ef_dora', displayName: 'Dora', locale: 'es-ES', sampleRateHz: 24000, isDownloaded: true },
+          ],
+        },
+      });
+    });
+
+    await expect(page.locator('#status-message')).toHaveText('Streaming from sentence 3...');
+    const streamMsg = await page.evaluate(() =>
+      (window as any).__ttsWorkerMessages.find((m: any) => m.type === 'STREAM')
+    );
+    expect(streamMsg?.text).toMatch(/^By streaming clause chunks/);
+  });
+
+  test('should stop playback on voice switch, preserve same-language preset, warm selected voice on re-init, and sync mid-playback edits on stop', async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      const messages: any[] = [];
+      (window as any).__ttsWorkerMessages = messages;
+      const OrigWorker = window.Worker;
+      class MockTtsWorker {
+        onmessage: ((e: MessageEvent) => void) | null = null;
+        onerror: ((e: ErrorEvent) => void) | null = null;
+        constructor(url: string | URL, opts?: WorkerOptions) {
+          if (!String(url).includes('text-to-speech')) {
+            return new OrigWorker(url, opts) as any;
+          }
+          (window as any).__ttsWorkerInstance = this;
+        }
+        postMessage(data: any) {
+          messages.push(data);
+        }
+        terminate() {}
+        addEventListener() {}
+        removeEventListener() {}
+        dispatchEvent() {
+          return true;
+        }
+      }
+      (window as any).Worker = MockTtsWorker;
+    });
+
+    await page.goto('/#/audio/text_to_speech');
+    await page.waitForLoadState('domcontentloaded');
+
+    await page.click('#model-selector-container-standard-load-btn');
+    await page.evaluate(() => {
+      (window as any).__ttsWorkerInstance.onmessage({
+        data: {
+          type: 'INIT_DONE',
+          modelName: 'kokoro_82m',
+          voices: [
+            { voiceId: 'af_heart', displayName: 'Heart', locale: 'en-US', sampleRateHz: 24000, isDownloaded: true },
+            { voiceId: 'bf_emma', displayName: 'Emma', locale: 'en-GB', sampleRateHz: 24000, isDownloaded: true },
+            { voiceId: 'ef_dora', displayName: 'Dora', locale: 'es-ES', sampleRateHz: 24000, isDownloaded: true },
+          ],
+        },
+      });
+    });
+
+    // Switch to Story and start streaming.
+    await page.click('#tts-samples button[data-sample="story"]');
+    await page.click('#tts-stream-btn');
+    await expect(page.locator('#status-message')).toHaveText('Streaming...');
+
+    // Switch between English voices mid-playback: stops stream AND preserves Story.
+    await page.selectOption('#voice-select', 'bf_emma');
+    await expect(page.locator('#status-message')).toHaveText('Stopped');
+    await expect(page.locator('#tts-text-input')).toHaveValue(/The lighthouse keeper climbed the spiral stairs/);
+    await expect(page.locator('#tts-samples button[data-sample="story"]')).toHaveClass(/\bactive\b/);
+    const cancelCount = await page.evaluate(
+      () => (window as any).__ttsWorkerMessages.filter((m: any) => m.type === 'CANCEL').length
+    );
+    expect(cancelCount).toBeGreaterThanOrEqual(1);
+
+    // Switch to Spanish voice: switches to Spanish sample and clears English chip active state.
+    await page.selectOption('#voice-select', 'ef_dora');
+    await expect(page.locator('#tts-text-input')).toHaveValue(/Bienvenido a MediaPipe/);
+    await expect(page.locator('#tts-samples .sample-chip.active')).toHaveCount(0);
+
+    // Switch back to English voice: restores Story preset.
+    await page.selectOption('#voice-select', 'bf_emma');
+    await expect(page.locator('#tts-text-input')).toHaveValue(/The lighthouse keeper climbed the spiral stairs/);
+    await expect(page.locator('#tts-samples button[data-sample="story"]')).toHaveClass(/\bactive\b/);
+
+    // Re-init on speaking rate change passes the currently selected voiceId.
+    const speakingRateSlider = page.locator('#speaking-rate');
+    await speakingRateSlider.fill('1.2');
+    await speakingRateSlider.dispatchEvent('change');
+    const reinitMsg = await page.evaluate(() =>
+      (window as any).__ttsWorkerMessages.filter((m: any) => m.type === 'INIT').at(-1)
+    );
+    expect(reinitMsg?.voiceId).toBe('bf_emma');
+
+    await page.evaluate(() => {
+      (window as any).__ttsWorkerInstance.onmessage({
+        data: {
+          type: 'INIT_DONE',
+          modelName: 'kokoro_82m',
+          voices: [
+            { voiceId: 'af_heart', displayName: 'Heart', locale: 'en-US', sampleRateHz: 24000, isDownloaded: true },
+            { voiceId: 'bf_emma', displayName: 'Emma', locale: 'en-GB', sampleRateHz: 24000, isDownloaded: true },
+            { voiceId: 'ef_dora', displayName: 'Dora', locale: 'es-ES', sampleRateHz: 24000, isDownloaded: true },
+          ],
+        },
+      });
+    });
+
+    // Mid-playback textarea edit refreshes transcript upon Stop.
+    await page.click('#tts-stream-btn');
+    await page.locator('#tts-text-input').fill('Edited while streaming.');
+    await expect(page.locator('#tts-transcript')).toContainText('The lighthouse keeper');
+    await page.click('#tts-stop-btn');
+    await expect(page.locator('#tts-transcript')).toHaveText('Edited while streaming.');
   });
 });

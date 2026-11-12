@@ -139,9 +139,11 @@ class TextToSpeechTask extends BaseTask {
   private activeSentenceIdx = -1;
   private sentences: SentenceSpanInfo[] = [];
   private renderedWordCount = 0;
+  private selectedEnglishSample = 'welcome';
 
   // DOM
   private textInput!: HTMLTextAreaElement;
+  private sampleChips: HTMLButtonElement[] = [];
   private voiceSelect!: HTMLSelectElement;
   private speakBtn!: HTMLButtonElement;
   private streamBtn!: HTMLButtonElement;
@@ -189,30 +191,43 @@ class TextToSpeechTask extends BaseTask {
       TTS_MODELS.map((m) => ({ label: m.name, value: m.id, isDefault: m.id === DEFAULT_MODEL.id }))
     );
 
-    const sampleChips = document.querySelectorAll<HTMLButtonElement>('#tts-samples .sample-chip');
-    sampleChips.forEach((chip) => {
+    this.sampleChips = Array.from(document.querySelectorAll<HTMLButtonElement>('#tts-samples .sample-chip'));
+    this.sampleChips.forEach((chip) => {
       chip.addEventListener('click', () => {
-        sampleChips.forEach((c) => c.classList.toggle('active', c === chip));
         const sample = chip.dataset.sample!;
-        this.textInput.value = ENGLISH_SAMPLES[sample];
+        this.selectedEnglishSample = sample;
         this.stop();
+        this.textInput.value = ENGLISH_SAMPLES[sample];
+        this.syncActiveSampleChip();
         this.renderTranscript(this.textInput.value);
       });
     });
 
     this.textInput.addEventListener('input', () => {
+      this.syncActiveSampleChip();
       if (!this.isSynthesizing && this.scheduled.length === 0) {
         this.renderTranscript(this.textInput.value);
       }
     });
 
     this.voiceSelect.addEventListener('change', () => {
-      // If the text is still one of our samples, follow the voice's language.
-      const isSample =
-        Object.values(ENGLISH_SAMPLES).includes(this.textInput.value) ||
-        Object.values(LOCALIZED_SAMPLES).includes(this.textInput.value);
-      if (isSample) {
-        this.textInput.value = this.sampleForVoice(this.voiceSelect.value);
+      this.stop();
+      const val = this.textInput.value;
+      const targetLang = this.voiceLang(this.voiceSelect.value);
+      // If the text is still one of our presets, follow the voice's language
+      // without clobbering an English preset when switching between English voices.
+      let nextText: string | undefined;
+      if (Object.values(ENGLISH_SAMPLES).includes(val)) {
+        if (targetLang !== 'en') nextText = this.sampleForVoice(this.voiceSelect.value);
+      } else if (Object.values(LOCALIZED_SAMPLES).includes(val)) {
+        nextText =
+          targetLang === 'en'
+            ? (ENGLISH_SAMPLES[this.selectedEnglishSample] ?? ENGLISH_SAMPLES.welcome)
+            : this.sampleForVoice(this.voiceSelect.value);
+      }
+      if (nextText !== undefined && nextText !== val) {
+        this.textInput.value = nextText;
+        this.syncActiveSampleChip();
         this.renderTranscript(this.textInput.value);
       }
       if (this.isWorkerReady && !this.isSynthesizing && this.voiceSelect.value) {
@@ -257,11 +272,14 @@ class TextToSpeechTask extends BaseTask {
   }
 
   protected override getWorkerInitParams(): Record<string, any> {
-    return { speakingRate: this.speakingRate };
+    return {
+      speakingRate: this.speakingRate,
+      voiceId: this.voiceSelect?.value || undefined,
+    };
   }
 
   protected override async initializeTask(): Promise<void> {
-    this.stop();
+    this.stop(/*clearPendingSpeak=*/ false);
     this.setActionsEnabled(false);
     this.voiceSelect.disabled = true;
     await super.initializeTask();
@@ -294,6 +312,10 @@ class TextToSpeechTask extends BaseTask {
           this.updateStatus(`Error: ${data.error}`);
           this.setActionsEnabled(true);
         }
+        break;
+      case 'ERROR':
+        this.pendingSpeakSentenceIdx = undefined;
+        super.handleWorkerMessage(event);
         break;
       default:
         super.handleWorkerMessage(event);
@@ -339,9 +361,21 @@ class TextToSpeechTask extends BaseTask {
     this.voiceSelect.disabled = false;
   }
 
-  private sampleForVoice(voiceId: string): string {
+  private voiceLang(voiceId: string): string {
     const locale = this.voices.find((v) => v.voiceId === voiceId)?.locale ?? 'en';
-    return LOCALIZED_SAMPLES[locale.split(/[-_]/)[0].toLowerCase()] ?? ENGLISH_SAMPLES.welcome;
+    return locale.split(/[-_]/)[0].toLowerCase();
+  }
+
+  private sampleForVoice(voiceId: string): string {
+    return LOCALIZED_SAMPLES[this.voiceLang(voiceId)] ?? ENGLISH_SAMPLES.welcome;
+  }
+
+  private syncActiveSampleChip() {
+    const val = this.textInput.value;
+    this.sampleChips.forEach((chip) => {
+      const sample = chip.dataset.sample!;
+      chip.classList.toggle('active', val === ENGLISH_SAMPLES[sample]);
+    });
   }
 
   private setActionsEnabled(ready: boolean) {
@@ -385,8 +419,8 @@ class TextToSpeechTask extends BaseTask {
     this.ensureAudioContext();
     if (!this.isWorkerReady) {
       this.pendingSpeakSentenceIdx = sentenceIdx;
-      if (!this.modelRequested) {
-        this.initializeTask();
+      if (!this.modelSelector?.getPhase()) {
+        this.modelSelector?.loadSelected();
       }
       return;
     }
@@ -542,6 +576,9 @@ class TextToSpeechTask extends BaseTask {
     this.stopAnimation();
     this.highlightWordAt(Number.POSITIVE_INFINITY);
     this.highlightSentenceSpan(-1, false);
+    if (this.transcriptEl && this.textInput && this.spokenText !== this.textInput.value.trim()) {
+      this.renderTranscript(this.textInput.value);
+    }
     this.drawWaveform();
     if (!this.isSynthesizing) this.updateStatus('Ready');
     this.setActionsEnabled(true);
@@ -558,8 +595,10 @@ class TextToSpeechTask extends BaseTask {
     this.stopAnimation();
   }
 
-  private stop() {
-    this.pendingSpeakSentenceIdx = undefined;
+  private stop(clearPendingSpeak = true) {
+    if (clearPendingSpeak) {
+      this.pendingSpeakSentenceIdx = undefined;
+    }
     if (this.isSynthesizing) {
       this.worker?.postMessage({ type: 'CANCEL' });
       // Ignore chunks of the cancelled request that are already on their way.
@@ -569,6 +608,9 @@ class TextToSpeechTask extends BaseTask {
     }
     this.stopPlayback();
     this.highlightSentenceSpan(-1, false);
+    if (this.transcriptEl && this.textInput && this.spokenText !== this.textInput.value.trim()) {
+      this.renderTranscript(this.textInput.value);
+    }
     if (this.speakBtn) this.setActionsEnabled(true);
   }
 

@@ -98,7 +98,11 @@ class TextToSpeechWorker extends BaseWorker<TextToSpeech> {
     });
 
     this.voices = await this.taskInstance.listVoices();
+    const requested = this.currentOptions.voiceId
+      ? this.voices.find((v) => v.voiceId === this.currentOptions.voiceId)
+      : undefined;
     const preferred =
+      requested ??
       this.voices.find((v) => v.voiceId === 'af_heart') ??
       this.voices.find((v) => /^en\b/i.test(v.locale ?? '')) ??
       this.voices[0];

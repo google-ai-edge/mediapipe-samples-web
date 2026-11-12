@@ -176,6 +176,13 @@ export class ModelSelector {
     }
   }
 
+  /** Triggers loading the currently selected standard model (same as clicking "Download and Initialize"). */
+  public loadSelected() {
+    this.modelUpload.value = '';
+    this.uploadStatus.innerText = 'No file chosen';
+    this.emit({ type: 'standard', value: this.modelSelect.value });
+  }
+
   /**
    * Whether picking `value` downloads and loads it right away, or waits for
    * "Download and Initialize": the model's own `autoLoad` if set, otherwise whether its
@@ -420,9 +427,7 @@ export class ModelSelector {
     });
 
     this.loadButton?.addEventListener('click', () => {
-      this.modelUpload.value = '';
-      this.uploadStatus.innerText = 'No file chosen';
-      this.emit({ type: 'standard', value: this.modelSelect.value });
+      this.loadSelected();
     });
 
     this.deleteBtn.addEventListener('click', async () => {
