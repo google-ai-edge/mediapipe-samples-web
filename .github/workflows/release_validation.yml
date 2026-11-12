@@ -87,6 +87,9 @@ jobs:
             echo "TASK_FILTER=${TASK_FILTER}"
             echo "INCLUDE_LARGE_MODELS=${INCLUDE_LARGE_MODELS}"
             echo "FAIL_ON_FALLBACK=${FAIL_ON_FALLBACK}"
+            # Every case has an output expectation; one that ran without any output
+            # check must fail the run rather than pass silently.
+            echo "FAIL_ON_UNVERIFIED=true"
             echo "RELEASE_HEAD_SHA=${RELEASE_HEAD_SHA}"
           } >> "${GITHUB_ENV}"
           mkdir -p "${REPORT_DIR}/screenshots" "${CHROME_PROFILE_DIR}"
@@ -106,11 +109,8 @@ jobs:
           node-version: 20
           cache: 'pnpm'
 
-      - name: Run release validation script self-tests
-        run: |
-          set -euo pipefail
-          node .github/scripts/release_validate/tarballs.mjs self-test
-          node .github/scripts/release_validate/runner.mjs self-test
+      - name: Run tarball script self-tests
+        run: node .github/scripts/release_validate/tarballs.mjs self-test
 
       - name: Check optional GCP authentication configuration
         id: gcp-auth-check
@@ -153,6 +153,11 @@ jobs:
 
       - name: Install project dependencies
         run: pnpm install --frozen-lockfile
+
+      # Needs the installed dependencies (the runner imports Playwright). Proves that
+      # every output verifier accepts a correct result and rejects a wrong one.
+      - name: Run runner and output-verifier self-tests
+        run: node .github/scripts/release_validate/runner.mjs self-test
 
       - name: Override @mediapipe/tasks-* packages with staged tarballs
         if: github.event_name == 'workflow_dispatch' && inputs.gcs_path != ''
@@ -201,6 +206,17 @@ jobs:
             --user-data-dir "${CHROME_PROFILE_DIR}" \
             --port 4174
 
+      # The report so far (open index.html and use "Review cases one by one"),
+      # downloadable from the run page while later domains are still running.
+      - name: Upload progress report after Vision tasks
+        if: "!cancelled() && steps.build.outcome == 'success'"
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-validation-progress-1-vision-${{ github.run_id }}-${{ github.run_attempt }}
+          path: release-validation-report
+          if-no-files-found: ignore
+          retention-days: 7
+
       - name: Validate Text tasks (all models, modes, delegates)
         if: "!cancelled() && steps.build.outcome == 'success'"
         env:
@@ -211,6 +227,17 @@ jobs:
             --report-dir "${REPORT_DIR}" \
             --user-data-dir "${CHROME_PROFILE_DIR}" \
             --port 4174
+
+      # The report so far (open index.html and use "Review cases one by one"),
+      # downloadable from the run page while later domains are still running.
+      - name: Upload progress report after Text tasks
+        if: "!cancelled() && steps.build.outcome == 'success'"
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-validation-progress-2-text-${{ github.run_id }}-${{ github.run_attempt }}
+          path: release-validation-report
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Validate Retrieval tasks (all models, modes, delegates)
         if: "!cancelled() && steps.build.outcome == 'success'"
@@ -223,6 +250,17 @@ jobs:
             --user-data-dir "${CHROME_PROFILE_DIR}" \
             --port 4174
 
+      # The report so far (open index.html and use "Review cases one by one"),
+      # downloadable from the run page while later domains are still running.
+      - name: Upload progress report after Retrieval tasks
+        if: "!cancelled() && steps.build.outcome == 'success'"
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-validation-progress-3-retrieval-${{ github.run_id }}-${{ github.run_attempt }}
+          path: release-validation-report
+          if-no-files-found: ignore
+          retention-days: 7
+
       - name: Validate Decision tasks (all models, modes, delegates)
         if: "!cancelled() && steps.build.outcome == 'success'"
         env:
@@ -233,6 +271,17 @@ jobs:
             --report-dir "${REPORT_DIR}" \
             --user-data-dir "${CHROME_PROFILE_DIR}" \
             --port 4174
+
+      # The report so far (open index.html and use "Review cases one by one"),
+      # downloadable from the run page while later domains are still running.
+      - name: Upload progress report after Decision tasks
+        if: "!cancelled() && steps.build.outcome == 'success'"
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-validation-progress-4-decision-${{ github.run_id }}-${{ github.run_attempt }}
+          path: release-validation-report
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Validate Audio tasks (all models, modes, delegates)
         if: "!cancelled() && steps.build.outcome == 'success'"
@@ -266,3 +315,5 @@ jobs:
         if: always()
         run: |
           rm -rf "${STAGED_NPM_DIR:-}" "${CHROME_PROFILE_DIR:-}"
+          # Videos generated for Chrome's fake camera (see fake_media.mjs).
+          if [[ -n "${CHROME_PROFILE_DIR:-}" ]]; then rm -rf "${CHROME_PROFILE_DIR}-fake-media"; fi

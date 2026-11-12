@@ -358,33 +358,3 @@ export function buildValidationMatrix({ domain = '', taskFilter = '', includeLar
   }
   return cases;
 }
-
-/**
- * Generates a valid 16kHz 16-bit mono PCM WAV buffer with a 440Hz tone for
- * testing Audio Classifier and Audio Transcriber file-upload modes.
- */
-export function buildSampleWavBuffer({ durationSeconds = 1.5, sampleRate = 16000, frequencyHz = 440 } = {}) {
-  const numSamples = Math.floor(durationSeconds * sampleRate);
-  const dataBytes = numSamples * 2;
-  const buffer = Buffer.alloc(44 + dataBytes);
-
-  buffer.write('RIFF', 0);
-  buffer.writeUInt32LE(36 + dataBytes, 4);
-  buffer.write('WAVE', 8);
-  buffer.write('fmt ', 12);
-  buffer.writeUInt32LE(16, 16); // PCM chunk size
-  buffer.writeUInt16LE(1, 20); // PCM format
-  buffer.writeUInt16LE(1, 22); // Mono
-  buffer.writeUInt32LE(sampleRate, 24);
-  buffer.writeUInt32LE(sampleRate * 2, 28); // Byte rate
-  buffer.writeUInt16LE(2, 32); // Block align
-  buffer.writeUInt16LE(16, 34); // Bits per sample
-  buffer.write('data', 36);
-  buffer.writeUInt32LE(dataBytes, 40);
-
-  for (let i = 0; i < numSamples; i++) {
-    const sample = Math.sin((2 * Math.PI * frequencyHz * i) / sampleRate) * 0.4;
-    buffer.writeInt16LE(Math.round(sample * 32767), 44 + i * 2);
-  }
-  return buffer;
-}
