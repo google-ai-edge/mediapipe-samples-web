@@ -63,8 +63,8 @@ downloads about 3 GB of models on the first run.
 
 ```bash
 pnpm run validate:release                                # all tasks, this machine's GPU
-pnpm run validate:release --tasks vision,audio           # some domains or tasks
-pnpm run validate:release --tasks text/language_detector # one task
+pnpm run validate:release --tasks vision,audio           # some domains
+pnpm run validate:release --tasks language_detector      # one task
 pnpm run validate:release --help                         # all options
 ```
 
