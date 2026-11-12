@@ -1325,14 +1325,18 @@ async function cmdRunDomain(args) {
   const headless = state.environment?.headless ?? true;
   const fakeMedia = await prepareFakeMedia(cases, `${userDataDir}-fake-media`);
 
-  // The retrieval and decision tasks run on WebGPU. Without a real GPU Chrome
-  // uses a software adapter, on which the embedding models are many times
-  // slower, so those domains get longer timeouts. RELEASE_VALIDATION_TIMEOUT_SCALE
-  // overrides the factor.
+  // Without a real GPU Chrome renders in software, which is many times slower,
+  // so the timeouts are scaled. The retrieval and decision tasks run embedding
+  // models on a software WebGPU adapter and get the largest factor. The other
+  // domains get a smaller one: on a GitHub runner one Interactive Segmenter
+  // inference with the GPU delegate on SwiftShader takes up to 45 s, against a
+  // 60 s limit. RELEASE_VALIDATION_TIMEOUT_SCALE overrides the factor.
   const softwareWebGpu = /\(software\)/.test(state.environment?.webgpuAdapter || '');
+  const softwareWebGl = /swiftshader|llvmpipe|software/i.test(state.environment?.webglRenderer || '');
+  const usesWebGpu = domain === 'retrieval' || domain === 'decision';
   const timeoutScale =
     Number(process.env.RELEASE_VALIDATION_TIMEOUT_SCALE) ||
-    (softwareWebGpu && (domain === 'retrieval' || domain === 'decision') ? 6 : 1);
+    (usesWebGpu ? (softwareWebGpu ? 6 : 1) : softwareWebGl ? 3 : 1);
   if (timeoutScale !== 1) console.log(`Timeouts for the ${domain} domain are scaled by ${timeoutScale}.`);
 
   // The fake camera and microphone files are Chrome launch flags, so the
