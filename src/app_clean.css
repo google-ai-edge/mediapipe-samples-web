@@ -1726,6 +1726,18 @@ video {
   border-color: var(--primary);
 }
 
+.sample-chip.active {
+  background: var(--primary);
+  color: #ffffff;
+  border-color: var(--primary);
+}
+
+.sample-chip.active:hover:not(:disabled) {
+  background: var(--primary-hover);
+  color: #ffffff;
+  border-color: var(--primary-hover);
+}
+
 .sample-chip:disabled {
   opacity: 0.55;
   cursor: not-allowed;
