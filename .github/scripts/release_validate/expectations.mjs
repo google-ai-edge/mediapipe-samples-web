@@ -38,12 +38,11 @@ const publicFile = (name) => path.join(REPO_DIR, 'public', name);
 export const SPEECH_FIXTURE = path.join(FIXTURE_DIR, 'speech_16000_hz_mono.wav');
 
 /**
- * What is said in the speech clip. There is no published transcript for it, so
- * this is a baseline rather than an independent truth: it is what the Audio
- * Transcriber of @mediapipe/tasks-audio 1.2.2 produced for the clip (the same
- * sentence from the uploaded file and through the microphone). It still needs
- * to be confirmed once by a person listening to the clip. Set it to null to
- * report the transcriber cases as unverified.
+ * What is said in the speech clip. There is no published transcript for it:
+ * the sentence was first taken from what the Audio Transcriber of
+ * @mediapipe/tasks-audio 1.2.2 produced (the same from the uploaded file and
+ * through the microphone) and was then confirmed by a person listening to the
+ * clip. Set it to null to report the transcriber cases as unverified.
  */
 export const SPEECH_TRANSCRIPT = "Send a text to Mike, I'll be home late tomorrow.";
 

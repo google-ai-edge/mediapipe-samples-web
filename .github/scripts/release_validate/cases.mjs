@@ -274,7 +274,6 @@ export const TASK_DEFINITIONS = [
       { id: 'embeddinggemma2_270m', selectValue: 'embeddinggemma2_270m', large: true },
       { id: 'embeddinggemma2_text_vision_440m', selectValue: 'embeddinggemma2_text_vision_440m', large: true },
       { id: 'embeddinggemma2_740m', selectValue: 'embeddinggemma2_740m', large: true },
-      { id: 'laya_s256', selectValue: 'laya_s256', large: true },
     ],
   },
   {
@@ -307,7 +306,6 @@ export const TASK_DEFINITIONS = [
         supportsVision: true,
       },
       { id: 'embeddinggemma2_740m', selectValue: 'embeddinggemma2_740m', large: true, supportsVision: true },
-      { id: 'laya_s256', selectValue: 'laya_s256', large: true, supportsVision: false },
     ],
   },
 ];
