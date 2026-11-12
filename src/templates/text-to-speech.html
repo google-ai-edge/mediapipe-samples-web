@@ -216,7 +216,7 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      flex-wrap: wrap;
+      flex-wrap: nowrap;
       gap: 8px;
       margin-top: 14px;
       padding: 6px 10px;
@@ -230,6 +230,10 @@
       display: inline-flex;
       align-items: center;
       gap: 6px;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
       font-size: 0.78rem;
       color: var(--text-secondary);
     }
@@ -237,6 +241,7 @@
     .tts-reader-controls {
       display: inline-flex;
       align-items: center;
+      flex-shrink: 0;
       gap: 6px;
     }
 
@@ -247,6 +252,7 @@
       padding: 2px 8px;
       background: rgba(0, 151, 167, 0.1);
       border-radius: 999px;
+      white-space: nowrap;
     }
 
     .tts-sentence-badge:empty {
@@ -307,9 +313,8 @@
     }
 
     .tts-sentence {
-      border-radius: 4px;
-      padding: 2px 3px;
-      margin: 0 -2px;
+      border-radius: 3px;
+      padding: 1px 0;
       cursor: pointer;
       transition:
         background-color 0.12s ease,
@@ -336,9 +341,11 @@
     }
 
     .tts-transcript .tts-word {
-      border-radius: 4px;
-      padding: 1px 2px;
-      transition: background-color 0.08s ease;
+      border-radius: 3px;
+      padding: 1px 0;
+      transition:
+        background-color 0.08s ease,
+        box-shadow 0.08s ease;
     }
 
     .tts-transcript .tts-word.spoken {
@@ -347,8 +354,8 @@
 
     .tts-transcript .tts-word.active {
       background: var(--primary-soft, #b2dfdb);
+      box-shadow: 0 0 0 2px var(--primary-soft, #b2dfdb);
       color: #004d40;
-      font-weight: 600;
     }
 
     .control-hint {
