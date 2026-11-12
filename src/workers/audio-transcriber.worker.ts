@@ -43,9 +43,6 @@ class AudioTranscriberWorker extends BaseWorker<AudioTranscriber> {
       sampleRateHz: this.currentOptions.sampleRateHz ?? 16000,
       enableInterimResults: this.currentOptions.enableInterimResults ?? true,
       modelArchitecture: 'AUTO',
-      // Compiled-model caches don't work in the Wasm file system (see the
-      // TextToSpeech worker).
-      cacheDir: ':nocache',
     });
 
     // Reduces the latency of the first chunk.

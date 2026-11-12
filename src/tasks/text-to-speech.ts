@@ -26,36 +26,85 @@ const DEFAULT_MODEL = TTS_MODELS[0];
 const PREFERRED_VOICE = 'af_heart';
 
 const ENGLISH_SAMPLES: Record<string, string> = {
-  welcome:
-    'Welcome to MediaPipe Text to Speech. Every word you hear is generated right here in your browser, ' +
-    'without sending any text to a server.',
-  story:
-    'The lighthouse keeper climbed the spiral stairs one last time. Outside, the storm had finally passed, ' +
-    'and the first light of morning spilled across the calm, silver sea.',
-  numbers:
-    'Your flight to Zurich departs on March 3rd at 7:45 AM from gate B12. The fare is $249.99, ' +
-    'and the trip takes about 1.5 hours.',
+  welcome: [
+    'Welcome to MediaPipe Text to Speech. Every word you hear is generated right here in your browser, without sending any text to a server.',
+    'By streaming clause chunks as they are synthesized, playback begins in milliseconds while the remainder of the passage generates in the background.',
+    'Click on any sentence below to jump immediately to that line, and watch each word highlight in real time as it is spoken.',
+  ].join('\n\n'),
+  story: [
+    'The lighthouse keeper climbed the spiral stairs one last time. Outside, the storm had finally passed, and the first light of morning spilled across the calm, silver sea.',
+    'Far on the horizon, a solitary sailboat caught the golden breeze and turned toward the harbor. He smiled, closed the brass logbook, and brewed a fresh pot of coffee.',
+    'After forty winters on the headland, the old lantern would guide ships by solar power, yet its warm beam across the water remained unchanged.',
+  ].join('\n\n'),
+  numbers: [
+    'Your flight to Zurich departs on March 3rd at 7:45 AM from gate B12. The fare is $249.99, and the nonstop trip takes about 1.5 hours.',
+    'Upon arrival at Terminal 2, Dr. Smith will meet you on platform 4 for the 9:30 express train—please keep your confirmation code, ZX-4082, ready for inspection!',
+    'With 99.4% on-time reliability across 4,520 routes, tickets start at €45 or £39.50.',
+  ].join('\n\n'),
+  article: [
+    'On-device speech synthesis brings natural, low-latency voice interfaces to web applications with complete user privacy.',
+    'Because inference runs locally on WebGPU or WebAssembly, audio generation works offline and incurs zero cloud serving cost.',
+    'Try clicking around different sentences in this passage, or switch between Kokoro, PocketTTS, and Phonon to compare voice quality and speed.',
+  ].join('\n\n'),
 };
 
 /** Samples keyed by language prefix of a voice locale (e.g. "es" for "es-ES"). */
 const LOCALIZED_SAMPLES: Record<string, string> = {
   en: ENGLISH_SAMPLES.welcome,
-  es: 'Bienvenido a MediaPipe. Esta voz se genera completamente en tu navegador, sin conexión a ningún servidor.',
-  fr: 'Bienvenue dans MediaPipe. Cette voix est générée entièrement dans votre navigateur, sans aucun serveur.',
-  de: 'Willkommen bei MediaPipe. Diese Stimme wird vollständig in Ihrem Browser erzeugt, ganz ohne Server.',
-  it: 'Benvenuto in MediaPipe. Questa voce viene generata interamente nel tuo browser, senza alcun server.',
-  pt: 'Bem-vindo ao MediaPipe. Esta voz é gerada inteiramente no seu navegador, sem nenhum servidor.',
-  nl: 'Welkom bij MediaPipe. Deze stem wordt volledig in je browser gegenereerd, zonder enige server.',
-  hi: 'मीडियापाइप में आपका स्वागत है। यह आवाज़ पूरी तरह से आपके ब्राउज़र में बनाई जाती है।',
-  ja: 'MediaPipeへようこそ。この音声は、すべてお使いのブラウザの中で生成されています。',
-  zh: '欢迎使用 MediaPipe。这个声音完全在您的浏览器中生成，无需任何服务器。',
+  es: [
+    'Bienvenido a MediaPipe. Esta voz se genera completamente en tu navegador, sin conexión a ningún servidor.',
+    'Haz clic en cualquier oración para escuchar su pronunciación al instante, con resaltado palabra por palabra sincronizado en tiempo real.',
+  ].join('\n\n'),
+  fr: [
+    'Bienvenue dans MediaPipe. Cette voix est générée entièrement dans votre navigateur, sans aucun serveur.',
+    'Cliquez sur une phrase pour commencer la lecture à tout moment et suivez chaque mot mis en évidence au fil de la narration.',
+  ].join('\n\n'),
+  de: [
+    'Willkommen bei MediaPipe. Diese Stimme wird vollständig in Ihrem Browser erzeugt, ganz ohne Server.',
+    'Klicken Sie auf einen beliebigen Satz, um die Wiedergabe sofort ab dieser Zeile zu starten und jedes gesprochene Wort live zu verfolgen.',
+  ].join('\n\n'),
+  it: [
+    'Benvenuto in MediaPipe. Questa voce viene generata interamente nel tuo browser, senza alcun server.',
+    'Tocca qualsiasi frase per avviare la lettura interattiva e osserva le parole illuminarsi in perfetto sincrono con la voce.',
+  ].join('\n\n'),
+  pt: [
+    'Bem-vindo ao MediaPipe. Esta voz é gerada inteiramente no seu navegador, sem nenhum servidor.',
+    'Clique em qualquer frase abaixo para ouvir uma narração fluida com alinhamento preciso de cada palavra falada.',
+  ].join('\n\n'),
+  nl: [
+    'Welkom bij MediaPipe. Deze stem wordt volledig in je browser gegenereerd, zonder enige server.',
+    'Klik op een willekeurige zin om de uitspraak direct te horen, terwijl elk woord in realtime wordt gemarkeerd.',
+  ].join('\n\n'),
+  hi: [
+    'मीडियापाइप में आपका स्वागत है। यह आवाज़ पूरी तरह से आपके ब्राउज़र में बनाई जाती है।',
+    'किसी भी वाक्य पर क्लिक करें और वास्तविक समय में प्रत्येक शब्द को हाइलाइट होते हुए सुनें।',
+  ].join('\n\n'),
+  ja: [
+    'MediaPipeへようこそ。この音声は、すべてお使いのブラウザの中で生成されています。',
+    '下の任意の文をクリックすると、その位置からすぐに読み上げが始まり、発話に合わせて単語がハイलाइटされます。',
+  ].join('\n\n'),
+  zh: [
+    '欢迎使用 MediaPipe。这个声音完全在您的浏览器中生成，无需任何服务器。',
+    '点击下方任意句子即可从该行开始实时朗读，并同步高亮显示每一个字词。',
+  ].join('\n\n'),
 };
 
 interface ScheduledChunk {
   /** AudioContext time at which the chunk starts playing. */
   startAt: number;
   duration: number;
+  /** Cumulative synthesized audio offset (seconds) at the start of this chunk. */
+  audioOffsetSec: number;
   source: AudioBufferSourceNode;
+}
+
+interface SentenceSpanInfo {
+  index: number;
+  paragraphIndex: number;
+  startChar: number;
+  endChar: number;
+  text: string;
+  element: HTMLSpanElement;
 }
 
 class TextToSpeechTask extends BaseTask {
@@ -66,6 +115,7 @@ class TextToSpeechTask extends BaseTask {
   private requestId = 0;
   private isSynthesizing = false;
   private firstChunkMs: number | undefined;
+  private pendingSpeakSentenceIdx: number | undefined;
 
   // Playback state
   private audioCtx: AudioContext | undefined;
@@ -74,6 +124,8 @@ class TextToSpeechTask extends BaseTask {
   private utteranceStartAt = 0;
   /** AudioContext time at which the next chunk can start (gapless playback). */
   private nextStartAt = 0;
+  /** Cumulative synthesized audio duration (seconds) of chunks that have finished playing. */
+  private playedAudioSec = 0;
   private animationFrame: number | undefined;
 
   // Output of the last utterance (for WAV export and visualization)
@@ -81,6 +133,12 @@ class TextToSpeechTask extends BaseTask {
   private outputSampleRate = 24000;
   private wordTimestamps: WordTimestamp[] = [];
   private spokenText = '';
+  /** Character offset in `spokenText` where the current synthesis request began. */
+  private utteranceCharOffset = 0;
+  private startSentenceIdx = 0;
+  private activeSentenceIdx = -1;
+  private sentences: SentenceSpanInfo[] = [];
+  private renderedWordCount = 0;
 
   // DOM
   private textInput!: HTMLTextAreaElement;
@@ -89,6 +147,9 @@ class TextToSpeechTask extends BaseTask {
   private streamBtn!: HTMLButtonElement;
   private stopBtn!: HTMLButtonElement;
   private downloadBtn!: HTMLButtonElement;
+  private prevSentBtn!: HTMLButtonElement;
+  private nextSentBtn!: HTMLButtonElement;
+  private sentenceBadgeEl!: HTMLElement;
   private transcriptEl!: HTMLElement;
   private wordSpans: HTMLSpanElement[] = [];
   private canvas!: HTMLCanvasElement;
@@ -115,21 +176,34 @@ class TextToSpeechTask extends BaseTask {
     this.streamBtn = document.getElementById('tts-stream-btn') as HTMLButtonElement;
     this.stopBtn = document.getElementById('tts-stop-btn') as HTMLButtonElement;
     this.downloadBtn = document.getElementById('tts-download-btn') as HTMLButtonElement;
+    this.prevSentBtn = document.getElementById('tts-prev-sent-btn') as HTMLButtonElement;
+    this.nextSentBtn = document.getElementById('tts-next-sent-btn') as HTMLButtonElement;
+    this.sentenceBadgeEl = document.getElementById('tts-sentence-badge') as HTMLElement;
     this.transcriptEl = document.getElementById('tts-transcript') as HTMLElement;
     this.canvas = document.getElementById('tts-waveform') as HTMLCanvasElement;
 
     this.textInput.value = ENGLISH_SAMPLES.welcome;
+    this.renderTranscript(this.textInput.value);
 
     this.modelSelector?.updateOptions(
       TTS_MODELS.map((m) => ({ label: m.name, value: m.id, isDefault: m.id === DEFAULT_MODEL.id }))
     );
 
-    document.querySelectorAll<HTMLButtonElement>('#tts-samples .sample-chip').forEach((chip) => {
+    const sampleChips = document.querySelectorAll<HTMLButtonElement>('#tts-samples .sample-chip');
+    sampleChips.forEach((chip) => {
       chip.addEventListener('click', () => {
+        sampleChips.forEach((c) => c.classList.toggle('active', c === chip));
         const sample = chip.dataset.sample!;
-        this.textInput.value =
-          sample === 'voice-language' ? this.sampleForVoice(this.voiceSelect.value) : ENGLISH_SAMPLES[sample];
+        this.textInput.value = ENGLISH_SAMPLES[sample];
+        this.stop();
+        this.renderTranscript(this.textInput.value);
       });
+    });
+
+    this.textInput.addEventListener('input', () => {
+      if (!this.isSynthesizing && this.scheduled.length === 0) {
+        this.renderTranscript(this.textInput.value);
+      }
     });
 
     this.voiceSelect.addEventListener('change', () => {
@@ -137,7 +211,13 @@ class TextToSpeechTask extends BaseTask {
       const isSample =
         Object.values(ENGLISH_SAMPLES).includes(this.textInput.value) ||
         Object.values(LOCALIZED_SAMPLES).includes(this.textInput.value);
-      if (isSample) this.textInput.value = this.sampleForVoice(this.voiceSelect.value);
+      if (isSample) {
+        this.textInput.value = this.sampleForVoice(this.voiceSelect.value);
+        this.renderTranscript(this.textInput.value);
+      }
+      if (this.isWorkerReady && !this.isSynthesizing && this.voiceSelect.value) {
+        this.worker?.postMessage({ type: 'WARMUP_VOICE', voiceId: this.voiceSelect.value });
+      }
     });
 
     const rateInput = document.getElementById('speaking-rate') as HTMLInputElement;
@@ -151,10 +231,22 @@ class TextToSpeechTask extends BaseTask {
       if (this.modelRequested) this.initializeTask();
     });
 
-    this.speakBtn.addEventListener('click', () => this.synthesize('SYNTHESIZE'));
-    this.streamBtn.addEventListener('click', () => this.synthesize('STREAM'));
+    this.speakBtn.addEventListener('click', () => this.synthesize('SYNTHESIZE', 0));
+    this.streamBtn.addEventListener('click', () => this.synthesize('STREAM', 0));
     this.stopBtn.addEventListener('click', () => this.stop());
     this.downloadBtn.addEventListener('click', () => this.downloadWav());
+
+    this.prevSentBtn.addEventListener('click', () => {
+      const target = Math.max(0, (this.activeSentenceIdx >= 0 ? this.activeSentenceIdx : 0) - 1);
+      this.speakFromSentence(target);
+    });
+    this.nextSentBtn.addEventListener('click', () => {
+      const target = Math.min(
+        Math.max(0, this.sentences.length - 1),
+        (this.activeSentenceIdx >= 0 ? this.activeSentenceIdx : -1) + 1
+      );
+      this.speakFromSentence(target);
+    });
 
     this.drawWaveform();
   }
@@ -180,6 +272,11 @@ class TextToSpeechTask extends BaseTask {
     if (!this.isWorkerReady) return;
     this.populateVoices(data?.voices ?? []);
     this.setActionsEnabled(true);
+    if (this.pendingSpeakSentenceIdx !== undefined) {
+      const idx = this.pendingSpeakSentenceIdx;
+      this.pendingSpeakSentenceIdx = undefined;
+      this.synthesize('STREAM', idx);
+    }
   }
 
   protected override handleWorkerMessage(event: MessageEvent) {
@@ -253,6 +350,24 @@ class TextToSpeechTask extends BaseTask {
     this.streamBtn.disabled = !canSpeak;
     this.stopBtn.disabled = !(this.isSynthesizing || this.scheduled.length > 0);
     this.downloadBtn.disabled = this.isSynthesizing || this.outputChunks.length === 0;
+    this.updateSentenceNavButtons();
+  }
+
+  private updateSentenceNavButtons() {
+    if (!this.prevSentBtn || !this.nextSentBtn) return;
+    const count = this.sentences.length;
+    const cur = this.activeSentenceIdx >= 0 ? this.activeSentenceIdx : 0;
+    this.prevSentBtn.disabled = count <= 1 || cur <= 0;
+    this.nextSentBtn.disabled = count <= 1 || cur >= count - 1;
+    if (this.sentenceBadgeEl) {
+      if (count > 0 && this.activeSentenceIdx >= 0) {
+        this.sentenceBadgeEl.textContent = `Sentence ${this.activeSentenceIdx + 1} of ${count}`;
+      } else if (count > 0) {
+        this.sentenceBadgeEl.textContent = `${count} sentence${count === 1 ? '' : 's'}`;
+      } else {
+        this.sentenceBadgeEl.textContent = '';
+      }
+    }
   }
 
   private ensureAudioContext(): AudioContext {
@@ -264,33 +379,77 @@ class TextToSpeechTask extends BaseTask {
     return this.audioCtx;
   }
 
-  private synthesize(mode: 'SYNTHESIZE' | 'STREAM') {
+  private speakFromSentence(sentenceIdx: number) {
     const text = this.textInput.value.trim();
-    if (!text || !this.worker || !this.isWorkerReady) return;
+    if (!text) return;
+    this.ensureAudioContext();
+    if (!this.isWorkerReady) {
+      this.pendingSpeakSentenceIdx = sentenceIdx;
+      if (!this.modelRequested) {
+        this.initializeTask();
+      }
+      return;
+    }
 
+    const clampedSentIdx =
+      this.sentences.length > 0 ? Math.max(0, Math.min(sentenceIdx, this.sentences.length - 1)) : 0;
+    this.synthesize('STREAM', clampedSentIdx);
+  }
+
+  private synthesize(mode: 'SYNTHESIZE' | 'STREAM', startSentenceIdx = 0) {
+    const fullText = this.textInput.value.trim();
+    if (!fullText || !this.worker || !this.isWorkerReady) return;
+
+    if (this.isSynthesizing) {
+      this.worker.postMessage({ type: 'CANCEL' });
+    }
     this.stopPlayback();
-    const ctx = this.ensureAudioContext();
+    this.ensureAudioContext();
+
+    if (this.spokenText !== fullText || this.sentences.length === 0) {
+      this.renderTranscript(fullText);
+    } else {
+      this.resetWordSpansInTranscript();
+    }
+
+    const clampedSentIdx =
+      this.sentences.length > 0 ? Math.max(0, Math.min(startSentenceIdx, this.sentences.length - 1)) : 0;
+    const charOffset = this.sentences[clampedSentIdx]?.startChar ?? 0;
+    const textToSpeak = fullText.slice(charOffset);
+    if (!textToSpeak.trim()) return;
 
     this.requestId++;
     this.isSynthesizing = true;
     this.firstChunkMs = undefined;
     this.outputChunks = [];
     this.wordTimestamps = [];
-    this.spokenText = text;
-    // Small lead time so the first chunk is never scheduled in the past.
+    this.renderedWordCount = 0;
+    this.spokenText = fullText;
+    this.utteranceCharOffset = charOffset;
+    this.startSentenceIdx = clampedSentIdx;
+    this.activeSentenceIdx = clampedSentIdx;
+
     this.utteranceStartAt = 0;
-    this.nextStartAt = ctx.currentTime + 0.05;
-    this.renderTranscript(text);
+    this.nextStartAt = 0;
+    this.playedAudioSec = 0;
+
+    this.highlightSentenceSpan(clampedSentIdx, /*synthesizing=*/ true);
     this.resetMetrics();
     this.drawWaveform();
 
-    this.updateStatus(mode === 'STREAM' ? 'Streaming...' : 'Synthesizing full text...');
+    this.updateStatus(
+      mode === 'STREAM'
+        ? clampedSentIdx > 0
+          ? `Streaming from sentence ${clampedSentIdx + 1}...`
+          : 'Streaming...'
+        : 'Synthesizing full text...'
+    );
     this.setActionsEnabled(true);
 
     this.worker.postMessage({
       type: mode,
       requestId: this.requestId,
-      text,
+      text: textToSpeak,
       voiceId: this.voiceSelect.value,
     });
   }
@@ -308,10 +467,31 @@ class TextToSpeechTask extends BaseTask {
       this.updateStatus('Playing...');
     }
 
+    const audioOffsetSec = sampleRateHz > 0 ? this.totalSamples() / sampleRateHz : 0;
     this.outputSampleRate = sampleRateHz;
     this.outputChunks.push(samples);
-    // Word timestamps are relative to the start of the utterance.
-    this.wordTimestamps.push(...wordTimestamps);
+
+    const audioSec = this.outputSampleRate > 0 ? this.totalSamples() / this.outputSampleRate : 0;
+    this.setMetric('tts-metric-total', `${Math.round(elapsedMs)} ms`);
+    this.setMetric('tts-metric-audio', `${audioSec.toFixed(2)} s`);
+    this.setMetric('tts-metric-rtf', audioSec > 0 ? (elapsedMs / 1000 / audioSec).toFixed(3) : '-');
+
+    const utteranceText = this.spokenText.slice(this.utteranceCharOffset);
+    // Newer @mediapipe/tasks-audio builds convert C++ UTF-8 byte offsets to
+    // UTF-16 code-unit indices in the WASM binding; older builds (1.2.2) return
+    // raw UTF-8 byte offsets. Detect which one we received so both work.
+    for (const w of wordTimestamps) {
+      const isUtf16Range =
+        w.startChar >= 0 && w.endChar <= utteranceText.length && utteranceText.slice(w.startChar, w.endChar) === w.word;
+      const charRange = isUtf16Range
+        ? { startChar: w.startChar, endChar: w.endChar }
+        : this.utf8ByteRangeToCharRange(utteranceText, w.startChar, w.endChar);
+      this.wordTimestamps.push({
+        ...w,
+        startChar: charRange.startChar + this.utteranceCharOffset,
+        endChar: charRange.endChar + this.utteranceCharOffset,
+      });
+    }
 
     if (samples.length > 0) {
       const ctx = this.ensureAudioContext();
@@ -321,14 +501,15 @@ class TextToSpeechTask extends BaseTask {
       source.buffer = buffer;
       source.connect(ctx.destination);
 
-      const startAt = Math.max(this.nextStartAt, ctx.currentTime + 0.02);
-      if (this.scheduled.length === 0) this.utteranceStartAt = startAt;
+      const startAt = Math.max(this.nextStartAt, ctx.currentTime + 0.01);
+      if (this.utteranceStartAt === 0) this.utteranceStartAt = startAt;
       source.start(startAt);
       this.nextStartAt = startAt + buffer.duration;
 
-      const entry = { startAt, duration: buffer.duration, source };
+      const entry: ScheduledChunk = { startAt, duration: buffer.duration, audioOffsetSec, source };
       this.scheduled.push(entry);
       source.onended = () => {
+        this.playedAudioSec = Math.max(this.playedAudioSec, entry.audioOffsetSec + entry.duration);
         this.scheduled = this.scheduled.filter((s) => s !== entry);
         if (this.scheduled.length === 0 && !this.isSynthesizing) this.onPlaybackFinished();
       };
@@ -360,6 +541,7 @@ class TextToSpeechTask extends BaseTask {
   private onPlaybackFinished() {
     this.stopAnimation();
     this.highlightWordAt(Number.POSITIVE_INFINITY);
+    this.highlightSentenceSpan(-1, false);
     this.drawWaveform();
     if (!this.isSynthesizing) this.updateStatus('Ready');
     this.setActionsEnabled(true);
@@ -377,6 +559,7 @@ class TextToSpeechTask extends BaseTask {
   }
 
   private stop() {
+    this.pendingSpeakSentenceIdx = undefined;
     if (this.isSynthesizing) {
       this.worker?.postMessage({ type: 'CANCEL' });
       // Ignore chunks of the cancelled request that are already on their way.
@@ -385,17 +568,73 @@ class TextToSpeechTask extends BaseTask {
       this.updateStatus('Stopped');
     }
     this.stopPlayback();
+    this.highlightSentenceSpan(-1, false);
     if (this.speakBtn) this.setActionsEnabled(true);
   }
 
-  // --- Visualization ----------------------------------------------------
+  /**
+   * Computes the current playhead in synthesized audio seconds (`0 .. totalAudioSec`),
+   * immune to inter-chunk scheduling gaps or underruns.
+   */
+  private getPlayheadSec(): number {
+    if (!this.audioCtx || this.utteranceStartAt === 0) return 0;
+    // Compensate ~35ms for browser Web Audio output buffer latency so the
+    // visual word highlight lands right on the audible word onset.
+    const now = this.audioCtx.currentTime + 0.035;
+    if (now < this.utteranceStartAt) return 0;
+
+    for (const chunk of this.scheduled) {
+      if (now >= chunk.startAt && now < chunk.startAt + chunk.duration) {
+        return chunk.audioOffsetSec + (now - chunk.startAt);
+      }
+    }
+
+    let playhead = this.playedAudioSec;
+    for (const chunk of this.scheduled) {
+      if (now >= chunk.startAt + chunk.duration) {
+        playhead = Math.max(playhead, chunk.audioOffsetSec + chunk.duration);
+      }
+    }
+    return playhead;
+  }
+
+  private utf8ByteRangeToCharRange(
+    text: string,
+    startByte: number,
+    endByte: number
+  ): { startChar: number; endChar: number } {
+    if (startByte <= 0 && endByte <= 0) return { startChar: 0, endChar: 0 };
+    let bytePos = 0;
+    let charPos = 0;
+    let startChar = -1;
+    let endChar = -1;
+    while (charPos < text.length) {
+      if (startChar < 0 && bytePos >= startByte) {
+        startChar = charPos;
+      }
+      const cp = text.codePointAt(charPos)!;
+      const charLen = cp > 0xffff ? 2 : 1;
+      const utf8Len = cp <= 0x7f ? 1 : cp <= 0x7ff ? 2 : cp <= 0xffff ? 3 : 4;
+      bytePos += utf8Len;
+      charPos += charLen;
+      if (bytePos >= endByte) {
+        endChar = charPos;
+        break;
+      }
+    }
+    if (startChar < 0) startChar = Math.min(startByte, text.length);
+    if (endChar < 0) endChar = text.length;
+    return { startChar, endChar };
+  }
+
+  // --- Visualization & Interactive Sentence Reader ----------------------
 
   private startAnimation() {
     if (this.animationFrame !== undefined) return;
     const tick = () => {
       this.animationFrame = requestAnimationFrame(tick);
       if (!this.audioCtx) return;
-      const elapsed = this.audioCtx.currentTime - this.utteranceStartAt;
+      const elapsed = this.getPlayheadSec();
       this.highlightWordAt(elapsed);
       this.drawWaveform(elapsed);
     };
@@ -407,43 +646,264 @@ class TextToSpeechTask extends BaseTask {
     this.animationFrame = undefined;
   }
 
-  private renderTranscript(text: string) {
-    this.transcriptEl.innerHTML = '';
-    this.wordSpans = [];
-    // Render the text as-is; spans are attached lazily per word timestamp.
-    this.transcriptEl.textContent = text;
+  /** Splits `text` into paragraphs and clickable sentences with exact character offsets. */
+  private parseSentences(text: string): Array<Omit<SentenceSpanInfo, 'element'>> {
+    const out: Array<Omit<SentenceSpanInfo, 'element'>> = [];
+    const n = text.length;
+    let pIdx = 0;
+    let i = 0;
+
+    const isSentenceTerminator = (ch: string) =>
+      ch === '.' || ch === '!' || ch === '?' || ch === '。' || ch === '！' || ch === '？' || ch === '।' || ch === '॥';
+    const isClosingQuoteOrBracket = (ch: string) =>
+      ch === '"' || ch === "'" || ch === '”' || ch === '’' || ch === ')' || ch === ']' || ch === '」' || ch === '』';
+    const nonSplittingAbbrs = new Set([
+      'dr',
+      'mr',
+      'mrs',
+      'ms',
+      'st',
+      'jr',
+      'sr',
+      'prof',
+      'vs',
+      'etc',
+      'approx',
+      'dept',
+      'fig',
+      'inc',
+      'ltd',
+      'no',
+    ]);
+    const isNonSplittingPeriod = (periodIdx: number, pStart: number, pEnd: number): boolean => {
+      if (periodIdx + 1 < pEnd && text[periodIdx + 1] === '.') return true;
+      if (
+        periodIdx > pStart &&
+        periodIdx + 1 < pEnd &&
+        /\d/.test(text[periodIdx - 1]) &&
+        /\d/.test(text[periodIdx + 1])
+      ) {
+        return true;
+      }
+      let afterIdx = periodIdx + 1;
+      while (afterIdx < pEnd && isClosingQuoteOrBracket(text[afterIdx])) afterIdx++;
+      if (afterIdx >= pEnd) return false;
+      if (!/\s/.test(text[afterIdx])) return true;
+      let nextWordIdx = afterIdx;
+      while (nextWordIdx < pEnd && /\s/.test(text[nextWordIdx])) nextWordIdx++;
+      if (nextWordIdx < pEnd && /^[a-z,;:]/.test(text[nextWordIdx])) return true;
+      let tokStart = periodIdx;
+      while (tokStart > pStart && /[a-zA-Z0-9]/.test(text[tokStart - 1])) tokStart--;
+      const token = text.slice(tokStart, periodIdx);
+      if (!token) return false;
+      if (tokStart === pStart && /^\d+$/.test(token)) return true;
+      if (token.length === 1 && /[a-zA-Z]/.test(token)) return true;
+      if (tokStart > pStart && text[tokStart - 1] === '.') return true;
+      if (nonSplittingAbbrs.has(token.toLowerCase())) return true;
+      return false;
+    };
+
+    while (i < n) {
+      while (i < n && /\s/.test(text[i])) i++;
+      if (i >= n) break;
+
+      // Find the end of the current paragraph (delimited by one or more newlines).
+      let pEnd = i;
+      while (pEnd < n && text[pEnd] !== '\n' && text[pEnd] !== '\r') pEnd++;
+
+      let sStart = i;
+      let j = i;
+      while (j < pEnd) {
+        if (isSentenceTerminator(text[j])) {
+          if (text[j] === '.' && isNonSplittingPeriod(j, i, pEnd)) {
+            j++;
+            continue;
+          }
+          let k = j + 1;
+          while (k < pEnd && isClosingQuoteOrBracket(text[k])) k++;
+          // Split if at end of paragraph, CJK/Indic punctuation, or followed by whitespace.
+          const isCjkOrIndic = text.charCodeAt(j) > 0x7f;
+          if (k === pEnd || isCjkOrIndic || /\s/.test(text[k])) {
+            const sentText = text.slice(sStart, k);
+            if (sentText.trim().length > 0) {
+              out.push({
+                index: out.length,
+                paragraphIndex: pIdx,
+                startChar: sStart,
+                endChar: k,
+                text: sentText,
+              });
+            }
+            while (k < pEnd && /\s/.test(text[k])) k++;
+            sStart = k;
+            j = k;
+            continue;
+          }
+        }
+        j++;
+      }
+
+      if (sStart < pEnd) {
+        let sEnd = pEnd;
+        while (sEnd > sStart && /\s/.test(text[sEnd - 1])) sEnd--;
+        if (sEnd > sStart) {
+          out.push({
+            index: out.length,
+            paragraphIndex: pIdx,
+            startChar: sStart,
+            endChar: sEnd,
+            text: text.slice(sStart, sEnd),
+          });
+        }
+      }
+
+      pIdx++;
+      i = pEnd;
+      while (i < n && (text[i] === '\n' || text[i] === '\r')) i++;
+    }
+
+    return out;
   }
 
-  /** Builds per-word spans from the character offsets in the word timestamps. */
+  private renderTranscript(text: string) {
+    const trimmed = text.trim();
+    this.spokenText = trimmed;
+    this.transcriptEl.innerHTML = '';
+    this.wordSpans = [];
+    this.renderedWordCount = 0;
+    this.sentences = [];
+    this.activeSentenceIdx = -1;
+
+    if (!trimmed) {
+      this.updateSentenceNavButtons();
+      return;
+    }
+
+    const parsed = this.parseSentences(trimmed);
+    const byParagraph = new Map<number, Array<Omit<SentenceSpanInfo, 'element'>>>();
+    for (const s of parsed) {
+      if (!byParagraph.has(s.paragraphIndex)) byParagraph.set(s.paragraphIndex, []);
+      byParagraph.get(s.paragraphIndex)!.push(s);
+    }
+
+    for (const [, list] of byParagraph) {
+      const pEl = document.createElement('p');
+      pEl.className = 'tts-paragraph';
+      list.forEach((s, idxWithinPara) => {
+        const span = document.createElement('span');
+        span.className = 'tts-sentence';
+        span.dataset.sentIdx = String(s.index);
+        span.title = 'Click to stream from this sentence';
+        span.textContent = s.text;
+        span.addEventListener('click', () => {
+          this.speakFromSentence(s.index);
+        });
+        pEl.appendChild(span);
+        if (idxWithinPara < list.length - 1) {
+          pEl.appendChild(document.createTextNode(' '));
+        }
+        this.sentences.push({ ...s, element: span });
+      });
+      this.transcriptEl.appendChild(pEl);
+    }
+
+    this.updateSentenceNavButtons();
+  }
+
+  private resetWordSpansInTranscript() {
+    this.wordSpans = [];
+    this.renderedWordCount = 0;
+    for (const s of this.sentences) {
+      s.element.classList.remove('active', 'synthesizing', 'spoken');
+      s.element.textContent = s.text;
+    }
+  }
+
+  private highlightSentenceSpan(sentIdx: number, synthesizing: boolean) {
+    this.activeSentenceIdx = sentIdx;
+    for (const s of this.sentences) {
+      const isCurrent = s.index === sentIdx;
+      s.element.classList.toggle('active', isCurrent && !synthesizing);
+      s.element.classList.toggle('synthesizing', isCurrent && synthesizing);
+      s.element.classList.toggle('spoken', sentIdx >= 0 && s.index >= this.startSentenceIdx && s.index < sentIdx);
+    }
+    this.updateSentenceNavButtons();
+  }
+
+  /** Builds per-word spans inside each clickable `.tts-sentence` element. */
   private buildWordSpans() {
     const text = this.spokenText;
     const words = [...this.wordTimestamps].sort((a, b) => a.startChar - b.startChar);
-    this.transcriptEl.innerHTML = '';
     this.wordSpans = [];
-    let cursor = 0;
-    for (const w of words) {
-      if (w.startChar < cursor || w.endChar > text.length || w.endChar <= w.startChar) continue;
-      if (w.startChar > cursor) this.transcriptEl.append(text.slice(cursor, w.startChar));
-      const span = document.createElement('span');
-      span.className = 'tts-word';
-      span.textContent = text.slice(w.startChar, w.endChar);
-      span.dataset.start = String(w.startSec);
-      span.dataset.end = String(w.endSec);
-      this.transcriptEl.append(span);
-      this.wordSpans.push(span);
-      cursor = w.endChar;
+    this.renderedWordCount = this.wordTimestamps.length;
+
+    for (const s of this.sentences) {
+      const sentWords = words.filter((w) => w.startChar < s.endChar && w.endChar > s.startChar);
+      s.element.innerHTML = '';
+      if (sentWords.length === 0) {
+        s.element.textContent = s.text;
+        continue;
+      }
+
+      let cursor = s.startChar;
+      for (const w of sentWords) {
+        const wStart = Math.max(s.startChar, w.startChar);
+        const wEnd = Math.min(s.endChar, w.endChar);
+        if (wStart < cursor || wEnd > text.length || wEnd <= wStart) continue;
+        if (wStart > cursor) {
+          s.element.append(text.slice(cursor, wStart));
+        }
+        const span = document.createElement('span');
+        span.className = 'tts-word';
+        span.textContent = text.slice(wStart, wEnd);
+        span.dataset.start = String(w.startSec);
+        span.dataset.end = String(w.endSec);
+        span.dataset.sentIdx = String(s.index);
+        s.element.append(span);
+        this.wordSpans.push(span);
+        cursor = wEnd;
+      }
+      if (cursor < s.endChar) {
+        s.element.append(text.slice(cursor, s.endChar));
+      }
     }
-    if (cursor < text.length) this.transcriptEl.append(text.slice(cursor));
   }
 
   private highlightWordAt(elapsedSec: number) {
     if (this.wordTimestamps.length === 0) return;
-    if (this.wordSpans.length !== this.wordTimestamps.length) this.buildWordSpans();
-    for (const span of this.wordSpans) {
+    if (this.renderedWordCount !== this.wordTimestamps.length) this.buildWordSpans();
+
+    let currentSentIdx = -1;
+    let latestSpokenSentIdx = -1;
+    let activeAssigned = false;
+    for (let i = 0; i < this.wordSpans.length; i++) {
+      const span = this.wordSpans[i];
       const start = parseFloat(span.dataset.start!);
       const end = parseFloat(span.dataset.end!);
-      span.classList.toggle('active', elapsedSec >= start && elapsedSec < end);
-      span.classList.toggle('spoken', elapsedSec >= start);
+      const nextSpan = i + 1 < this.wordSpans.length ? this.wordSpans[i + 1] : undefined;
+      const nextStart = nextSpan ? parseFloat(nextSpan.dataset.start!) : end + 0.15;
+      const onsetSec = start - 0.015;
+      const nextOnsetSec = nextStart - 0.015;
+      const holdUntil = Math.min(nextOnsetSec, Math.max(end, start + 0.08) + 0.22);
+      const isFirstWordLeadIn = i === 0 && Number.isFinite(elapsedSec) && elapsedSec >= 0 && elapsedSec < onsetSec;
+      const isActive =
+        !activeAssigned &&
+        (isFirstWordLeadIn ||
+          (elapsedSec >= onsetSec && elapsedSec < Math.max(end, holdUntil) && elapsedSec < nextOnsetSec));
+      if (isActive) activeAssigned = true;
+      const isSpoken = isFirstWordLeadIn || elapsedSec >= onsetSec;
+      span.classList.toggle('active', isActive);
+      span.classList.toggle('spoken', isSpoken);
+      const sentIdx = Number(span.dataset.sentIdx);
+      if (isActive) currentSentIdx = sentIdx;
+      if (isSpoken) latestSpokenSentIdx = sentIdx;
+    }
+
+    if (Number.isFinite(elapsedSec)) {
+      const targetSent = currentSentIdx >= 0 ? currentSentIdx : latestSpokenSentIdx;
+      if (targetSent >= 0) {
+        this.highlightSentenceSpan(targetSent, false);
+      }
     }
   }
 

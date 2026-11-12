@@ -9,20 +9,20 @@ importers:
   .:
     dependencies:
       '@mediapipe/tasks-audio':
-        specifier: ^1.2.2
-        version: 1.2.2
+        specifier: ^1.2.3
+        version: 1.2.3
       '@mediapipe/tasks-decision':
-        specifier: ^1.2.2
-        version: 1.2.2
+        specifier: ^1.2.3
+        version: 1.2.3
       '@mediapipe/tasks-retrieval':
-        specifier: ^1.2.2
-        version: 1.2.2
+        specifier: ^1.2.3
+        version: 1.2.3
       '@mediapipe/tasks-text':
-        specifier: ^1.2.2
-        version: 1.2.2
+        specifier: ^1.2.3
+        version: 1.2.3
       '@mediapipe/tasks-vision':
-        specifier: ^1.2.2
-        version: 1.2.2
+        specifier: ^1.2.3
+        version: 1.2.3
       mediapipe-od-ts:
         specifier: 'link:'
         version: 'link:'
@@ -213,20 +213,20 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@mediapipe/tasks-audio@1.2.2':
-    resolution: {integrity: sha512-8kv9v6+bGb+cbonbB/oU7xPKY7/eWp1bxD5FKhiApHbj0yGXlgVOq9PvjFMFwISs28nYlMUL/fcCsyLsmzyGdQ==}
+  '@mediapipe/tasks-audio@1.2.3':
+    resolution: {integrity: sha512-GAJ/6BcnX8RDCwJgug76vBBKr3qEu1PbfRB8rB1bemHhEbUu8ikNMLJU84ZAnnBuA/1iaJwRE7I3wjeJuHRPSQ==}
 
-  '@mediapipe/tasks-decision@1.2.2':
-    resolution: {integrity: sha512-oRKDHa2R5iGw3rPPCqSoJljf/ZO02m9jU0IN5/FY3cAjha+HVpjNdjAInUSQWyzaoRGK/sJKTQ/S74pfIJdCrw==}
+  '@mediapipe/tasks-decision@1.2.3':
+    resolution: {integrity: sha512-5Yve4FzQWJ0moTf/xXJn0wXuzpAmSnyZ5ISN7ozuBbXoPQ1LkAoqCj39jvFt8p314rogDWr7X3Ma2s0a7hFzmA==}
 
-  '@mediapipe/tasks-retrieval@1.2.2':
-    resolution: {integrity: sha512-TCNNeHE21DERFsZ+vLXOroct6IfI0hMDcH6eZOEQ8fD2lpOSv3xq/XU+VvyWTMo+I6cfJXkREnzlicE7cQYW0g==}
+  '@mediapipe/tasks-retrieval@1.2.3':
+    resolution: {integrity: sha512-lsSlcgSUFrgLMfqaKlcXF06mOFcteCmOjrBBteeOSVxwLodZ1jkzFD0pINHVHihZnq1XVBpyK/ckwIWtrF889A==}
 
-  '@mediapipe/tasks-text@1.2.2':
-    resolution: {integrity: sha512-ZIpsH9ct6ApbWsbs1MlO+Ya85OtmKzW2bb1x+NPuQJ9Kfhpmdk0VdQ1FTYNLOyD2rEbG/IyGtFByEHjmV0fg6w==}
+  '@mediapipe/tasks-text@1.2.3':
+    resolution: {integrity: sha512-iHJ7dLpqdmFQo+x+tpm9LA8UgvmKnMPN/ZWNMc9Iso5/fQLyLxdMuq8Qw0ypWncBmvDHEYvPiSow++y3pYAOxA==}
 
-  '@mediapipe/tasks-vision@1.2.2':
-    resolution: {integrity: sha512-Z7BikxnTvlKgc3d/Nw+LV6B0xyAACxYeAHHUu/xUhm1SV7jlExa9M37beiF/wZFoy0H+cs1PlIT2Z4km02UEHQ==}
+  '@mediapipe/tasks-vision@1.2.3':
+    resolution: {integrity: sha512-sxJyfhbN+EamexhaaCmUlw7v8vWWMum7VDsORe6d4c8Dk/xlI4qiIgoSw9cE9hpvYhVRRVLIA8y605FbqWkNeQ==}
 
   '@oxc-project/types@0.155.0':
     resolution: {integrity: sha512-SeE8JPwW1xs1tHeNycjUtUBdhorRa8o4jlvjwk49R7/Z291i+4DQa7JJIgOm/TaYQZx+QrPQbVJ/9c8dMIZN8Q==}
@@ -771,15 +771,15 @@ snapshots:
   '@esbuild/win32-x64@0.28.2':
     optional: true
 
-  '@mediapipe/tasks-audio@1.2.2': {}
+  '@mediapipe/tasks-audio@1.2.3': {}
 
-  '@mediapipe/tasks-decision@1.2.2': {}
+  '@mediapipe/tasks-decision@1.2.3': {}
 
-  '@mediapipe/tasks-retrieval@1.2.2': {}
+  '@mediapipe/tasks-retrieval@1.2.3': {}
 
-  '@mediapipe/tasks-text@1.2.2': {}
+  '@mediapipe/tasks-text@1.2.3': {}
 
-  '@mediapipe/tasks-vision@1.2.2': {}
+  '@mediapipe/tasks-vision@1.2.3': {}
 
   '@oxc-project/types@0.155.0': {}
 
