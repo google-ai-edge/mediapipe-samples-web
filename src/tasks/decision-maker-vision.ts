@@ -25,7 +25,8 @@
 
 import { FilesetResolver, ImageSegmenter } from '@mediapipe/tasks-vision';
 import template from '../templates/decision-maker-vision.html?raw';
-import { DECISION_MODELS } from '../components/decision-runtime';
+import { DECISION_MODELS, decisionRuntime } from '../components/decision-runtime';
+import { publishTestResult } from '../components/test-hooks';
 import { fetchModelBytes } from '../components/model-cache';
 
 export interface PassportRuleOption {
@@ -1284,6 +1285,24 @@ export class DecisionVisionPlayground {
       this.updatePhotoComplianceBadge(targetPhoto);
       this.renderPresetStrip();
       this.renderAllPanels();
+      // Expose how every rule judged this photo, for automated validation (see test-hooks.ts).
+      publishTestResult('id_photo', () => {
+        const evalRes = this.evaluatePhotoRules(targetPhoto);
+        const enabled = new Set(this.getEnabledRules().map((r) => r.id));
+        return {
+          model: decisionRuntime.loadedValue,
+          delegate: 'GPU',
+          photo: targetPhoto.id,
+          pack: this.activePackId,
+          rules: this.rules.map((r) => ({
+            id: r.id,
+            enabled: enabled.has(r.id),
+            passed: Boolean(evalRes[r.id]?.passed),
+            status: evalRes[r.id]?.status ?? null,
+            probability: evalRes[r.id]?.prob ?? null,
+          })),
+        };
+      });
       if (dmEval.inferenceTime !== undefined) {
         const activeCount = this.getEnabledRules().length;
         if (this.el['dv-result-meta']) {

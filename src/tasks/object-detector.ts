@@ -123,6 +123,25 @@ class ObjectDetectorTask extends BaseVisionTask {
     }
   }
 
+  protected override readonly testTaskName = 'object_detector';
+
+  protected override summarizeTestResult(result: ObjectDetectorResult) {
+    return {
+      detections: (result.detections ?? []).map((detection) => ({
+        label: detection.categories[0]?.categoryName ?? '',
+        score: detection.categories[0]?.score ?? 0,
+        box: detection.boundingBox
+          ? {
+              x: detection.boundingBox.originX,
+              y: detection.boundingBox.originY,
+              width: detection.boundingBox.width,
+              height: detection.boundingBox.height,
+            }
+          : null,
+      })),
+    };
+  }
+
   private drawDetection(ctx: CanvasRenderingContext2D, detection: any, mirror: boolean) {
     const drawingUtils = new DrawingUtils(ctx);
     drawingUtils.drawBoundingBox(detection.boundingBox!, {

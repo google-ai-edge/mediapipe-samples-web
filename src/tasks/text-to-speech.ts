@@ -107,6 +107,31 @@ interface SentenceSpanInfo {
   element: HTMLSpanElement;
 }
 
+/**
+ * Level statistics of synthesized audio for automated validation (see
+ * test-hooks.ts): silence, clipping and invalid samples all show up here.
+ */
+function summarizeSamples(chunks: Float32Array[]): Record<string, unknown> {
+  let count = 0;
+  let nonFinite = 0;
+  let sumSquares = 0;
+  let peak = 0;
+  for (const chunk of chunks) {
+    for (let i = 0; i < chunk.length; i++) {
+      const v = chunk[i];
+      count++;
+      if (!Number.isFinite(v)) {
+        nonFinite++;
+        continue;
+      }
+      sumSquares += v * v;
+      if (Math.abs(v) > peak) peak = Math.abs(v);
+    }
+  }
+  const finite = count - nonFinite;
+  return { sampleCount: count, nonFiniteCount: nonFinite, rms: finite > 0 ? Math.sqrt(sumSquares / finite) : 0, peak };
+}
+
 class TextToSpeechTask extends BaseTask {
   private voices: VoiceInfo[] = [];
   private speakingRate = 1.0;
@@ -140,6 +165,9 @@ class TextToSpeechTask extends BaseTask {
   private sentences: SentenceSpanInfo[] = [];
   private renderedWordCount = 0;
   private selectedEnglishSample = 'welcome';
+  /** How the current synthesis was requested and the text sent to the model, reported with its result. */
+  private requestedMode: 'SYNTHESIZE' | 'STREAM' = 'SYNTHESIZE';
+  private requestedText = '';
 
   // DOM
   private textInput!: HTMLTextAreaElement;
@@ -462,6 +490,8 @@ class TextToSpeechTask extends BaseTask {
     this.utteranceCharOffset = charOffset;
     this.startSentenceIdx = clampedSentIdx;
     this.activeSentenceIdx = clampedSentIdx;
+    this.requestedMode = mode;
+    this.requestedText = textToSpeak;
 
     this.utteranceStartAt = 0;
     this.nextStartAt = 0;
@@ -561,6 +591,18 @@ class TextToSpeechTask extends BaseTask {
     this.setMetric('tts-metric-total', `${Math.round(data.totalMs)} ms`);
     this.setMetric('tts-metric-audio', `${audioSec.toFixed(2)} s`);
     this.setMetric('tts-metric-rtf', audioSec > 0 ? (data.totalMs / 1000 / audioSec).toFixed(3) : '-');
+    this.publishTestResult('text_to_speech', () => ({
+      mode: this.requestedMode,
+      // The text sent to the model (the page can also start from a later sentence).
+      text: this.requestedText,
+      voiceId: this.voiceSelect.value,
+      cancelled: Boolean(data.cancelled),
+      sampleRateHz: this.outputSampleRate,
+      chunkCount: this.outputChunks.length,
+      durationSec: audioSec,
+      wordTimestampCount: this.wordTimestamps.length,
+      ...summarizeSamples(this.outputChunks),
+    }));
 
     if (data.cancelled) {
       this.updateStatus('Stopped');

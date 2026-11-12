@@ -25,6 +25,7 @@ import {
   type SampleImageItem,
 } from '../components/retrieval-runtime';
 import { InferenceTimer } from '../components/inference-timer';
+import { publishTestResult } from '../components/test-hooks';
 import type { ModelSelector } from '../components/model-selector';
 
 function formatSigned(val: number): string {
@@ -412,6 +413,7 @@ class UniversalEmbedderTask {
         label: 'text',
         summaryLabel: `"${shortText}"`,
         elapsedMs,
+        input: { mode: 'text', value: text },
       };
     } else {
       const customImg = isSlotA ? this.customImageA : this.customImageB;
@@ -427,6 +429,7 @@ class UniversalEmbedderTask {
         label: imageId,
         summaryLabel: `[Image: ${customImg ? customImg.label : sample.label}]`,
         elapsedMs,
+        input: { mode: 'image', value: imageId },
       };
     }
   }
@@ -458,6 +461,17 @@ class UniversalEmbedderTask {
 
       this.similarityValueEl.textContent = similarity.toFixed(4);
       this.similarityBarFill.style.width = `${pct}%`;
+      publishTestResult('universal_embedder', () => {
+        const norm = (values: ArrayLike<number>) => Math.sqrt(Array.from(values).reduce((sum, v) => sum + v * v, 0));
+        return {
+          ...retrievalRuntime.testResultOrigin(),
+          inputs: [resA.input, resB.input],
+          similarity,
+          dimensions: [dimA, dimB],
+          // Vector lengths: 1 when L2 normalization is on.
+          norms: [norm(resA.embedding.floatEmbedding), norm(resB.embedding.floatEmbedding)],
+        };
+      });
       this.vectorPreviewEl.innerHTML =
         renderVectorPreviewRow('A', resA.embedding.floatEmbedding) +
         renderVectorPreviewRow('B', resB.embedding.floatEmbedding);

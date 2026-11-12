@@ -22,6 +22,7 @@ import {
   type SampleImageItem,
 } from '../components/retrieval-runtime';
 import { InferenceTimer } from '../components/inference-timer';
+import { publishTestResult } from '../components/test-hooks';
 import template from '../templates/semantic-retriever.html?raw';
 
 function capitalizeFirst(str: string): string {
@@ -324,6 +325,12 @@ class SemanticRetrieverTask {
       const elapsedMs = Math.round(performance.now() - t0);
 
       this.renderSearchResults(query, results);
+      publishTestResult('semantic_retriever', () => ({
+        ...retrievalRuntime.testResultOrigin(),
+        query,
+        indexedCount: this.corpusItems.filter((item) => item.indexed).length,
+        results: (results ?? []).map((r: { id: string; score: number }) => ({ id: r.id, score: r.score })),
+      }));
       this.searchSummaryMeta.textContent = `Top ${results.length} results in ${elapsedMs} ms`;
       this.timer.recordSingle(elapsedMs);
       this.setStatus('ready', `Done · ${results.length} matches found`);

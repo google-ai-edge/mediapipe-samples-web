@@ -180,6 +180,14 @@ class AudioTranscriberTask extends BaseAudioTask {
     }
     if (data.final) this.interimSegment = undefined;
     this.renderTranscript();
+    this.publishTestResult('audio_transcriber', () => ({
+      mode: this.runningMode,
+      // True once the whole file or recording has been transcribed.
+      final: data.final,
+      transcript: this.transcriptText(),
+      segments: this.finalSegments.map((s) => ({ text: s.transcript.trim(), fromMs: s.fromTimestampMs })),
+      audioMs: this.totalAudioMs,
+    }));
 
     if (this.totalAudioMs > 0) {
       this.rtfEl.textContent = `RTF ${(this.totalInferenceMs / this.totalAudioMs).toFixed(3)}`;

@@ -16,6 +16,7 @@
 
 import { HandLandmarkerResult, DrawingUtils, HandLandmarker } from '@mediapipe/tasks-vision';
 import { BaseVisionTask } from '../components/base-vision-task';
+import { summarizeLandmarks } from '../components/test-hooks';
 
 // @ts-ignore
 import template from '../templates/hand-landmarker.html?raw';
@@ -93,6 +94,25 @@ class HandLandmarkerTask extends BaseVisionTask {
       minHandDetectionConfidence: this.minHandDetectionConfidence,
       minHandPresenceConfidence: this.minHandPresenceConfidence,
       minTrackingConfidence: this.minTrackingConfidence,
+    };
+  }
+
+  protected override readonly testTaskName = 'hand_landmarker';
+
+  protected override summarizeTestResult(result: HandLandmarkerResult) {
+    return {
+      hands: (result.landmarks ?? []).map((landmarks, i) => ({
+        handedness: result.handedness?.[i]?.[0]?.categoryName ?? '',
+        handednessScore: result.handedness?.[i]?.[0]?.score ?? 0,
+        ...summarizeLandmarks(landmarks, {
+          wrist: 0,
+          thumbTip: 4,
+          indexTip: 8,
+          middleTip: 12,
+          ringTip: 16,
+          pinkyTip: 20,
+        }),
+      })),
     };
   }
 

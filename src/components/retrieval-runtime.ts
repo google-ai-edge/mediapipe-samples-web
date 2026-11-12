@@ -207,6 +207,19 @@ class RetrievalRuntimeManager {
     }
   }
 
+  /**
+   * Identifies the loaded embedder in results published for automated
+   * validation (see test-hooks.ts). The retrieval tasks always run on WebGPU.
+   */
+  testResultOrigin(): Record<string, unknown> {
+    const source = this.activeSource;
+    return {
+      model: source?.type === 'url' ? source.url : source ? 'uploaded' : null,
+      delegate: 'GPU',
+      l2Normalize: this.activeL2Normalize,
+    };
+  }
+
   /** Re-creates the embedder from the last loaded source with new options. */
   async reinitialize(l2Normalize: boolean, onProgress?: ModelProgressCallback | null): Promise<any> {
     const source = this.activeSource;

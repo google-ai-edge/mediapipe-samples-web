@@ -16,6 +16,7 @@
 
 import { GestureRecognizerResult, DrawingUtils, HandLandmarker } from '@mediapipe/tasks-vision';
 import { BaseVisionTask } from '../components/base-vision-task';
+import { summarizeLandmarks } from '../components/test-hooks';
 import { ClassificationResult, ClassificationItem } from '../components/classification-result';
 
 // @ts-ignore
@@ -97,6 +98,20 @@ class GestureRecognizerTask extends BaseVisionTask {
       minHandDetectionConfidence: this.minHandDetectionConfidence,
       minHandPresenceConfidence: this.minHandPresenceConfidence,
       minTrackingConfidence: this.minTrackingConfidence,
+    };
+  }
+
+  protected override readonly testTaskName = 'gesture_recognizer';
+
+  protected override summarizeTestResult(result: GestureRecognizerResult) {
+    return {
+      hands: (result.gestures ?? []).map((gestures, i) => ({
+        gesture: gestures[0]?.categoryName ?? '',
+        score: gestures[0]?.score ?? 0,
+        handedness: result.handedness?.[i]?.[0]?.categoryName ?? '',
+        handednessDisplayName: result.handedness?.[i]?.[0]?.displayName ?? '',
+        ...summarizeLandmarks(result.landmarks?.[i], { wrist: 0, thumbTip: 4, indexTip: 8 }),
+      })),
     };
   }
 

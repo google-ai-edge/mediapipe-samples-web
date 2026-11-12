@@ -28,6 +28,8 @@ class TextClassifierTask extends BaseTextTask {
   private classifyBtn!: HTMLButtonElement;
 
   private maxResults = 3;
+  /** The text of the classification in flight, reported with its result. */
+  private submittedText = '';
 
   protected override onInitializeUI() {
     this.classificationResultUI = new ClassificationResult('classification-results');
@@ -103,6 +105,13 @@ class TextClassifierTask extends BaseTextTask {
         const { result, inferenceTime } = event.data;
         this.updateInferenceTime(inferenceTime);
         this.displayResults(result);
+        this.publishTestResult('text_classifier', () => ({
+          text: this.submittedText,
+          categories: (result?.classifications?.[0]?.categories ?? []).map((c: any) => ({
+            label: c.categoryName,
+            score: c.score,
+          })),
+        }));
         if (this.classifyBtn) this.classifyBtn.disabled = false;
         this.updateStatus('Done');
         break;
@@ -136,6 +145,7 @@ class TextClassifierTask extends BaseTextTask {
 
     if (this.classifyBtn) this.classifyBtn.disabled = true;
     this.updateStatus('Classifying...');
+    this.submittedText = text;
 
     this.worker.postMessage({
       type: 'CLASSIFY',

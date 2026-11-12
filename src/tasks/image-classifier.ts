@@ -85,6 +85,17 @@ class ImageClassifierTask extends BaseVisionTask {
     };
   }
 
+  protected override readonly testTaskName = 'image_classifier';
+
+  protected override summarizeTestResult(result: ImageClassifierResult) {
+    return {
+      categories: (result.classifications?.[0]?.categories ?? []).map((c) => ({
+        label: c.categoryName,
+        score: c.score,
+      })),
+    };
+  }
+
   protected override displayImageResult(result: ImageClassifierResult) {
     this.displayResult(result);
   }

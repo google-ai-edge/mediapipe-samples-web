@@ -16,6 +16,7 @@
 
 import { FaceLandmarkerResult, DrawingUtils, FaceLandmarker } from '@mediapipe/tasks-vision';
 import { BaseVisionTask } from '../components/base-vision-task';
+import { summarizeLandmarks } from '../components/test-hooks';
 
 // @ts-ignore
 import template from '../templates/face-landmarker.html?raw';
@@ -95,6 +96,19 @@ class FaceLandmarkerTask extends BaseVisionTask {
       minTrackingConfidence: this.minTrackingConfidence,
       outputFaceBlendshapes: true,
       outputFacialTransformationMatrixes: true,
+    };
+  }
+
+  protected override readonly testTaskName = 'face_landmarker';
+
+  protected override summarizeTestResult(result: FaceLandmarkerResult) {
+    return {
+      // Face mesh indices: 1 nose tip, 152 chin, 10 forehead, 33 / 263 outer eye corners.
+      faces: (result.faceLandmarks ?? []).map((landmarks) =>
+        summarizeLandmarks(landmarks, { noseTip: 1, chin: 152, forehead: 10, rightEyeOuter: 33, leftEyeOuter: 263 })
+      ),
+      blendshapeCounts: (result.faceBlendshapes ?? []).map((b) => b.categories.length),
+      matrixCount: (result.facialTransformationMatrixes ?? []).length,
     };
   }
 

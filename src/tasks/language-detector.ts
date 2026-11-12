@@ -27,6 +27,8 @@ class LanguageDetectorTask extends BaseTextTask {
 
   private maxResults = 3;
   private scoreThreshold = 0.5;
+  /** The text of the detection in flight, reported with its result. */
+  private submittedText = '';
 
   protected override onInitializeUI() {
     this.detectBtn = document.getElementById('detect-btn') as HTMLButtonElement;
@@ -105,6 +107,10 @@ class LanguageDetectorTask extends BaseTextTask {
         const { result, inferenceTime } = event.data;
         this.updateInferenceTime(inferenceTime);
         this.displayResults(result);
+        this.publishTestResult('language_detector', () => ({
+          text: this.submittedText,
+          languages: (result?.languages ?? []).map((l: any) => ({ code: l.languageCode, probability: l.probability })),
+        }));
         if (this.detectBtn) this.detectBtn.disabled = false;
         this.updateStatus('Done');
         break;
@@ -134,6 +140,7 @@ class LanguageDetectorTask extends BaseTextTask {
 
     if (this.detectBtn) this.detectBtn.disabled = true;
     this.updateStatus('Detecting...');
+    this.submittedText = text;
 
     this.worker.postMessage({
       type: 'DETECT',

@@ -15,6 +15,7 @@
  */
 
 import { BaseVisionTask, BaseVisionTaskOptions } from '../components/base-vision-task';
+import { isTestHookEnabled } from '../components/test-hooks';
 
 // @ts-ignore
 import template from '../templates/interactive-segmenter.html?raw';
@@ -307,6 +308,7 @@ class InteractiveSegmenterTask extends BaseVisionTask {
         type: 'SEGMENT',
         strokes: this.accumulatedStrokes,
         reqId,
+        collectMaskStats: isTestHookEnabled(),
       });
     } catch (err) {
       console.error(err);
@@ -564,6 +566,13 @@ class InteractiveSegmenterTask extends BaseVisionTask {
       if (inferenceTime > 0) {
         const avgTime = this.updateInferenceTime(inferenceTime);
         this.updateStatus(`Done in ${Math.round(avgTime)}ms`);
+        // Only real segmentations are published, not the empty result of a clear.
+        this.publishTestResult('interactive_segmenter', () => ({
+          mode: this.runningMode,
+          hasMask: Boolean(maskBitmap),
+          strokeCount: this.accumulatedStrokes.length,
+          maskStats: event.data.maskStats ?? null,
+        }));
       }
 
       if (this.currentMaskBitmap) {
