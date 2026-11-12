@@ -43,7 +43,7 @@ const ENGLISH_SAMPLES: Record<string, string> = {
   ].join('\n\n'),
   article: [
     'On-device speech synthesis brings natural, low-latency voice interfaces to web applications with complete user privacy.',
-    'Because inference runs locally on WebGPU or WebAssembly SIMD, audio generation works offline and incurs zero cloud serving cost.',
+    'Because inference runs locally on WebGPU or WebAssembly, audio generation works offline and incurs zero cloud serving cost.',
     'Try clicking around different sentences in this passage, or switch between Kokoro, PocketTTS, and Phonon to compare voice quality and speed.',
   ].join('\n\n'),
 };
@@ -194,8 +194,7 @@ class TextToSpeechTask extends BaseTask {
       chip.addEventListener('click', () => {
         sampleChips.forEach((c) => c.classList.toggle('active', c === chip));
         const sample = chip.dataset.sample!;
-        this.textInput.value =
-          sample === 'voice-language' ? this.sampleForVoice(this.voiceSelect.value) : ENGLISH_SAMPLES[sample];
+        this.textInput.value = ENGLISH_SAMPLES[sample];
         this.stop();
         this.renderTranscript(this.textInput.value);
       });

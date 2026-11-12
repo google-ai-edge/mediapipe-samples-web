@@ -74,7 +74,7 @@ test.describe('Text to Speech Task', () => {
 
     // 5. Text Input & Sample Presets
     const sampleButtons = page.locator('#tts-samples .sample-chip');
-    await expect(sampleButtons).toHaveCount(5);
+    await expect(sampleButtons).toHaveCount(4);
 
     const textInput = page.locator('#tts-text-input');
     await expect(textInput).toBeVisible();
