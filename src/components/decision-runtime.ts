@@ -60,11 +60,6 @@ export const DECISION_MODELS: Record<
     url: EMBEDDING_GEMMA_2_740M.url,
     supportsVision: true,
   },
-  laya_s256: {
-    label: 'Laya S256',
-    file: 'laya_s256.task',
-    url: 'https://storage.googleapis.com/mediapipe-models/decision_maker/laya/float32/laya_s256/latest/laya_s256.task',
-  },
 };
 
 /** Direct download URL of a built-in model (remote, or the dev server's local-models route). */
