@@ -80,6 +80,14 @@ function isBenignMediaPipeCppError(text) {
   return /^(INFO|WARNING|VERBOSE):|^[IW]\d{4}\s/.test(cleaned);
 }
 
+/**
+ * Whether a console error reports a transport-level failure ("net::ERR_...")
+ * of a request to a host other than the app's own.
+ */
+function isExternalConnectionError(text, url, appOrigin) {
+  return /^Failed to load resource: net::ERR_/.test(text) && Boolean(url) && !url.startsWith(appOrigin);
+}
+
 function httpGetStatus(url) {
   return new Promise((resolve) => {
     const req = http.get(url, (res) => {
@@ -1371,12 +1379,21 @@ async function cmdRunDomain(args) {
       const pageErrors = [];
       const consoleErrors = [];
       const localNetErrors = [];
+      const externalNetErrors = [];
 
       const onPageError = (err) => pageErrors.push(err?.message || String(err));
       const onConsole = (msg) => {
-        if (msg.type() === 'error' && !isBenignMediaPipeCppError(msg.text())) {
-          consoleErrors.push(msg.text());
+        if (msg.type() !== 'error' || isBenignMediaPipeCppError(msg.text())) return;
+        // A dropped connection to another host (fonts, a model CDN) is a network
+        // problem, not a task error: it is reported with the case but does not
+        // fail it. A task that needed the resource fails on its own, and errors
+        // for the app's own files or HTTP error statuses still fail the case.
+        const url = msg.location()?.url || '';
+        if (isExternalConnectionError(msg.text(), url, preview.origin)) {
+          externalNetErrors.push(`${msg.text().replace('Failed to load resource: ', '')} ${url}`);
+          return;
         }
+        consoleErrors.push(msg.text());
       };
       const onReqFailed = (req) => {
         if (req.url().startsWith(preview.origin)) {
@@ -1415,7 +1432,10 @@ async function cmdRunDomain(args) {
           status: resolveStatus(res.status, verification),
           durationMs: Date.now() - startMs,
           inferenceTimeText: res.inferenceTimeText,
-          details: res.details,
+          details:
+            externalNetErrors.length > 0
+              ? `${res.details} | external request failed: ${[...new Set(externalNetErrors)].join(', ')}`
+              : res.details,
           error: verification.status === VERIFICATION.FAILED ? `Output verification failed: ${verification.reason}` : '',
           screenshot: res.screenshot,
           verification: {
@@ -1929,18 +1949,25 @@ function selfTestVerifiers(allCases) {
   expectStatus('dino ducks under a cactus', dinoCase, dino([[clear, 'SPRINT'], [cactus, 'DUCK'], [bird, 'DUCK']]), VERIFICATION.FAILED, gpu);
   expectStatus('dino never met a bird', dinoCase, dino([[clear, 'SPRINT'], [cactus, 'JUMP']]), VERIFICATION.FAILED, gpu);
   expectStatus('UI shows another action', dinoCase, dino([[clear, 'SPRINT'], [cactus, 'JUMP'], [bird, 'DUCK']], 'JUMP'), VERIFICATION.FAILED, gpu);
-  // With image input an obstacle is judged while it is still some way off, so holding the pace is
-  // also right; the action for the other kind of obstacle is not.
+  // Image input is held to the same rule as text input.
   const dinoImageCase = expectationFor('dino_game', 'image-tap');
   const dinoImage = (pairs) => {
     const observation = dino(pairs);
     observation.hooks.forEach((h) => (h.payload.inputMode = 'image'));
     return observation;
   };
-  expectStatus('image: waits, then jumps and ducks', dinoImageCase, dinoImage([[cactus, 'WAIT'], [cactus, 'JUMP'], [bird, 'DUCK']]), VERIFICATION.VERIFIED, gpu);
+  expectStatus('image: jumps and ducks', dinoImageCase, dinoImage([[cactus, 'JUMP'], [cactus, 'JUMP'], [bird, 'DUCK']]), VERIFICATION.VERIFIED, gpu);
+  expectStatus('image: waits at a cactus', dinoImageCase, dinoImage([[cactus, 'WAIT'], [cactus, 'JUMP'], [bird, 'DUCK']]), VERIFICATION.FAILED, gpu);
   expectStatus('image: ducks under a cactus', dinoImageCase, dinoImage([[cactus, 'DUCK'], [cactus, 'JUMP'], [bird, 'DUCK']]), VERIFICATION.FAILED, gpu);
-  expectStatus('image: never jumps', dinoImageCase, dinoImage([[cactus, 'WAIT'], [bird, 'DUCK']]), VERIFICATION.FAILED, gpu);
+  expectStatus('image: text-mode result', dinoImageCase, dino([[cactus, 'JUMP'], [bird, 'DUCK']]), VERIFICATION.FAILED, gpu);
   expectStatus('text: waiting at a cactus is wrong', dinoCase, dino([[cactus, 'WAIT'], [cactus, 'JUMP'], [bird, 'DUCK']]), VERIFICATION.FAILED, gpu);
+
+  // Only a dropped connection to another host is tolerated as a console error.
+  const origin = 'http://127.0.0.1:4174';
+  assert.equal(isExternalConnectionError('Failed to load resource: net::ERR_CONNECTION_CLOSED', 'https://fonts.example/a.woff2', origin), true);
+  assert.equal(isExternalConnectionError('Failed to load resource: net::ERR_CONNECTION_CLOSED', `${origin}/wasm/vision.wasm`, origin), false);
+  assert.equal(isExternalConnectionError('Failed to load resource: the server responded with a status of 404 (Not Found)', 'https://models.example/m.tflite', origin), false);
+  assert.equal(isExternalConnectionError('Uncaught TypeError: x is not a function', 'https://fonts.example/a.js', origin), false);
 
   // A case without an expectation is reported as unverified, never as verified.
   expectStatus('no expectation', null, { hook: detection('dog', 0.84, dogBox) }, VERIFICATION.UNVERIFIED);

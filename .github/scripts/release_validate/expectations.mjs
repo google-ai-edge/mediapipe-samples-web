@@ -205,26 +205,13 @@ export const ID_PHOTO_PLANS = {
  * and a bird (dropping a bird with the page's button where it offers one).
  */
 export const DINO_SCENE_ACTIONS = [
-  { scene: 'a clear track', pattern: /^The path ahead is clear/, action: 'SPRINT', imageActions: ['SPRINT'] },
-  {
-    scene: 'a ground obstacle right ahead',
-    pattern: /^Ground obstacle right ahead/,
-    action: 'JUMP',
-    imageActions: ['JUMP', 'WAIT'],
-  },
-  {
-    scene: 'a low flying obstacle right ahead',
-    pattern: /^Low flying obstacle right ahead/,
-    action: 'DUCK',
-    imageActions: ['DUCK', 'WAIT'],
-  },
-  { scene: 'an obstacle in the distance', pattern: /^Obstacle spotted in the distance/, action: 'WAIT', imageActions: ['WAIT'] },
+  { scene: 'a clear track', pattern: /^The path ahead is clear/, action: 'SPRINT' },
+  { scene: 'a ground obstacle right ahead', pattern: /^Ground obstacle right ahead/, action: 'JUMP' },
+  { scene: 'a low flying obstacle right ahead', pattern: /^Low flying obstacle right ahead/, action: 'DUCK' },
+  { scene: 'an obstacle in the distance', pattern: /^Obstacle spotted in the distance/, action: 'WAIT' },
 ];
-// `imageActions`: with image input the model sees the whole track and is asked as soon as an
-// obstacle comes into view, when it can still be some way off (the game then calls it "near"
-// while it sits between the near and far reference scenes). Holding the pace is therefore also
-// a sound answer to an obstacle ahead; what is never right is the action for the other kind of
-// obstacle. Each case must still decide to jump and to duck at least once.
+// The same rule holds for text and image input: with image input the model sees a picture of
+// the scene instead of its description, but the right action for the scene is the same.
 /** Actions every Dino Game case must have decided at least once; the others are checked when they occur. */
 export const DINO_REQUIRED_ACTIONS = ['JUMP', 'DUCK'];
 

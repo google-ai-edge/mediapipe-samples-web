@@ -597,11 +597,10 @@ const VERIFIERS = {
     for (const hook of hooks) {
       const payload = hook.payload || {};
       const rule = expectation.sceneActions.find((entry) => entry.pattern.test(payload.scene || ''));
-      const allowed = rule ? (expectation.inputMode === 'image' ? rule.imageActions : [rule.action]) : [];
       if (!rule) {
         wrong.push(`unknown scene "${payload.scene}"`);
-      } else if (!allowed.includes(payload.action)) {
-        wrong.push(`${rule.scene}: ${payload.action} instead of ${allowed.join(' or ')}`);
+      } else if (payload.action !== rule.action) {
+        wrong.push(`${rule.scene}: ${payload.action} instead of ${rule.action}`);
       } else {
         decided.add(payload.action);
       }
