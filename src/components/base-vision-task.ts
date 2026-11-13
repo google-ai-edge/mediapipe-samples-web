@@ -70,11 +70,33 @@ export abstract class BaseVisionTask extends BaseTask {
             this.animationFrameId = window.requestAnimationFrame(this.predictWebcam.bind(this));
           }
         }
+        this.publishVisionTestResult(mode, result);
         break;
       default:
         super.handleWorkerMessage(event);
         break;
     }
+  }
+
+  /** Name under which results are published for automated validation; empty disables it. */
+  protected readonly testTaskName: string = '';
+
+  /** Summary of a result for automated validation; tasks override this (see test-hooks.ts). */
+  protected summarizeTestResult(_result: any): Record<string, unknown> {
+    return {};
+  }
+
+  private publishVisionTestResult(mode: 'IMAGE' | 'VIDEO', result: any) {
+    if (!this.testTaskName) return;
+    this.publishTestResult(this.testTaskName, () => {
+      const image = document.getElementById('test-image') as HTMLImageElement | null;
+      return {
+        mode,
+        imageWidth: mode === 'VIDEO' ? (this.video?.videoWidth ?? 0) : (image?.naturalWidth ?? 0),
+        imageHeight: mode === 'VIDEO' ? (this.video?.videoHeight ?? 0) : (image?.naturalHeight ?? 0),
+        ...this.summarizeTestResult(result),
+      };
+    });
   }
 
   protected override handleInitDone() {

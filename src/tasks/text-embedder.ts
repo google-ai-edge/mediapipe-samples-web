@@ -25,6 +25,8 @@ class TextEmbedderTask extends BaseTextTask {
   private embedBtn!: HTMLButtonElement;
   private textInput1!: HTMLTextAreaElement;
   private textInput2!: HTMLTextAreaElement;
+  /** The two texts of the comparison in flight, reported with its result. */
+  private submittedTexts: string[] = [];
 
   protected override onInitializeUI() {
     this.embedBtn = document.getElementById('embed-btn') as HTMLButtonElement;
@@ -112,6 +114,7 @@ class TextEmbedderTask extends BaseTextTask {
         const { similarity, inferenceTime } = event.data;
         this.updateInferenceTime(inferenceTime);
         this.displayResults(similarity);
+        this.publishTestResult('text_embedder', () => ({ texts: this.submittedTexts, similarity: similarity ?? null }));
         if (this.embedBtn) this.embedBtn.disabled = false;
         this.updateStatus('Done');
         break;
@@ -141,6 +144,7 @@ class TextEmbedderTask extends BaseTextTask {
 
     if (this.embedBtn) this.embedBtn.disabled = true;
     this.updateStatus('Computing...');
+    this.submittedTexts = [text1, text2];
 
     this.worker.postMessage({
       type: 'EMBED',

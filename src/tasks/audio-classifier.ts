@@ -104,6 +104,18 @@ class AudioClassifierTask extends BaseAudioTask {
       const avgTime = this.updateInferenceTime(inferenceTime);
       this.updateStatus(`Done in ${Math.round(avgTime)}ms`);
       this.displayClassificationResults(results);
+      this.publishTestResult('audio_classifier', () => ({
+        mode: this.runningMode,
+        resultCount: results?.length ?? 0,
+        // One entry per classified window, each with its highest-scoring categories.
+        results: ((results ?? []) as AudioClassifierResult[]).slice(0, 32).map((r) => ({
+          timestampMs: r.timestampMs ?? null,
+          categories: [...(r.classifications?.[0]?.categories ?? [])]
+            .sort((a, b) => b.score - a.score)
+            .slice(0, 5)
+            .map((c) => ({ label: c.categoryName, score: c.score })),
+        })),
+      }));
     } else {
       super.handleWorkerMessage(event);
     }

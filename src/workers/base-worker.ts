@@ -60,7 +60,8 @@ export abstract class BaseWorker<T> {
         await this.initializeBase(event.data);
 
         const payload = this.getInitPayload();
-        self.postMessage({ type: 'INIT_DONE', modelName, ...payload });
+        // `delegate` is the one actually in use, i.e. CPU after a GPU fallback.
+        self.postMessage({ type: 'INIT_DONE', modelName, delegate: this.currentOptions.delegate, ...payload });
       } else if (type === 'SET_OPTIONS') {
         const { type: _type, ...optionsToUpdate } = event.data;
         Object.assign(this.currentOptions, optionsToUpdate);

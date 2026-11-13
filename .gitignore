@@ -3,6 +3,7 @@ dist
 node_modules
 playwright-report
 test-results
+release-validation-report
 public/js
 public/wasm
 tests/assets/

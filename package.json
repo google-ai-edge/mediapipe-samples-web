@@ -11,6 +11,7 @@
     "prebuild": "node copy-wasm.js",
     "preview": "vite preview",
     "test": "playwright test --project=chromium-gpu",
+    "validate:release": "node .github/scripts/release_validate/run_local.mjs",
     "format": "prettier --write \"src/**/*.{ts,html,css}\"",
     "prepare": "husky"
   },

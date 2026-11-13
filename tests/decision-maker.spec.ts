@@ -61,7 +61,7 @@ test.describe('Decision Maker Task', () => {
     // GPU only: there is no delegate select.
     await expect(page.locator('#delegate-select')).toHaveCount(0);
     // Changing the model selection must not start a download either
-    await page.selectOption('.model-select', 'laya_s256');
+    await page.selectOption('.model-select', 'embeddinggemma2_740m');
     await page.waitForTimeout(1500);
     expect(modelRequests).toEqual([]);
     await expect(page.locator('#status-message')).toHaveText('Load a model to begin');

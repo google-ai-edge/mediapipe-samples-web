@@ -22,6 +22,7 @@ import {
   HandLandmarker,
 } from '@mediapipe/tasks-vision';
 import { BaseVisionTask } from '../components/base-vision-task';
+import { summarizeLandmarks } from '../components/test-hooks';
 
 // @ts-ignore
 import template from '../templates/holistic-landmarker.html?raw';
@@ -30,6 +31,25 @@ import template from '../templates/holistic-landmarker.html?raw';
 class HolisticLandmarkerTask extends BaseVisionTask {
   protected override getWorkerInitParams(): Record<string, any> {
     return {};
+  }
+
+  protected override readonly testTaskName = 'holistic_landmarker';
+
+  protected override summarizeTestResult(result: HolisticLandmarkerResult) {
+    return {
+      face: summarizeLandmarks(result.faceLandmarks?.[0], { noseTip: 1, chin: 152, forehead: 10 }),
+      pose: summarizeLandmarks(result.poseLandmarks?.[0], {
+        nose: 0,
+        leftShoulder: 11,
+        rightShoulder: 12,
+        leftHip: 23,
+        rightHip: 24,
+        leftAnkle: 27,
+        rightAnkle: 28,
+      }),
+      leftHand: summarizeLandmarks(result.leftHandLandmarks?.[0], { wrist: 0 }),
+      rightHand: summarizeLandmarks(result.rightHandLandmarks?.[0], { wrist: 0 }),
+    };
   }
 
   protected override displayImageResult(result: HolisticLandmarkerResult) {

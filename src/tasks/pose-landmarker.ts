@@ -1,5 +1,6 @@
 import { PoseLandmarker, PoseLandmarkerResult, DrawingUtils } from '@mediapipe/tasks-vision';
 import { BaseVisionTask } from '../components/base-vision-task';
+import { summarizeLandmarks } from '../components/test-hooks';
 // @ts-ignore
 import template from '../templates/pose-landmarker.html?raw';
 // @ts-ignore
@@ -96,6 +97,26 @@ class PoseLandmarkerTask extends BaseVisionTask {
       minTrackingConfidence: this.minTrackingConfidence,
       numPoses: this.numPoses,
       outputSegmentationMasks: this.outputSegmentationMasks,
+    };
+  }
+
+  protected override readonly testTaskName = 'pose_landmarker';
+
+  protected override summarizeTestResult(result: PoseLandmarkerResult) {
+    return {
+      poses: (result.landmarks ?? []).map((landmarks) =>
+        summarizeLandmarks(landmarks, {
+          nose: 0,
+          leftShoulder: 11,
+          rightShoulder: 12,
+          leftWrist: 15,
+          rightWrist: 16,
+          leftHip: 23,
+          rightHip: 24,
+          leftAnkle: 27,
+          rightAnkle: 28,
+        })
+      ),
     };
   }
 

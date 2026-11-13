@@ -23,6 +23,8 @@ import template from '../templates/image-embedder.html?raw';
 class ImageEmbedderTask extends BaseVisionTask {
   private image1: HTMLImageElement | null = null;
   private image2: HTMLImageElement | null = null;
+  /** File names of the image pairs sent to the worker, oldest first, to label each result. */
+  private pendingPairs: string[][] = [];
 
   protected override onInitializeUI() {
     this.image1 = document.getElementById('image-1') as HTMLImageElement;
@@ -142,6 +144,14 @@ class ImageEmbedderTask extends BaseVisionTask {
       this.updateInferenceTime(inferenceTime);
       this.displayResults(similarity);
       this.updateStatus('Done');
+      const images = this.pendingPairs.shift() ?? [];
+      this.publishTestResult('image_embedder', () => ({
+        images,
+        similarity: similarity ?? null,
+        dimensions: [event.data.result1, event.data.result2].map(
+          (r) => r?.embeddings?.[0]?.floatEmbedding?.length ?? r?.embeddings?.[0]?.quantizedEmbedding?.length ?? 0
+        ),
+      }));
     } else {
       super.handleWorkerMessage(event);
     }
@@ -154,6 +164,9 @@ class ImageEmbedderTask extends BaseVisionTask {
       this.updateStatus('Select two images');
       return;
     }
+    // A newly selected image is still loading; its onload handler compares again.
+    // Without this, createImageBitmap() rejects with "The image source is not usable".
+    if (!img1.complete || !img2.complete) return;
 
     this.updateStatus('Computing...');
 
@@ -161,6 +174,9 @@ class ImageEmbedderTask extends BaseVisionTask {
 
     const bitmap2 = await createImageBitmap(img2);
 
+    const fileName = (img: HTMLImageElement) =>
+      img.src.startsWith('data:') ? 'uploaded' : (new URL(img.src).pathname.split('/').pop() ?? '');
+    this.pendingPairs.push([fileName(img1), fileName(img2)]);
     this.worker.postMessage(
       {
         type: 'EMBED',

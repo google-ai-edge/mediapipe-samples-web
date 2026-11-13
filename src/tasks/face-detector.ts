@@ -82,6 +82,26 @@ class FaceDetectorTask extends BaseVisionTask {
     };
   }
 
+  protected override readonly testTaskName = 'face_detector';
+
+  protected override summarizeTestResult(result: FaceDetectorResult) {
+    return {
+      detections: (result.detections ?? []).map((detection) => ({
+        score: detection.categories[0]?.score ?? 0,
+        box: detection.boundingBox
+          ? {
+              x: detection.boundingBox.originX,
+              y: detection.boundingBox.originY,
+              width: detection.boundingBox.width,
+              height: detection.boundingBox.height,
+            }
+          : null,
+        // Normalized to the image size.
+        keypoints: (detection.keypoints ?? []).map((k) => ({ x: k.x, y: k.y })),
+      })),
+    };
+  }
+
   protected override displayImageResult(result: FaceDetectorResult) {
     const imageCanvas = document.getElementById('image-canvas') as HTMLCanvasElement;
     if (!imageCanvas) return;

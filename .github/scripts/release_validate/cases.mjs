@@ -274,7 +274,6 @@ export const TASK_DEFINITIONS = [
       { id: 'embeddinggemma2_270m', selectValue: 'embeddinggemma2_270m', large: true },
       { id: 'embeddinggemma2_text_vision_440m', selectValue: 'embeddinggemma2_text_vision_440m', large: true },
       { id: 'embeddinggemma2_740m', selectValue: 'embeddinggemma2_740m', large: true },
-      { id: 'laya_s256', selectValue: 'laya_s256', large: true },
     ],
   },
   {
@@ -307,10 +306,30 @@ export const TASK_DEFINITIONS = [
         supportsVision: true,
       },
       { id: 'embeddinggemma2_740m', selectValue: 'embeddinggemma2_740m', large: true, supportsVision: true },
-      { id: 'laya_s256', selectValue: 'laya_s256', large: true, supportsVision: false },
     ],
   },
 ];
+
+function parseTaskFilter(taskFilter) {
+  return taskFilter
+    .split(',')
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+/**
+ * Whether one filter entry selects a task. An entry is a domain ("text"), a
+ * task ("text_to_speech") or both ("audio/text_to_speech"), matched exactly:
+ * "text" is the text domain and does not also select audio/text_to_speech.
+ */
+function filterSelects(entry, def) {
+  return entry === def.domain || entry === def.task || entry === `${def.domain}/${def.task}`;
+}
+
+/** The entries of a task filter that select nothing (typos, removed tasks). */
+export function unknownTaskFilters(taskFilter = '') {
+  return parseTaskFilter(taskFilter).filter((entry) => !TASK_DEFINITIONS.some((def) => filterSelects(entry, def)));
+}
 
 /**
  * Expands TASK_DEFINITIONS into individual runnable matrix test cases, ordered
@@ -318,16 +337,12 @@ export const TASK_DEFINITIONS = [
  * share the cached model cleanly.
  */
 export function buildValidationMatrix({ domain = '', taskFilter = '', includeLargeModels = true } = {}) {
-  const filters = taskFilter
-    .split(',')
-    .map((s) => s.trim().toLowerCase())
-    .filter(Boolean);
+  const filters = parseTaskFilter(taskFilter);
 
   const cases = [];
   for (const def of TASK_DEFINITIONS) {
     if (domain && def.domain !== domain) continue;
-    const taskSlug = `${def.domain}/${def.task}`.toLowerCase();
-    if (filters.length > 0 && !filters.some((f) => taskSlug.includes(f) || def.domain === f)) {
+    if (filters.length > 0 && !filters.some((entry) => filterSelects(entry, def))) {
       continue;
     }
 
@@ -357,34 +372,4 @@ export function buildValidationMatrix({ domain = '', taskFilter = '', includeLar
     }
   }
   return cases;
-}
-
-/**
- * Generates a valid 16kHz 16-bit mono PCM WAV buffer with a 440Hz tone for
- * testing Audio Classifier and Audio Transcriber file-upload modes.
- */
-export function buildSampleWavBuffer({ durationSeconds = 1.5, sampleRate = 16000, frequencyHz = 440 } = {}) {
-  const numSamples = Math.floor(durationSeconds * sampleRate);
-  const dataBytes = numSamples * 2;
-  const buffer = Buffer.alloc(44 + dataBytes);
-
-  buffer.write('RIFF', 0);
-  buffer.writeUInt32LE(36 + dataBytes, 4);
-  buffer.write('WAVE', 8);
-  buffer.write('fmt ', 12);
-  buffer.writeUInt32LE(16, 16); // PCM chunk size
-  buffer.writeUInt16LE(1, 20); // PCM format
-  buffer.writeUInt16LE(1, 22); // Mono
-  buffer.writeUInt32LE(sampleRate, 24);
-  buffer.writeUInt32LE(sampleRate * 2, 28); // Byte rate
-  buffer.writeUInt16LE(2, 32); // Block align
-  buffer.writeUInt16LE(16, 34); // Bits per sample
-  buffer.write('data', 36);
-  buffer.writeUInt32LE(dataBytes, 40);
-
-  for (let i = 0; i < numSamples; i++) {
-    const sample = Math.sin((2 * Math.PI * frequencyHz * i) / sampleRate) * 0.4;
-    buffer.writeInt16LE(Math.round(sample * 32767), 44 + i * 2);
-  }
-  return buffer;
 }

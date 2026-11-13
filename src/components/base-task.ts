@@ -16,6 +16,7 @@
 
 import { ModelSelector, loadPhaseLabel, type LoadPhase, type ModelSelectorConfig } from './model-selector';
 import { InferenceTimer } from './inference-timer';
+import { publishTestResult } from './test-hooks';
 
 export interface BaseTaskOptions {
   container: HTMLElement;
@@ -78,9 +79,24 @@ export abstract class BaseTask {
       this.worker = this.options.workerFactory();
     }
     if (this.worker) {
-      this.worker.onmessage = this.handleWorkerMessage.bind(this);
+      this.worker.onmessage = (event: MessageEvent) => {
+        // Track what the worker has loaded before any subclass handles the message.
+        if (event.data?.type === 'INIT_DONE') {
+          this.loadedModel = event.data.modelName ?? this.initQueue[0] ?? this.currentModel;
+          this.loadedDelegate = event.data.delegate ?? this.currentDelegate;
+        }
+        this.handleWorkerMessage(event);
+      };
     }
   }
+
+  /**
+   * The model and delegate the worker reported as loaded. These lag behind
+   * `currentModel` / `currentDelegate` while a newly selected model is loading,
+   * so they identify what actually produced a result.
+   */
+  protected loadedModel: string | undefined;
+  protected loadedDelegate: string | undefined;
 
   protected hadDelegateFallback = false;
 
@@ -279,6 +295,19 @@ export abstract class BaseTask {
 
   protected updateInferenceTime(time: number): number {
     return this.inferenceTimer.record(time, this.currentDelegate);
+  }
+
+  /**
+   * Publishes a summary of the latest result for automated validation, tagged
+   * with the model and delegate that produced it (what the worker has loaded,
+   * not what is currently selected). A no-op for real users.
+   */
+  protected publishTestResult(task: string, buildPayload: () => Record<string, unknown>) {
+    publishTestResult(task, () => ({
+      model: this.loadedModel ?? null,
+      delegate: this.loadedDelegate ?? null,
+      ...buildPayload(),
+    }));
   }
 
   public cleanup() {

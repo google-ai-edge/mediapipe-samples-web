@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import { isTestHookEnabled } from '../components/test-hooks';
 import { BaseVisionTask } from '../components/base-vision-task';
 
 // @ts-ignore
@@ -62,6 +63,9 @@ class ImageSegmenterTask extends BaseVisionTask {
   private labels: string[] = [];
   private confidenceMaskSelection = 0;
   private modelLabels: string[] = [];
+  /** Settings of the segmentation requests in flight, oldest first. */
+  private pendingRequests: { outputType: string; confidenceIndex: number; image: string }[] = [];
+  private lastMaskStats: Record<string, unknown> | null = null;
   private overlayCanvas!: HTMLCanvasElement;
 
   protected override onInitializeUI() {
@@ -133,6 +137,18 @@ class ImageSegmenterTask extends BaseVisionTask {
     }
   }
 
+  /**
+   * Remembers the settings of a segmentation request so its result can be
+   * reported with them, and returns the fields that ask the worker for mask
+   * statistics. Only used for automated validation (see test-hooks.ts).
+   */
+  private trackRequest(image: string) {
+    if (!isTestHookEnabled()) return {};
+    const confidenceIndex = this.outputType === 'CONFIDENCE_MASKS' ? this.confidenceMaskSelection : -1;
+    this.pendingRequests.push({ outputType: this.outputType, confidenceIndex, image });
+    return { collectMaskStats: true, confidenceIndex };
+  }
+
   private triggerImageFromTestImage() {
     const testImage = document.getElementById('test-image') as HTMLImageElement;
     if (testImage && testImage.style.display !== 'none' && testImage.src) {
@@ -159,6 +175,18 @@ class ImageSegmenterTask extends BaseVisionTask {
       const { mode, maskBitmap, inferenceTime } = event.data;
       const avgTime = this.updateInferenceTime(inferenceTime);
       this.updateStatus(`Done in ${Math.round(avgTime)}ms`);
+      const request = this.pendingRequests.shift();
+      this.lastMaskStats = event.data.maskStats ?? null;
+      this.publishTestResult('image_segmenter', () => ({
+        mode,
+        hasMask: Boolean(maskBitmap),
+        // The settings the request was made with, not the ones selected now.
+        outputType: request?.outputType ?? null,
+        confidenceClass: request?.confidenceIndex ?? -1,
+        image: request?.image ?? null,
+        labels: this.modelLabels,
+        maskStats: this.lastMaskStats,
+      }));
 
       if (maskBitmap) {
         if (mode === 'IMAGE') {
@@ -175,6 +203,7 @@ class ImageSegmenterTask extends BaseVisionTask {
         }
       }
     } else if (type === 'SEGMENT_ERROR') {
+      this.pendingRequests.shift();
       console.error('Worker error:', event.data.error);
       this.updateStatus(`Error: ${event.data.error}`);
     } else {
@@ -201,6 +230,8 @@ class ImageSegmenterTask extends BaseVisionTask {
         bitmap: bitmap,
         timestampMs: performance.now(),
         colors: this.getCurrentColors(),
+        // Inline and uploaded images are data URLs; their length tells them apart.
+        ...this.trackRequest(image.src.startsWith('data:') ? `embedded:${image.src.length}` : image.src),
       },
       [bitmap]
     );
@@ -242,6 +273,7 @@ class ImageSegmenterTask extends BaseVisionTask {
             bitmap: bitmap,
             timestampMs: timestampMs,
             colors: this.getCurrentColors(),
+            ...this.trackRequest('webcam'),
           },
           [bitmap]
         );
@@ -354,8 +386,8 @@ class ImageSegmenterTask extends BaseVisionTask {
     resultsEl.textContent = JSON.stringify({
       timestamp: Date.now(),
       completion: 'done',
-      activePixelCount: 1000,
-      maxConfidence: 1.0,
+      // Real statistics of the mask; null unless collected under automation.
+      maskStats: this.lastMaskStats,
     });
 
     if (maskBitmap) maskBitmap.close();

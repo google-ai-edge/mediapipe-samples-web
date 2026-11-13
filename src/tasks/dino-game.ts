@@ -36,6 +36,7 @@
 import template from '../templates/dino-game.html?raw';
 import { InferenceTimer } from '../components/inference-timer';
 import { DECISION_MODELS, decisionRuntime } from '../components/decision-runtime';
+import { publishTestResult } from '../components/test-hooks';
 import { mountDecisionModelPanel, type DecisionModelPanelHandle } from '../components/decision-model-panel';
 
 // ---------------------------------------------------------------------------
@@ -1742,8 +1743,33 @@ class DinoGameTask {
     return true;
   }
 
-  /** Asks the model about the scene: one Choice call (either full-scene image or text state). */
+  /**
+   * Asks the model about the scene and exposes the decision, together with the
+   * scene it was made for, for automated validation (see test-hooks.ts).
+   */
   private async modelDecide(
+    obs: Observation,
+    snapshotTga?: Uint8Array,
+    snapshotObstacles?: Array<{ kind: ObstacleKind; x: number }>
+  ): Promise<Decision> {
+    const decision = await this.askModel(obs, snapshotTga, snapshotObstacles);
+    publishTestResult('dino_game', () => ({
+      model: decisionRuntime.loadedValue,
+      delegate: 'GPU',
+      inputMode: this.inputMode,
+      playMode: this.playMode,
+      // What is in front of the dino, in the words of the text prompt.
+      scene: describe(obs),
+      action: decision.action,
+      reason: decision.reason,
+      matchedProtoId: decision.matchedProtoId ?? null,
+      probabilities: decision.probabilities ?? null,
+    }));
+    return decision;
+  }
+
+  /** Asks the model about the scene: one Choice call (either full-scene image or text state). */
+  private async askModel(
     obs: Observation,
     snapshotTga?: Uint8Array,
     snapshotObstacles?: Array<{ kind: ObstacleKind; x: number }>

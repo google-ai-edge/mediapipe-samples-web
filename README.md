@@ -53,3 +53,21 @@ We ensure robustness with a comprehensive End-to-End (E2E) test suite using Play
 ```bash
 pnpm test
 ```
+
+### Release validation
+
+The release validation drives every task through the UI in Chrome and checks its
+output against known answers (a dog is found in the dog photo, the French
+sentence is detected as French, and so on). It needs Google Chrome installed and
+downloads about 3 GB of models on the first run.
+
+```bash
+pnpm run validate:release                                # all tasks, this machine's GPU
+pnpm run validate:release --tasks vision,audio           # some domains
+pnpm run validate:release --tasks language_detector      # one task
+pnpm run validate:release --help                         # all options
+```
+
+The report is written to `release-validation-report/index.html`. The retrieval
+and decision tasks run embedding models on WebGPU and need a real GPU to finish
+in reasonable time.

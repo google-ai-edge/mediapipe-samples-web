@@ -25,6 +25,7 @@
 
 import type { QuestionKind } from '../tasks/decision-maker-json';
 import { resolveModelDownloadUrl } from './model-cache';
+import { publishTestResult } from './test-hooks';
 import {
   EMBEDDING_GEMMA_2_740M,
   EMBEDDING_GEMMA_2_TEXT_270M,
@@ -58,11 +59,6 @@ export const DECISION_MODELS: Record<
     file: EMBEDDING_GEMMA_2_740M.fileName,
     url: EMBEDDING_GEMMA_2_740M.url,
     supportsVision: true,
-  },
-  laya_s256: {
-    label: 'Laya S256',
-    file: 'laya_s256.task',
-    url: 'https://storage.googleapis.com/mediapipe-models/decision_maker/laya/float32/laya_s256/latest/laya_s256.task',
   },
 };
 
@@ -199,7 +195,22 @@ class DecisionRuntimeManager {
     const text = typeof input === 'string' ? input : (input.text ?? '');
     const imageBytes = typeof input === 'object' && input !== null ? input.imageBytes : undefined;
     return new Promise((resolve) => {
-      this.resolvers.set(id, resolve);
+      this.resolvers.set(id, (msg: any) => {
+        // Every decision of the Decision Maker pages passes through here; expose it,
+        // with the request it answers, for automated validation (see test-hooks.ts).
+        publishTestResult('decision_runtime', () => ({
+          model: this.loadedValue,
+          delegate: 'GPU',
+          kind,
+          text,
+          imageByteLength: imageBytes?.byteLength ?? 0,
+          question,
+          ok: msg?.type === 'DECIDE_RESULT',
+          error: msg?.type === 'DECIDE_RESULT' ? null : (msg?.error ?? 'unknown error'),
+          result: msg?.type === 'DECIDE_RESULT' ? msg.result : null,
+        }));
+        resolve(msg);
+      });
       this.worker!.postMessage({ type: 'DECIDE', id, kind, text, imageBytes, question });
     });
   }

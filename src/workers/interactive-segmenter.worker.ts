@@ -15,8 +15,81 @@
  */
 
 /// <reference types="vite/client" />
-import { InteractiveSegmenter, DrawingUtils } from '@mediapipe/tasks-vision';
+import { InteractiveSegmenter, DrawingUtils, MPMask, Stroke } from '@mediapipe/tasks-vision';
 import { BaseWorker } from './base-worker';
+
+/** Confidence above which a mask pixel counts as foreground. */
+const FOREGROUND_THRESHOLD = 0.5;
+
+/**
+ * Summarizes a confidence mask for automated validation: how much of the image
+ * is foreground, where the foreground lies (normalized bounding box and
+ * centroid), and how much of each stroke lies on the foreground.
+ */
+function summarizeMask(mask: MPMask, strokes: readonly Stroke[]): Record<string, unknown> {
+  const values = mask.getAsFloat32Array();
+  const { width, height } = mask;
+  let foreground = 0;
+  let nonFinite = 0;
+  let sum = 0;
+  let max = 0;
+  let minX = width;
+  let minY = height;
+  let maxX = -1;
+  let maxY = -1;
+  let sumX = 0;
+  let sumY = 0;
+  for (let i = 0; i < values.length; i++) {
+    const v = values[i];
+    if (!Number.isFinite(v)) {
+      nonFinite++;
+      continue;
+    }
+    if (v > FOREGROUND_THRESHOLD) {
+      const x = i % width;
+      const y = (i - x) / width;
+      foreground++;
+      sumX += x;
+      sumY += y;
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+    }
+    if (v > max) max = v;
+    sum += v;
+  }
+
+  const strokeStats = strokes.map((stroke) => {
+    let onForeground = 0;
+    for (const p of stroke.point) {
+      const x = Math.min(width - 1, Math.max(0, Math.round(p.x * (width - 1))));
+      const y = Math.min(height - 1, Math.max(0, Math.round(p.y * (height - 1))));
+      if (values[y * width + x] > FOREGROUND_THRESHOLD) onForeground++;
+    }
+    return {
+      brushMode: stroke.brushMode,
+      pointCount: stroke.point.length,
+      foregroundFraction: stroke.point.length > 0 ? onForeground / stroke.point.length : 0,
+    };
+  });
+
+  return {
+    width,
+    height,
+    foregroundFraction: values.length > 0 ? foreground / values.length : 0,
+    // Normalized to [0, 1]; null when the mask has no foreground.
+    foregroundBox:
+      foreground > 0
+        ? { minX: minX / width, minY: minY / height, maxX: (maxX + 1) / width, maxY: (maxY + 1) / height }
+        : null,
+    foregroundCentroid: foreground > 0 ? { x: sumX / foreground / width, y: sumY / foreground / height } : null,
+    mean: values.length > 0 ? sum / values.length : 0,
+    max,
+    nonFiniteCount: nonFinite,
+    strokes: strokeStats,
+  };
+}
 
 class InteractiveSegmenterWorker extends BaseWorker<InteractiveSegmenter> {
   private renderCanvas?: OffscreenCanvas;
@@ -117,6 +190,7 @@ class InteractiveSegmenterWorker extends BaseWorker<InteractiveSegmenter> {
         const inferenceTime = performance.now() - startTimeMs;
 
         let maskBitmap: ImageBitmap | null = null;
+        let maskStats: Record<string, unknown> | null = null;
         let width = 0;
         let height = 0;
 
@@ -158,6 +232,14 @@ class InteractiveSegmenterWorker extends BaseWorker<InteractiveSegmenter> {
               console.warn('DrawingUtils drawConfidenceMask failed:', e);
             }
           }
+          if (rest.collectMaskStats) {
+            // Summarize the raw mask for automated validation (see test-hooks.ts).
+            try {
+              maskStats = summarizeMask(mask, strokeList);
+            } catch (e: any) {
+              maskStats = { error: e?.message || String(e) };
+            }
+          }
           mask.close();
         }
 
@@ -169,6 +251,7 @@ class InteractiveSegmenterWorker extends BaseWorker<InteractiveSegmenter> {
             height,
             inferenceTime,
             reqId: rest.reqId,
+            maskStats,
           },
           maskBitmap ? [maskBitmap] : []
         );
