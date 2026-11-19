@@ -75,7 +75,7 @@ class GestureRecognizerTask extends BaseVisionTask {
     // Custom model options
     this.models = {
       gesture_recognizer:
-        'https://storage.googleapis.com/mediapipe-models/gesture_recognizer/gesture_recognizer/float16/1/gesture_recognizer.task',
+        'https://huggingface.co/litert-community/MediaPipe-GestureRecognizer/resolve/main/gesture_recognizer.task',
     };
 
     if (this.modelSelector) {
@@ -201,7 +201,7 @@ export async function setupGestureRecognizer(container: HTMLElement) {
     template,
     defaultModelName: 'gesture_recognizer',
     defaultModelUrl:
-      'https://storage.googleapis.com/mediapipe-models/gesture_recognizer/gesture_recognizer/float16/1/gesture_recognizer.task',
+      'https://huggingface.co/litert-community/MediaPipe-GestureRecognizer/resolve/main/gesture_recognizer.task',
     workerFactory: () =>
       new Worker(new URL('../workers/gesture-recognizer.worker.ts', import.meta.url), { type: 'module' }),
   });

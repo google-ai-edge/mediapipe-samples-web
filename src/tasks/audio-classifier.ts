@@ -81,7 +81,7 @@ class AudioClassifierTask extends BaseAudioTask {
     this.currentDelegate = 'GPU';
 
     this.models = {
-      yamnet: 'https://storage.googleapis.com/mediapipe-models/audio_classifier/yamnet/float32/1/yamnet.tflite',
+      yamnet: 'https://huggingface.co/litert-community/MediaPipe-AudioClassifier-YAMNet/resolve/main/yamnet.tflite',
     };
 
     if (this.modelSelector) {
@@ -286,7 +286,8 @@ export async function setupAudioClassifier(container: HTMLElement) {
     container,
     template,
     defaultModelName: 'yamnet',
-    defaultModelUrl: 'https://storage.googleapis.com/mediapipe-models/audio_classifier/yamnet/float32/1/yamnet.tflite',
+    defaultModelUrl:
+      'https://huggingface.co/litert-community/MediaPipe-AudioClassifier-YAMNet/resolve/main/yamnet.tflite',
     workerFactory: () =>
       new Worker(new URL('../workers/audio-classifier.worker.ts', import.meta.url), { type: 'module' }),
     defaultDelegate: 'GPU',

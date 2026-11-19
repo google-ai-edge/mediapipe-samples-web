@@ -36,22 +36,38 @@ async function downloadFile(fileName: string, url: string): Promise<string> {
 
     console.log(`Downloading ${fileName} from ${url}...`);
 
+    // Hugging Face answers with a redirect to its CDN, so follow redirects.
+    const maxRedirects = 5;
     return new Promise((resolve, reject) => {
-        const file = fs.createWriteStream(filePath);
-        https.get(url, (response) => {
-            if (response.statusCode !== 200) {
-                reject(new Error(`Failed to download ${url}: ${response.statusCode}`));
-                return;
-            }
-            response.pipe(file);
-            file.on('finish', () => {
-                file.close();
-                resolve(filePath);
+        const request = (currentUrl: string, redirectsLeft: number) => {
+            https.get(currentUrl, (response) => {
+                const status = response.statusCode ?? 0;
+                if (status >= 300 && status < 400 && response.headers.location) {
+                    response.resume(); // Discard the redirect body.
+                    if (redirectsLeft === 0) {
+                        reject(new Error(`Failed to download ${url}: too many redirects`));
+                        return;
+                    }
+                    request(new URL(response.headers.location, currentUrl).href, redirectsLeft - 1);
+                    return;
+                }
+                if (status !== 200) {
+                    response.resume();
+                    reject(new Error(`Failed to download ${url}: ${status}`));
+                    return;
+                }
+                const file = fs.createWriteStream(filePath);
+                response.pipe(file);
+                file.on('finish', () => {
+                    file.close();
+                    resolve(filePath);
+                });
+            }).on('error', (err) => {
+                fs.unlink(filePath, () => {}); // Delete the file async.
+                reject(err);
             });
-        }).on('error', (err) => {
-            fs.unlink(filePath, () => {}); // Delete the file async.
-            reject(err);
-        });
+        };
+        request(url, maxRedirects);
     });
 }
 
@@ -60,51 +76,51 @@ export default async function globalSetup() {
 
         {
             name: 'efficientdet_lite0.tflite',
-            url: 'https://storage.googleapis.com/mediapipe-models/object_detector/efficientdet_lite0/float32/1/efficientdet_lite0.tflite'
+            url: 'https://huggingface.co/litert-community/MediaPipe-ObjectDetector-EfficientDet-Lite0/resolve/main/efficientdet_lite0_float32.tflite'
         },
         {
             name: 'efficientdet_lite2.tflite',
-            url: 'https://storage.googleapis.com/mediapipe-models/object_detector/efficientdet_lite2/float32/1/efficientdet_lite2.tflite'
+            url: 'https://huggingface.co/litert-community/MediaPipe-ObjectDetector-EfficientDet-Lite2/resolve/main/efficientdet_lite2_float32.tflite'
         },
         {
             name: 'deeplab_v3.tflite',
-            url: 'https://storage.googleapis.com/mediapipe-models/image_segmenter/deeplab_v3/float32/1/deeplab_v3.tflite'
+            url: 'https://huggingface.co/litert-community/MediaPipe-ImageSegmenter-DeepLab-V3/resolve/main/deeplab_v3.tflite'
         },
         {
             name: 'hair_segmenter.tflite',
-            url: 'https://storage.googleapis.com/mediapipe-models/image_segmenter/hair_segmenter/float32/1/hair_segmenter.tflite'
+            url: 'https://huggingface.co/litert-community/MediaPipe-ImageSegmenter-Hair/resolve/main/hair_segmenter.tflite'
         },
         {
             name: 'yamnet.tflite',
-            url: 'https://storage.googleapis.com/mediapipe-models/audio_classifier/yamnet/float32/1/yamnet.tflite'
+            url: 'https://huggingface.co/litert-community/MediaPipe-AudioClassifier-YAMNet/resolve/main/yamnet.tflite'
         },
         {
             name: 'bert_classifier.tflite',
-            url: 'https://storage.googleapis.com/mediapipe-models/text_classifier/bert_classifier/float32/1/bert_classifier.tflite'
+            url: 'https://huggingface.co/litert-community/MediaPipe-TextClassifier-MobileBERT/resolve/main/bert_classifier.tflite'
         },
         {
             name: 'average_word_classifier.tflite',
-            url: 'https://storage.googleapis.com/mediapipe-models/text_classifier/average_word_classifier/float32/1/average_word_classifier.tflite'
+            url: 'https://huggingface.co/litert-community/MediaPipe-TextClassifier-AverageWord/resolve/main/average_word_classifier.tflite'
         },
         {
             name: 'universal_sentence_encoder.tflite',
-            url: 'https://storage.googleapis.com/mediapipe-models/text_embedder/universal_sentence_encoder/float32/1/universal_sentence_encoder.tflite'
+            url: 'https://huggingface.co/litert-community/MediaPipe-TextEmbedder-Universal-Sentence-Encoder/resolve/main/universal_sentence_encoder.tflite'
         },
         {
             name: 'blaze_face_short_range.tflite',
-            url: 'https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite'
+            url: 'https://huggingface.co/litert-community/MediaPipe-FaceDetector-BlazeFace-Short-Range/resolve/main/blaze_face_short_range.tflite'
         },
         {
             name: 'language_detector.tflite',
-            url: 'https://storage.googleapis.com/mediapipe-models/language_detector/language_detector/float32/1/language_detector.tflite'
+            url: 'https://huggingface.co/litert-community/MediaPipe-LanguageDetector/resolve/main/language_detector.tflite'
         },
         {
             name: 'mobilenet_v3_small.tflite',
-            url: 'https://storage.googleapis.com/mediapipe-models/image_embedder/mobilenet_v3_small/float32/1/mobilenet_v3_small.tflite'
+            url: 'https://huggingface.co/litert-community/MediaPipe-ImageEmbedder-MobileNet-V3-Small/resolve/main/mobilenet_v3_small.tflite'
         },
         {
             name: 'mobilenet_v3_large.tflite',
-            url: 'https://storage.googleapis.com/mediapipe-models/image_embedder/mobilenet_v3_large/float32/1/mobilenet_v3_large.tflite'
+            url: 'https://huggingface.co/litert-community/MediaPipe-ImageEmbedder-MobileNet-V3-Large/resolve/main/mobilenet_v3_large.tflite'
         }
     ];
 

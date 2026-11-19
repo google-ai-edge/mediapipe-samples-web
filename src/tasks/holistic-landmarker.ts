@@ -130,7 +130,7 @@ export async function setupHolisticLandmarker(container: HTMLElement) {
     template,
     defaultModelName: 'holistic_landmarker_lite',
     defaultModelUrl:
-      'https://storage.googleapis.com/mediapipe-models/holistic_landmarker/holistic_landmarker/float16/1/holistic_landmarker.task',
+      'https://huggingface.co/litert-community/MediaPipe-HolisticLandmarker/resolve/main/holistic_landmarker.task',
     defaultDelegate: 'GPU',
     workerFactory: () =>
       new Worker(new URL('../workers/holistic-landmarker.worker.ts', import.meta.url), { type: 'module' }),

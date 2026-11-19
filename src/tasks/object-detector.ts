@@ -53,11 +53,11 @@ class ObjectDetectorTask extends BaseVisionTask {
     // Custom model options for Object Detection
     this.models = {
       efficientdet_lite0:
-        'https://storage.googleapis.com/mediapipe-models/object_detector/efficientdet_lite0/float32/1/efficientdet_lite0.tflite',
+        'https://huggingface.co/litert-community/MediaPipe-ObjectDetector-EfficientDet-Lite0/resolve/main/efficientdet_lite0_float32.tflite',
       efficientdet_lite2:
-        'https://storage.googleapis.com/mediapipe-models/object_detector/efficientdet_lite2/float32/1/efficientdet_lite2.tflite',
+        'https://huggingface.co/litert-community/MediaPipe-ObjectDetector-EfficientDet-Lite2/resolve/main/efficientdet_lite2_float32.tflite',
       ssd_mobilenet_v2:
-        'https://storage.googleapis.com/mediapipe-models/object_detector/ssd_mobilenet_v2/float32/1/ssd_mobilenet_v2.tflite',
+        'https://huggingface.co/litert-community/MediaPipe-ObjectDetector-SSD-MobileNet-V2/resolve/main/ssd_mobilenet_v2_float32.tflite',
     };
 
     if (this.modelSelector) {
@@ -191,12 +191,12 @@ export async function setupObjectDetector(container: HTMLElement) {
     template,
     defaultModelName: 'efficientdet_lite0',
     defaultModelUrl:
-      'https://storage.googleapis.com/mediapipe-models/object_detector/efficientdet_lite0/float32/1/efficientdet_lite0.tflite',
+      'https://huggingface.co/litert-community/MediaPipe-ObjectDetector-EfficientDet-Lite0/resolve/main/efficientdet_lite0_float32.tflite',
     models: {
       efficientdet_lite2:
-        'https://storage.googleapis.com/mediapipe-models/object_detector/efficientdet_lite2/float32/1/efficientdet_lite2.tflite',
+        'https://huggingface.co/litert-community/MediaPipe-ObjectDetector-EfficientDet-Lite2/resolve/main/efficientdet_lite2_float32.tflite',
       ssd_mobilenet_v2:
-        'https://storage.googleapis.com/mediapipe-models/object_detector/ssd_mobilenet_v2/float16/1/ssd_mobilenet_v2.tflite',
+        'https://huggingface.co/litert-community/MediaPipe-ObjectDetector-SSD-MobileNet-V2/resolve/main/ssd_mobilenet_v2_float16.tflite',
     },
     workerFactory: () =>
       new Worker(new URL('../workers/object-detector.worker.ts', import.meta.url), { type: 'module' }),

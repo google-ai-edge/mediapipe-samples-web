@@ -753,9 +753,9 @@ export const DEFAULT_NO_FACE_REASON = 'No face detected in frame';
 export const DEFAULT_BOTTOM_CUTOFF_REASON = 'Face too low / chin cut off';
 
 const SELFIE_MULTICLASS_MODEL_URL =
-  'https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_multiclass_256x256/float32/latest/selfie_multiclass_256x256.tflite';
+  'https://huggingface.co/litert-community/MediaPipe-ImageSegmenter-Selfie-Multiclass/resolve/main/selfie_multiclass_256x256.tflite';
 const SELFIE_SEGMENTER_MODEL_URL =
-  'https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter/float16/latest/selfie_segmenter.tflite';
+  'https://huggingface.co/litert-community/MediaPipe-ImageSegmenter-Selfie-Square/resolve/main/selfie_segmenter.tflite';
 
 export class DecisionVisionPlayground {
   private el: Record<string, HTMLElement> = {};
