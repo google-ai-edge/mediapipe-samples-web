@@ -149,6 +149,16 @@ function useHardwareGpu() {
   return (process.env.RELEASE_VALIDATION_GPU || 'software').toLowerCase() === 'hardware';
 }
 
+/**
+ * The fake camera and microphone replace capture only. A page that records
+ * from the microphone, or plays speech, still runs an AudioContext against the
+ * machine's sound output; the `--mute-audio` that Playwright adds in headless
+ * mode silences that output but Chrome still opens it. This flag makes Chrome
+ * render to a fake output at real time instead, so those cases do not need
+ * working sound hardware.
+ */
+const FAKE_AUDIO_OUTPUT_ARG = '--disable-audio-output';
+
 function buildChromeLaunchArgs(extra = []) {
   return [
     ...(useHardwareGpu() ? [] : ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader']),
@@ -156,6 +166,7 @@ function buildChromeLaunchArgs(extra = []) {
     '--enable-unsafe-webgpu',
     '--use-fake-ui-for-media-stream',
     '--use-fake-device-for-media-stream',
+    FAKE_AUDIO_OUTPUT_ARG,
     '--no-sandbox',
     ...extra,
   ];
@@ -176,6 +187,7 @@ async function probeChromeCapabilities(userDataDir) {
         '--enable-features=Vulkan',
         '--use-fake-ui-for-media-stream',
         '--use-fake-device-for-media-stream',
+        FAKE_AUDIO_OUTPUT_ARG,
         '--no-sandbox',
       ],
     });
@@ -575,6 +587,38 @@ async function cleanupWebcamIfActive(page) {
   }
 }
 
+/** How long the page may take to start recording once Record is pressed. */
+const RECORDING_START_TIMEOUT_MS = 15000;
+
+/**
+ * Presses Record and returns the button once the page is recording, which the
+ * page shows by marking the button (it then reads "Stop Recording"). Fails if
+ * the page reports a microphone error or has not started in time. Without this
+ * check the next press, meant to stop, starts a second recording instead, and
+ * the case fails later with an error that does not name the cause.
+ */
+async function startMicRecording(page) {
+  const recBtn = page.locator('#recordButton');
+  await waitForCondition(async () => await recBtn.isEnabled(), { timeoutMs: 20000, description: 'recordButton enabled' });
+  await recBtn.click();
+  const outcome = await waitForCondition(
+    async () => {
+      if (await recBtn.evaluate((el) => el.classList.contains('recording'), undefined, { timeout: 1000 })) return 'recording';
+      return /^Mic Error\b/i.test(await readText(page, '#status-message')) ? 'failed' : false;
+    },
+    { timeoutMs: RECORDING_START_TIMEOUT_MS, intervalMs: 100, description: 'the recording to start' }
+  ).catch(() => 'timed out');
+  if (outcome !== 'recording') {
+    const status = await readText(page, '#status-message');
+    throw new Error(
+      outcome === 'failed'
+        ? `The page could not start recording from the microphone (status: "${status}")`
+        : `The page did not start recording within ${RECORDING_START_TIMEOUT_MS}ms of pressing Record (status: "${status}")`
+    );
+  }
+  return recBtn;
+}
+
 async function runSingleCheck(page, baseUrl, testCase, { screenshotDir, timeoutScale = 1 }) {
   const loadTimeoutMs = (testCase.largeModel ? 600000 : 120000) * timeoutScale;
   const infTimeoutMs = (testCase.largeModel ? 120000 : 60000) * timeoutScale;
@@ -797,9 +841,7 @@ async function runSingleCheck(page, baseUrl, testCase, { screenshotDir, timeoutS
         ui: await readClassificationRows(page, '#classification-results'),
       };
     } else {
-      const recBtn = page.locator('#recordButton');
-      await waitForCondition(async () => await recBtn.isEnabled(), { timeoutMs: 20000, description: 'recordButton enabled' });
-      await recBtn.click();
+      const recBtn = await startMicRecording(page);
       // Collect every live result, and what the page shows, while the clip plays.
       const hooks = [];
       const uiLabels = [];
@@ -849,9 +891,7 @@ async function runSingleCheck(page, baseUrl, testCase, { screenshotDir, timeoutS
       );
       details = await readText(page, '#status-message');
     } else {
-      const recBtn = page.locator('#recordButton');
-      await waitForCondition(async () => await recBtn.isEnabled(), { timeoutMs: 20000, description: 'recordButton enabled' });
-      await recBtn.click();
+      const recBtn = await startMicRecording(page);
       // Long enough for the fake microphone to play the whole 4.27 s clip.
       await page.waitForTimeout(6000);
       details = `mic active (${await readText(page, '#status-message')})`;
