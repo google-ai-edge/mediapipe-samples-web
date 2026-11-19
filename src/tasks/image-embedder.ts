@@ -97,9 +97,9 @@ class ImageEmbedderTask extends BaseVisionTask {
 
     this.models = {
       mobilenet_v3_small:
-        'https://storage.googleapis.com/mediapipe-models/image_embedder/mobilenet_v3_small/float32/1/mobilenet_v3_small.tflite',
+        'https://huggingface.co/litert-community/MediaPipe-ImageEmbedder-MobileNet-V3-Small/resolve/main/mobilenet_v3_small.tflite',
       mobilenet_v3_large:
-        'https://storage.googleapis.com/mediapipe-models/image_embedder/mobilenet_v3_large/float32/1/mobilenet_v3_large.tflite',
+        'https://huggingface.co/litert-community/MediaPipe-ImageEmbedder-MobileNet-V3-Large/resolve/main/mobilenet_v3_large.tflite',
     };
 
     if (this.modelSelector) {
@@ -212,10 +212,10 @@ export async function setupImageEmbedder(container: HTMLElement) {
     template,
     defaultModelName: 'mobilenet_v3_small',
     defaultModelUrl:
-      'https://storage.googleapis.com/mediapipe-models/image_embedder/mobilenet_v3_small/float32/1/mobilenet_v3_small.tflite',
+      'https://huggingface.co/litert-community/MediaPipe-ImageEmbedder-MobileNet-V3-Small/resolve/main/mobilenet_v3_small.tflite',
     models: {
       mobilenet_v3_large:
-        'https://storage.googleapis.com/mediapipe-models/image_embedder/mobilenet_v3_large/float32/1/mobilenet_v3_large.tflite',
+        'https://huggingface.co/litert-community/MediaPipe-ImageEmbedder-MobileNet-V3-Large/resolve/main/mobilenet_v3_large.tflite',
     },
     workerFactory: () =>
       new Worker(new URL('../workers/image-embedder.worker.ts', import.meta.url), { type: 'module' }),

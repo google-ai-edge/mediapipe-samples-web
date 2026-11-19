@@ -71,7 +71,7 @@ class HandLandmarkerTask extends BaseVisionTask {
     // Custom model options for Hand Landmarker
     this.models = {
       hand_landmarker:
-        'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task',
+        'https://huggingface.co/litert-community/MediaPipe-HandLandmarker-Full/resolve/main/hand_landmarker.task',
     };
 
     if (this.modelSelector) {
@@ -176,7 +176,7 @@ export async function setupHandLandmarker(container: HTMLElement) {
     template,
     defaultModelName: 'hand_landmarker',
     defaultModelUrl:
-      'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task',
+      'https://huggingface.co/litert-community/MediaPipe-HandLandmarker-Full/resolve/main/hand_landmarker.task',
     workerFactory: () =>
       new Worker(new URL('../workers/hand-landmarker.worker.ts', import.meta.url), { type: 'module' }),
   });

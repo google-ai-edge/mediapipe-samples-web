@@ -46,10 +46,10 @@ test.describe('Object Detection Task', () => {
 
   // Intercept network requests for models to serve locally
   test.beforeEach(async ({ page }) => {
-    await page.route('**/efficientdet_lite0.tflite', route => {
+    await page.route('**/efficientdet_lite0_float32.tflite', route => {
       route.fulfill({ path: path.join(__dirname, 'assets', 'efficientdet_lite0.tflite') });
     });
-    await page.route('**/efficientdet_lite2.tflite', route => {
+    await page.route('**/efficientdet_lite2_float32.tflite', route => {
       route.fulfill({ path: path.join(__dirname, 'assets', 'efficientdet_lite2.tflite') });
     });
   });

@@ -62,9 +62,9 @@ class FaceDetectorTask extends BaseVisionTask {
 
     this.models = {
       blaze_face_short_range:
-        'https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite',
+        'https://huggingface.co/litert-community/MediaPipe-FaceDetector-BlazeFace-Short-Range/resolve/main/blaze_face_short_range.tflite',
       blaze_face_full_range:
-        'https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_full_range/float16/1/blaze_face_full_range.tflite',
+        'https://huggingface.co/litert-community/MediaPipe-FaceDetector-BlazeFace-Full-Range/resolve/main/blaze_face_full_range.tflite',
     };
 
     if (this.modelSelector) {
@@ -183,7 +183,7 @@ export async function setupFaceDetector(container: HTMLElement) {
     template,
     defaultModelName: 'blaze_face_short_range',
     defaultModelUrl:
-      'https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite',
+      'https://huggingface.co/litert-community/MediaPipe-FaceDetector-BlazeFace-Short-Range/resolve/main/blaze_face_short_range.tflite',
     defaultDelegate: 'GPU',
     workerFactory: () => new Worker(new URL('../workers/face-detector.worker.ts', import.meta.url), { type: 'module' }),
   });

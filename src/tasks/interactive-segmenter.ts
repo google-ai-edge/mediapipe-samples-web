@@ -602,7 +602,7 @@ export async function setupInteractiveSegmenter(container: HTMLElement) {
     template,
     defaultModelName: 'interactive_segmentation',
     defaultModelUrl:
-      'https://storage.googleapis.com/mediapipe-models/interactive_segmenter_v2/magic_touch/int8/1/interactive_segmentation.task',
+      'https://huggingface.co/litert-community/MediaPipe-InteractiveSegmenter-MagicTouch/resolve/main/interactive_segmentation.task',
     defaultDelegate: 'GPU',
     workerFactory: () =>
       new Worker(new URL('../workers/interactive-segmenter.worker.ts', import.meta.url), { type: 'module' }),

@@ -77,7 +77,7 @@ class LanguageDetectorTask extends BaseTextTask {
 
     this.models = {
       language_detector:
-        'https://storage.googleapis.com/mediapipe-models/language_detector/language_detector/float32/1/language_detector.tflite',
+        'https://huggingface.co/litert-community/MediaPipe-LanguageDetector/resolve/main/language_detector.tflite',
     };
 
     if (this.modelSelector) {
@@ -183,7 +183,7 @@ export async function setupLanguageDetector(container: HTMLElement) {
     template,
     defaultModelName: 'language_detector',
     defaultModelUrl:
-      'https://storage.googleapis.com/mediapipe-models/language_detector/language_detector/float32/1/language_detector.tflite',
+      'https://huggingface.co/litert-community/MediaPipe-LanguageDetector/resolve/main/language_detector.tflite',
     workerFactory: () =>
       new Worker(new URL('../workers/language-detector.worker', import.meta.url), { type: 'module' }),
     defaultDelegate: 'GPU',

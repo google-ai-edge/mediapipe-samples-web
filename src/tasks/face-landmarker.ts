@@ -71,7 +71,7 @@ class FaceLandmarkerTask extends BaseVisionTask {
     // Custom model options for Face Landmarker
     this.models = {
       face_landmarker:
-        'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',
+        'https://huggingface.co/litert-community/MediaPipe-FaceLandmarker/resolve/main/face_landmarker.task',
     };
 
     if (this.modelSelector) {
@@ -179,7 +179,7 @@ export async function setupFaceLandmarker(container: HTMLElement) {
     template,
     defaultModelName: 'face_landmarker',
     defaultModelUrl:
-      'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',
+      'https://huggingface.co/litert-community/MediaPipe-FaceLandmarker/resolve/main/face_landmarker.task',
     workerFactory: () =>
       new Worker(new URL('../workers/face-landmarker.worker.ts', import.meta.url), { type: 'module' }),
   });

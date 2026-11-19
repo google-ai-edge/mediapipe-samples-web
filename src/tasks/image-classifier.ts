@@ -56,9 +56,9 @@ class ImageClassifierTask extends BaseVisionTask {
     // Custom model options
     this.models = {
       efficientnet_lite0:
-        'https://storage.googleapis.com/mediapipe-models/image_classifier/efficientnet_lite0/float32/1/efficientnet_lite0.tflite',
+        'https://huggingface.co/litert-community/MediaPipe-ImageClassifier-EfficientNet-Lite0/resolve/main/efficientnet_lite0_float32.tflite',
       efficientnet_lite2:
-        'https://storage.googleapis.com/mediapipe-models/image_classifier/efficientnet_lite2/float32/1/efficientnet_lite2.tflite',
+        'https://huggingface.co/litert-community/MediaPipe-ImageClassifier-EfficientNet-Lite2/resolve/main/efficientnet_lite2_float32.tflite',
     };
 
     if (this.modelSelector) {
@@ -129,10 +129,10 @@ export async function setupImageClassifier(container: HTMLElement) {
     template,
     defaultModelName: 'efficientnet_lite0',
     defaultModelUrl:
-      'https://storage.googleapis.com/mediapipe-models/image_classifier/efficientnet_lite0/float32/1/efficientnet_lite0.tflite',
+      'https://huggingface.co/litert-community/MediaPipe-ImageClassifier-EfficientNet-Lite0/resolve/main/efficientnet_lite0_float32.tflite',
     models: {
       efficientnet_lite2:
-        'https://storage.googleapis.com/mediapipe-models/image_classifier/efficientnet_lite2/float32/1/efficientnet_lite2.tflite',
+        'https://huggingface.co/litert-community/MediaPipe-ImageClassifier-EfficientNet-Lite2/resolve/main/efficientnet_lite2_float32.tflite',
     },
     workerFactory: () =>
       new Worker(new URL('../workers/image-classifier.worker.ts', import.meta.url), { type: 'module' }),

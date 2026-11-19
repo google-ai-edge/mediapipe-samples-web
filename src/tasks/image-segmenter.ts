@@ -47,15 +47,16 @@ const legendColors: number[][] = [
 ];
 
 const standardModels: Record<string, string> = {
-  deeplab_v3: 'https://storage.googleapis.com/mediapipe-models/image_segmenter/deeplab_v3/float32/1/deeplab_v3.tflite',
+  deeplab_v3:
+    'https://huggingface.co/litert-community/MediaPipe-ImageSegmenter-DeepLab-V3/resolve/main/deeplab_v3.tflite',
   hair_segmenter:
-    'https://storage.googleapis.com/mediapipe-models/image_segmenter/hair_segmenter/float32/1/hair_segmenter.tflite',
+    'https://huggingface.co/litert-community/MediaPipe-ImageSegmenter-Hair/resolve/main/hair_segmenter.tflite',
   selfie_segmenter:
-    'https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter/float16/latest/selfie_segmenter.tflite',
+    'https://huggingface.co/litert-community/MediaPipe-ImageSegmenter-Selfie-Square/resolve/main/selfie_segmenter.tflite',
   selfie_segmenter_landscape:
-    'https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter_landscape/float16/latest/selfie_segmenter_landscape.tflite',
+    'https://huggingface.co/litert-community/MediaPipe-ImageSegmenter-Selfie-Landscape/resolve/main/selfie_segmenter_landscape.tflite',
   selfie_multiclass:
-    'https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_multiclass_256x256/float32/latest/selfie_multiclass_256x256.tflite',
+    'https://huggingface.co/litert-community/MediaPipe-ImageSegmenter-Selfie-Multiclass/resolve/main/selfie_multiclass_256x256.tflite',
 };
 
 class ImageSegmenterTask extends BaseVisionTask {
@@ -435,12 +436,12 @@ export async function setupImageSegmenter(container: HTMLElement) {
     template,
     defaultModelName: 'deeplab_v3',
     defaultModelUrl:
-      'https://storage.googleapis.com/mediapipe-models/image_segmenter/deeplab_v3/float32/1/deeplab_v3.tflite',
+      'https://huggingface.co/litert-community/MediaPipe-ImageSegmenter-DeepLab-V3/resolve/main/deeplab_v3.tflite',
     models: {
       selfie_segmenter:
-        'https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter/float16/1/selfie_segmenter.tflite',
+        'https://huggingface.co/litert-community/MediaPipe-ImageSegmenter-Selfie-Square/resolve/main/selfie_segmenter.tflite',
       hair_segmenter:
-        'https://storage.googleapis.com/mediapipe-models/image_segmenter/hair_segmenter/float32/1/hair_segmenter.tflite',
+        'https://huggingface.co/litert-community/MediaPipe-ImageSegmenter-Hair/resolve/main/hair_segmenter.tflite',
     },
     workerFactory: () =>
       new Worker(new URL('../workers/image-segmenter.worker.ts', import.meta.url), { type: 'module' }),
