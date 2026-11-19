@@ -160,13 +160,16 @@ test.describe('Text to Speech Task', () => {
     await expect(transcript.locator('.tts-sentence')).toHaveCount(4);
 
     // Active chip has distinct background styling and clears on custom edits.
-    const activeBg = await page
-      .locator('#tts-samples button[data-sample="welcome"]')
-      .evaluate((el) => getComputedStyle(el).backgroundColor);
-    const inactiveBg = await page
-      .locator('#tts-samples button[data-sample="story"]')
-      .evaluate((el) => getComputedStyle(el).backgroundColor);
-    expect(activeBg).not.toBe(inactiveBg);
+    // `.sample-chip` uses a 0.16s CSS transition, so poll until it advances past frame 0.
+    const welcomeChip = page.locator('#tts-samples button[data-sample="welcome"]');
+    const storyChip = page.locator('#tts-samples button[data-sample="story"]');
+    await expect(async () => {
+      const [activeBg, inactiveBg] = await Promise.all([
+        welcomeChip.evaluate((el) => getComputedStyle(el).backgroundColor),
+        storyChip.evaluate((el) => getComputedStyle(el).backgroundColor),
+      ]);
+      expect(activeBg).not.toBe(inactiveBg);
+    }).toPass();
 
     await textInput.fill('Custom user utterance.');
     await expect(page.locator('#tts-samples .sample-chip.active')).toHaveCount(0);
